@@ -39,12 +39,15 @@ A name like `JUSTFORMS_S3_ENDPOINT_URL`, `_BUCKET` means `JUSTFORMS_S3_ENDPOINT_
 | `JUSTFORMS_STORAGE_BACKEND` | `local` | `local` (a volume or PVC) or `s3` |
 | `JUSTFORMS_STORAGE_LOCAL_PATH` | `data/storage` | Where `local` keeps files |
 | `JUSTFORMS_S3_ENDPOINT_URL`, `_BUCKET`, `_REGION`, `_ACCESS_KEY_ID`, `_SECRET_ACCESS_KEY`, `_ADDRESSING_STYLE` | | Any S3-compatible service (endpoint empty for AWS) |
+| `JUSTFORMS_S3_PUBLIC_ENDPOINT_URL` | `JUSTFORMS_S3_ENDPOINT_URL` | Endpoint used in the presigned upload/download URLs browsers get, when browsers reach the service at another address than the backend (for example the backend uses an internal service name and browsers a public hostname). The backend still sends every request to `JUSTFORMS_S3_ENDPOINT_URL` |
 | `JUSTFORMS_MAX_UPLOAD_MB` | `25` | Largest single upload |
 | `JUSTFORMS_UPLOAD_URL_TTL_SECONDS` | `900` | How long a started upload may take before its upload URL or token expires |
 | `JUSTFORMS_PENDING_UPLOAD_TTL_HOURS` | `24` | Uploads never attached to a submission are purged after this many hours |
 
-With S3, add the bucket's origin to `JUSTFORMS_CSP_EXTRA_CONNECT_SRC` (below) so browsers may
-upload to it directly.
+With S3, add the bucket's origin (the public endpoint when one is set) to
+`JUSTFORMS_CSP_EXTRA_CONNECT_SRC` (below) so browsers may upload to it directly; the Helm chart
+does this for you. The bucket also needs a CORS rule allowing `POST`, `GET` and `HEAD` from
+`JUSTFORMS_PUBLIC_URL`, since uploads go straight from the browser to it.
 
 ## Staff sign-in
 

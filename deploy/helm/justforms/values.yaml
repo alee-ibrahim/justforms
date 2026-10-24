@@ -143,6 +143,10 @@ storage:
 
   s3:
     endpointUrl: ""         # empty for AWS S3
+    # Endpoint for the presigned URLs browsers use, when they reach the service at another
+    # address than the backend (e.g. backend: in-cluster Service, browsers: public hostname).
+    # Also the origin added to the frontend CSP. Empty: endpointUrl.
+    publicEndpointUrl: ""
     region: us-east-1
     bucket: ""              # required when backend is s3
     addressingStyle: auto   # path | virtual | auto

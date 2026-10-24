@@ -205,6 +205,7 @@ unless noted.
 | `storage.local.persistence.existingClaim` | `""` | Use an existing PVC |
 | `storage.local.persistence.size` / `.storageClass` / `.accessModes` | `10Gi` / `""` / `[ReadWriteOnce]` | |
 | `storage.s3.endpointUrl` | `""` | `JUSTFORMS_S3_ENDPOINT_URL` (empty: AWS) |
+| `storage.s3.publicEndpointUrl` | `""` | `JUSTFORMS_S3_PUBLIC_ENDPOINT_URL`: endpoint in presigned URLs for browsers when it differs from `endpointUrl` (e.g. in-cluster Service for the backend, public hostname for browsers). The CSP then allows this origin instead |
 | `storage.s3.region` | `us-east-1` | `JUSTFORMS_S3_REGION` |
 | `storage.s3.bucket` | `""` | `JUSTFORMS_S3_BUCKET` (required for s3) |
 | `storage.s3.addressingStyle` | `auto` | `JUSTFORMS_S3_ADDRESSING_STYLE`: `auto`, `path`, `virtual` |

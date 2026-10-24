@@ -289,6 +289,10 @@
               "type": "string",
               "pattern": "^(|https?://.*)$"
             },
+            "publicEndpointUrl": {
+              "type": "string",
+              "pattern": "^(|https?://.*)$"
+            },
             "region": {
               "type": "string"
             },

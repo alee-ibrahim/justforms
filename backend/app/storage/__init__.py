@@ -47,6 +47,7 @@ def build_storage(settings: Settings) -> Storage:
         return S3Storage(
             bucket=settings.s3_bucket,
             endpoint_url=settings.s3_endpoint_url,
+            public_endpoint_url=settings.s3_public_endpoint_url,
             region=settings.s3_region,
             access_key_id=settings.s3_access_key_id,
             secret_access_key=settings.s3_secret_access_key,

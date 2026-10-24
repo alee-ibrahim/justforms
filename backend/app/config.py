@@ -135,6 +135,10 @@ class Settings(BaseSettings):
 
     # S3 backend only. Leave the endpoint empty for AWS S3.
     s3_endpoint_url: str | None = None
+    # Endpoint put into presigned upload/download URLs, for when browsers reach the service at
+    # another address than the backend does (e.g. the backend uses an internal service name and
+    # browsers a public hostname). Empty: presigned URLs use s3_endpoint_url.
+    s3_public_endpoint_url: str | None = None
     s3_region: str = "us-east-1"
     s3_bucket: str = ""
     s3_access_key_id: str = ""

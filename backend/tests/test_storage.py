@@ -198,3 +198,41 @@ async def test_s3_presigned_urls_are_generated_offline() -> None:
     assert url.startswith("https://s3.example.org/justforms/files/a/b?")
     assert "X-Amz-Signature=" in url
     assert "attachment" in url
+
+
+async def test_s3_public_endpoint_signs_browser_urls_only() -> None:
+    from app.storage.s3 import S3Storage
+
+    settings = Settings(
+        _env_file=None,
+        storage_backend="s3",
+        s3_bucket="justforms",
+        s3_endpoint_url="http://objects.internal:9000",
+        s3_public_endpoint_url="https://files.example.org",
+        s3_access_key_id="test",
+        s3_secret_access_key="test",
+        s3_addressing_style="path",
+    )
+    storage = build_storage(settings)
+    assert isinstance(storage, S3Storage)
+    # Object operations stay on the internal endpoint ...
+    assert storage.client.meta.endpoint_url == "http://objects.internal:9000"
+    # ... while browsers get URLs for the public one.
+    upload = await storage.presign_upload("tmp/f/1", content_type="image/png", max_bytes=1024)
+    assert upload is not None
+    assert upload.url == "https://files.example.org/justforms"
+    url = await storage.presign_download("files/a/b")
+    assert url is not None
+    assert url.startswith("https://files.example.org/justforms/files/a/b?")
+
+
+def test_s3_without_public_endpoint_uses_one_client() -> None:
+    from app.storage.s3 import S3Storage
+
+    storage = S3Storage(
+        bucket="justforms",
+        endpoint_url="https://s3.example.org",
+        access_key_id="test",
+        secret_access_key="test",
+    )
+    assert storage.presign_client is storage.client

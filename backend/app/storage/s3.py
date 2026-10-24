@@ -2,6 +2,10 @@
 
 Browsers upload with presigned POST (which can enforce a size range) and download through
 short-lived presigned GET URLs, so file bytes do not pass through the API.
+
+``public_endpoint_url`` (optional) is the address browsers use when it differs from the one the
+backend talks to. Presigning is offline, so a second client signs URLs for that host while all
+object operations keep using ``endpoint_url``.
 """
 
 from collections.abc import AsyncIterator
@@ -53,6 +57,7 @@ class S3Storage(Storage):
         *,
         bucket: str,
         endpoint_url: str | None = None,
+        public_endpoint_url: str | None = None,
         region: str | None = None,
         access_key_id: str = "",
         secret_access_key: str = "",
@@ -62,13 +67,23 @@ class S3Storage(Storage):
         if not bucket:
             raise ValueError("JUSTFORMS_S3_BUCKET is required for the s3 storage backend")
         self.bucket = bucket
-        self.client = client or boto3.client(
-            "s3",
-            endpoint_url=endpoint_url or None,
-            region_name=region or None,
-            aws_access_key_id=access_key_id or None,
-            aws_secret_access_key=secret_access_key or None,
-            config=Config(signature_version="s3v4", s3={"addressing_style": addressing_style}),
+
+        def make_client(endpoint: str | None) -> Any:
+            return boto3.client(
+                "s3",
+                endpoint_url=endpoint or None,
+                region_name=region or None,
+                aws_access_key_id=access_key_id or None,
+                aws_secret_access_key=secret_access_key or None,
+                config=Config(signature_version="s3v4", s3={"addressing_style": addressing_style}),
+            )
+
+        self.client = client or make_client(endpoint_url)
+        # Signs the URLs handed to browsers; the same client unless a public endpoint is set.
+        self.presign_client = (
+            make_client(public_endpoint_url)
+            if public_endpoint_url and public_endpoint_url != endpoint_url
+            else self.client
         )
 
     @property
@@ -168,7 +183,7 @@ class S3Storage(Storage):
     ) -> PresignedUpload:
         validate_key(key)
         res = await to_thread.run_sync(
-            lambda: self.client.generate_presigned_post(
+            lambda: self.presign_client.generate_presigned_post(
                 Bucket=self.bucket,
                 Key=key,
                 Fields={"Content-Type": content_type},
@@ -194,7 +209,7 @@ class S3Storage(Storage):
             safe = filename.replace('"', "").replace("\\", "")
             params["ResponseContentDisposition"] = f'attachment; filename="{safe}"'
         return await to_thread.run_sync(
-            lambda: self.client.generate_presigned_url(
+            lambda: self.presign_client.generate_presigned_url(
                 "get_object", Params=params, ExpiresIn=expires_in
             )
         )

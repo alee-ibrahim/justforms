@@ -240,6 +240,10 @@ env:
   - name: JUSTFORMS_S3_ENDPOINT_URL
     value: {{ . | quote }}
   {{- end }}
+  {{- with $storage.s3.publicEndpointUrl }}
+  - name: JUSTFORMS_S3_PUBLIC_ENDPOINT_URL
+    value: {{ . | quote }}
+  {{- end }}
   - name: JUSTFORMS_S3_REGION
     value: {{ $storage.s3.region | quote }}
   - name: JUSTFORMS_S3_BUCKET
@@ -428,13 +432,15 @@ topologySpreadConstraints:
 Frontend CSP helpers
 --------------------------------------------------------------------------------- */}}
 
-{{/* Origins the browser reaches for presigned S3 uploads/downloads (space-separated). */}}
+{{/* Origins the browser reaches for presigned S3 uploads/downloads (space-separated).
+     Presigned URLs use publicEndpointUrl when set, else endpointUrl. */}}
 {{- define "justforms.s3Origins" -}}
 {{- $s3 := .Values.storage.s3 -}}
 {{- $origins := list -}}
 {{- if eq .Values.storage.backend "s3" -}}
-{{- if $s3.endpointUrl -}}
-{{- $u := urlParse $s3.endpointUrl -}}
+{{- $endpoint := $s3.publicEndpointUrl | default $s3.endpointUrl -}}
+{{- if $endpoint -}}
+{{- $u := urlParse $endpoint -}}
 {{- $scheme := default "https" $u.scheme -}}
 {{- if ne $s3.addressingStyle "virtual" -}}
 {{- $origins = append $origins (printf "%s://%s" $scheme $u.host) -}}
