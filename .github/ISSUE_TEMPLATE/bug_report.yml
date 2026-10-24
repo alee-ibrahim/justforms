@@ -1,0 +1,51 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to …
+        2. Click …
+        3. See …
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Builder (studio)
+        - Public form
+        - Submissions / export
+        - Approvals
+        - Signed PDF / verify page
+        - Emails / webhooks
+        - AI assistant
+        - Jotform import
+        - Branding / themes
+        - Deployment (Compose / Helm)
+        - Other
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: Browser and device, deployment method, form language (English or Dhivehi).
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or logs
+      description: Remove any personal data first.

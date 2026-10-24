@@ -68,8 +68,9 @@ http://localhost:8025.
 - [Deployment](docs/deployment.md): Docker Compose, tunnels, Helm, upgrades and backups
 - [Development](docs/development.md): local setup, tests, project structure, contributing
 - [Security](docs/security.md): security model and verifying signed PDFs
+- [Contributing](CONTRIBUTING.md): how to report issues and send pull requests
 - [All docs](docs/README.md), including the design document and webhooks reference
 
 ## Licence
 
-[AGPL-3.0](LICENSE). Contributions are accepted under the same licence.
+[AGPL-3.0](LICENSE). Contributions are welcome under the same licence; see [CONTRIBUTING.md](CONTRIBUTING.md).

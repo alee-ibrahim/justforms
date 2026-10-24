@@ -20,4 +20,5 @@ Start with the [project README](../README.md) for a summary and the quickstart.
 | [Design](DESIGN.md) | The design document: architecture, form schema, logic engine, signing, AI, importers |
 | [UX notes](ux/) | Screen specs and review checklists; start with the [design system](ux/DESIGN-SYSTEM.md) |
 | [Brand](brand/README.md) | The logo, its variants and usage rules |
+| [Contributing](../CONTRIBUTING.md) | Reporting issues and sending pull requests |
 | [Project conventions](../CLAUDE.md) | Hard rules and conventions for contributors |

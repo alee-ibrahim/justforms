@@ -108,6 +108,6 @@ UI work follows the [design system](ux/DESIGN-SYSTEM.md) and the
 
 ## Contributing
 
-Issues and pull requests are welcome. Run `just lint` and `just test` before opening a pull
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for the full guide. In short, run `just lint` and `just test` before opening a pull
 request, and `pnpm check:bundle` in `frontend/` after a build when you touch the public form.
 Contributions are accepted under the [AGPL-3.0](../LICENSE).
