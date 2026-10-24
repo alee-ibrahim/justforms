@@ -1,0 +1,51 @@
+# Development overlay: a local Keycloak as the OIDC provider for staff login.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.keycloak.yml up -d --build
+#
+# Realm "justforms" is imported from keycloak/justforms-realm.json with:
+#   - confidential client "justforms" (secret: KEYCLOAK_DEV_CLIENT_SECRET)
+#   - groups justforms-admins / justforms-users, mapped to org admin / member
+#   - users "admin" (justforms-admins) and "member" (justforms-users), password
+#     KEYCLOAK_DEV_USER_PASSWORD
+# For development only: start-dev, HTTP, embedded H2 database.
+#
+# The browser reaches Keycloak at http://localhost:${KEYCLOAK_PORT}; the backend fetches
+# discovery, tokens and keys over the internal network (backchannel), while the issuer
+# stays the browser-facing URL.
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    command: start-dev --import-realm
+    restart: unless-stopped
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-kcadmin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD in .env}
+      KC_HOSTNAME: http://localhost:${KEYCLOAK_PORT:-8081}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HEALTH_ENABLED: "true"
+      JUSTFORMS_REDIRECT_URI: ${JUSTFORMS_PUBLIC_URL:-http://localhost:8080}/api/v1/auth/callback
+      JUSTFORMS_POST_LOGOUT_URI: ${JUSTFORMS_PUBLIC_URL:-http://localhost:8080}/login
+      JUSTFORMS_CLIENT_SECRET: ${KEYCLOAK_DEV_CLIENT_SECRET:?set KEYCLOAK_DEV_CLIENT_SECRET in .env}
+      JUSTFORMS_DEV_USER_PASSWORD: ${KEYCLOAK_DEV_USER_PASSWORD:?set KEYCLOAK_DEV_USER_PASSWORD in .env}
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+    ports:
+      - "127.0.0.1:${KEYCLOAK_PORT:-8081}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+
+  backend:
+    environment:
+      JUSTFORMS_OIDC_ISSUER: http://localhost:${KEYCLOAK_PORT:-8081}/realms/justforms
+      JUSTFORMS_OIDC_DISCOVERY_URL: http://keycloak:8080/realms/justforms/.well-known/openid-configuration
+      JUSTFORMS_OIDC_CLIENT_ID: justforms
+      JUSTFORMS_OIDC_CLIENT_SECRET: ${KEYCLOAK_DEV_CLIENT_SECRET}
+      JUSTFORMS_OIDC_ADMIN_GROUPS: justforms-admins
+      JUSTFORMS_OIDC_CREATOR_GROUPS: justforms-users
+    depends_on:
+      keycloak:
+        condition: service_healthy

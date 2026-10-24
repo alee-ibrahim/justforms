@@ -1,0 +1,13 @@
+{
+  "description": "Webhook signature test vectors. HMAC-SHA256 keyed with the whole secret string (UTF-8) over '{id}.{timestamp}.{body}'; body is the exact UTF-8 request body.",
+  "secret": "whsec_dGVzdC1zZWNyZXQtZG8tbm90LXVzZS1pbi1wcm9kdWN0aW9uISE",
+  "previousSecret": "whsec_b2xkLXRlc3Qtc2VjcmV0LWRvLW5vdC11c2UtaW4tcHJvZHVjdGlvbg",
+  "headers": {
+    "JustForms-Webhook-Id": "evt_0192f0a1b2c37d4e8f901a2b3c4d5e6f",
+    "JustForms-Webhook-Timestamp": "1761207302",
+    "JustForms-Webhook-Signature": "v1=c84e7add00140f53bc25e4808620e3c3e4dc7dc4029b01a5e14780bffc125596,v1=906a804141c9289f1cbf6460202d2adc882c7bb431e000793725f8e6d938309e"
+  },
+  "body": "{\"id\":\"evt_0192f0a1b2c37d4e8f901a2b3c4d5e6f\",\"type\":\"submission.created\",\"createdAt\":\"2025-10-23T08:15:02Z\",\"form\":{\"id\":\"0192f0a1-0000-7000-8000-000000000001\",\"slug\":\"youth-programme\",\"version\":3},\"submission\":{\"id\":\"0192f0a1-0000-7000-8000-000000000002\",\"seq\":142,\"status\":\"new\",\"language\":\"dv\",\"data\":{\"full_name\":\"ޢާއިޝަތު\",\"national_id\":\"[redacted]\"}}}",
+  "now": 1761207362,
+  "expectedSignature": "c84e7add00140f53bc25e4808620e3c3e4dc7dc4029b01a5e14780bffc125596"
+}

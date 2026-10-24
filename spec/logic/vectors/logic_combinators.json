@@ -1,0 +1,347 @@
+{
+  "name": "logic_combinators",
+  "description": "all (empty = true), any (empty = false), not, and nesting",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "a",
+            "type": "yes_no",
+            "label": "a"
+          },
+          {
+            "kind": "field",
+            "id": "b",
+            "type": "yes_no",
+            "label": "b"
+          },
+          {
+            "kind": "field",
+            "id": "c",
+            "type": "number",
+            "label": "c"
+          },
+          {
+            "kind": "content",
+            "id": "all_empty",
+            "contentType": "paragraph",
+            "text": "all_empty",
+            "visibleIf": {
+              "all": []
+            }
+          },
+          {
+            "kind": "content",
+            "id": "any_empty",
+            "contentType": "paragraph",
+            "text": "any_empty",
+            "visibleIf": {
+              "any": []
+            }
+          },
+          {
+            "kind": "content",
+            "id": "not_any_empty",
+            "contentType": "paragraph",
+            "text": "not_any_empty",
+            "visibleIf": {
+              "not": {
+                "any": []
+              }
+            }
+          },
+          {
+            "kind": "content",
+            "id": "a_and_b",
+            "contentType": "paragraph",
+            "text": "a_and_b",
+            "visibleIf": {
+              "all": [
+                {
+                  "field": "a",
+                  "op": "eq",
+                  "value": true
+                },
+                {
+                  "field": "b",
+                  "op": "eq",
+                  "value": true
+                }
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "a_or_b",
+            "contentType": "paragraph",
+            "text": "a_or_b",
+            "visibleIf": {
+              "any": [
+                {
+                  "field": "a",
+                  "op": "eq",
+                  "value": true
+                },
+                {
+                  "field": "b",
+                  "op": "eq",
+                  "value": true
+                }
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "not_a",
+            "contentType": "paragraph",
+            "text": "not_a",
+            "visibleIf": {
+              "not": {
+                "field": "a",
+                "op": "eq",
+                "value": true
+              }
+            }
+          },
+          {
+            "kind": "content",
+            "id": "nested",
+            "contentType": "paragraph",
+            "text": "nested",
+            "visibleIf": {
+              "any": [
+                {
+                  "all": [
+                    {
+                      "field": "a",
+                      "op": "eq",
+                      "value": true
+                    },
+                    {
+                      "field": "c",
+                      "op": "gt",
+                      "value": 5
+                    }
+                  ]
+                },
+                {
+                  "all": [
+                    {
+                      "field": "b",
+                      "op": "eq",
+                      "value": true
+                    },
+                    {
+                      "not": {
+                        "field": "c",
+                        "op": "gt",
+                        "value": 5
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "xor",
+            "contentType": "paragraph",
+            "text": "xor",
+            "visibleIf": {
+              "any": [
+                {
+                  "all": [
+                    {
+                      "field": "a",
+                      "op": "eq",
+                      "value": true
+                    },
+                    {
+                      "field": "b",
+                      "op": "neq",
+                      "value": true
+                    }
+                  ]
+                },
+                {
+                  "all": [
+                    {
+                      "field": "b",
+                      "op": "eq",
+                      "value": true
+                    },
+                    {
+                      "field": "a",
+                      "op": "neq",
+                      "value": true
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "a, b, c=10",
+      "answers": {
+        "a": true,
+        "b": true,
+        "c": 10
+      },
+      "expect": {
+        "visible": [
+          "all_empty",
+          "not_any_empty",
+          "a_and_b",
+          "a_or_b",
+          "nested"
+        ],
+        "hidden": [
+          "any_empty",
+          "not_a",
+          "xor"
+        ]
+      }
+    },
+    {
+      "name": "a only, c=1",
+      "answers": {
+        "a": true,
+        "b": false,
+        "c": 1
+      },
+      "expect": {
+        "visible": [
+          "all_empty",
+          "not_any_empty",
+          "a_or_b",
+          "xor"
+        ],
+        "hidden": [
+          "any_empty",
+          "a_and_b",
+          "not_a",
+          "nested"
+        ]
+      }
+    },
+    {
+      "name": "b only, c=1",
+      "answers": {
+        "a": false,
+        "b": true,
+        "c": 1
+      },
+      "expect": {
+        "visible": [
+          "all_empty",
+          "not_any_empty",
+          "a_or_b",
+          "not_a",
+          "nested",
+          "xor"
+        ],
+        "hidden": [
+          "any_empty",
+          "a_and_b"
+        ]
+      }
+    },
+    {
+      "name": "nothing answered",
+      "answers": {},
+      "expect": {
+        "visible": [
+          "all_empty",
+          "not_any_empty",
+          "not_a"
+        ],
+        "hidden": [
+          "any_empty",
+          "a_and_b",
+          "a_or_b",
+          "nested",
+          "xor"
+        ]
+      }
+    },
+    {
+      "name": "neither, c=6",
+      "answers": {
+        "a": false,
+        "b": false,
+        "c": 6
+      },
+      "expect": {
+        "visible": [
+          "all_empty",
+          "not_any_empty",
+          "not_a"
+        ],
+        "hidden": [
+          "any_empty",
+          "a_and_b",
+          "a_or_b",
+          "nested",
+          "xor"
+        ]
+      }
+    },
+    {
+      "name": "a, b, c=5",
+      "answers": {
+        "a": true,
+        "b": true,
+        "c": 5
+      },
+      "expect": {
+        "visible": [
+          "all_empty",
+          "not_any_empty",
+          "a_and_b",
+          "a_or_b",
+          "nested"
+        ],
+        "hidden": [
+          "any_empty",
+          "not_a",
+          "xor"
+        ]
+      }
+    },
+    {
+      "name": "b only, c missing",
+      "answers": {
+        "b": true
+      },
+      "expect": {
+        "visible": [
+          "all_empty",
+          "not_any_empty",
+          "a_or_b",
+          "not_a",
+          "nested",
+          "xor"
+        ],
+        "hidden": [
+          "any_empty",
+          "a_and_b"
+        ]
+      }
+    }
+  ]
+}

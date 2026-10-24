@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: justforms
+          POSTGRES_PASSWORD: justforms
+          POSTGRES_DB: justforms_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U justforms" --health-interval 5s --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      JUSTFORMS_DATABASE_URL: postgresql+asyncpg://justforms:justforms@127.0.0.1:5432/justforms_test
+      JUSTFORMS_TEST_DATABASE_URL: postgresql+asyncpg://justforms:justforms@127.0.0.1:5432/justforms_test
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - name: ruff
+        run: uv run ruff check . && uv run ruff format --check .
+      - name: mypy
+        run: uv run mypy app tests
+      - name: spec/form-schema.v1.json is current
+        run: uv run python -m app.schemas.export --check
+      - name: migrations up, down, up; models match
+        run: |
+          uv run alembic upgrade head
+          uv run alembic check
+          uv run alembic downgrade base
+          uv run alembic upgrade head
+          uv run alembic downgrade base
+      - name: pytest (incl. logic vectors and cycle fixtures)
+        run: uv run pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: generated schema files are current
+        run: pnpm check:schema
+      - name: lint (oxlint + logical-direction classes)
+        run: pnpm lint
+      - name: typecheck
+        run: pnpm typecheck
+      - name: vitest (incl. logic vectors and cycle fixtures)
+        run: pnpm test
+      - name: build
+        run: pnpm build
+      - name: public form bundle within 120 KB gzip
+        run: pnpm check:bundle
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: compose files are valid
+        working-directory: deploy/compose
+        run: |
+          docker compose --env-file .env.example --profile dev config --quiet
+          docker compose --env-file .env.example -f docker-compose.yml -f docker-compose.keycloak.yml config --quiet

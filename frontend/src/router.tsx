@@ -1,0 +1,195 @@
+import type { QueryClient } from '@tanstack/react-query'
+import {
+  createRootRouteWithContext,
+  createRoute,
+  createRouter,
+  Outlet,
+  redirect,
+} from '@tanstack/react-router'
+
+import { AppShell } from '@/components/layout/app-shell'
+import { validateSubmissionsSearch } from '@/components/submissions/search'
+import { meQuery } from '@/lib/queries'
+import { FormEditorPage } from '@/routes/form-editor'
+import { FormLayout } from '@/routes/form-layout'
+import { FormPreviewPage } from '@/routes/form-preview'
+import { FormSettingsPage } from '@/routes/form-settings'
+import { FormSharePage } from '@/routes/form-share'
+import { FormSubmissionsPage } from '@/routes/form-submissions'
+import { FormsPage } from '@/routes/forms'
+import { JotformImportPage } from '@/routes/jotform-import'
+import { LoginPage } from '@/routes/login'
+import { InvitePage } from '@/routes/invite'
+import {
+  BrandingSettingsPage,
+  FormThemeSettingsPage,
+  OrgSettingsLayout,
+  PeopleSettingsPage,
+} from '@/routes/org-settings'
+import { validateSettingsSearch } from '@/lib/settings-org'
+import { SubmissionsImportPage } from '@/routes/submissions-import'
+
+interface RouterContext {
+  queryClient: QueryClient
+}
+
+const rootRoute = createRootRouteWithContext<RouterContext>()({ component: AppShell })
+
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/login',
+  validateSearch: (search: Record<string, unknown>) => ({
+    next: typeof search.next === 'string' ? search.next : undefined,
+    error: typeof search.error === 'string' ? search.error : undefined,
+  }),
+  beforeLoad: async ({ context }) => {
+    const me = await context.queryClient.ensureQueryData(meQuery)
+    if (me) throw redirect({ to: '/forms' })
+  },
+  component: LoginPage,
+})
+
+/** The link in an invitation email (PEOPLE-SCREENS 5); works signed in or out. */
+const inviteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/login/invite/$token',
+  component: InvitePage,
+})
+
+/** Everything below requires a staff session. */
+const authedRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: 'authed',
+  beforeLoad: async ({ context, location }) => {
+    const me = await context.queryClient.ensureQueryData(meQuery)
+    if (!me) throw redirect({ to: '/login', search: { next: location.href, error: undefined } })
+    return { me }
+  },
+  component: Outlet,
+})
+
+const indexRoute = createRoute({
+  getParentRoute: () => authedRoute,
+  path: '/',
+  beforeLoad: () => {
+    throw redirect({ to: '/forms' })
+  },
+})
+
+const formsRoute = createRoute({
+  getParentRoute: () => authedRoute,
+  path: '/forms',
+  component: FormsPage,
+})
+
+const jotformImportRoute = createRoute({
+  getParentRoute: () => authedRoute,
+  path: '/forms/import/jotform',
+  component: JotformImportPage,
+})
+
+const orgSettingsRoute = createRoute({
+  getParentRoute: () => authedRoute,
+  path: '/settings',
+  validateSearch: validateSettingsSearch,
+  component: OrgSettingsLayout,
+})
+
+const brandingSettingsRoute = createRoute({
+  getParentRoute: () => orgSettingsRoute,
+  path: '/',
+  component: BrandingSettingsPage,
+})
+
+const formThemeSettingsRoute = createRoute({
+  getParentRoute: () => orgSettingsRoute,
+  path: '/form-theme',
+  component: FormThemeSettingsPage,
+})
+
+const peopleSettingsRoute = createRoute({
+  getParentRoute: () => orgSettingsRoute,
+  path: '/people',
+  component: PeopleSettingsPage,
+})
+
+const formRoute = createRoute({
+  getParentRoute: () => authedRoute,
+  path: '/forms/$formId',
+  component: FormLayout,
+})
+
+const formIndexRoute = createRoute({
+  getParentRoute: () => formRoute,
+  path: '/',
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/forms/$formId/edit', params })
+  },
+})
+
+const formEditorRoute = createRoute({
+  getParentRoute: () => formRoute,
+  path: '/edit',
+  component: FormEditorPage,
+})
+
+const formPreviewRoute = createRoute({
+  getParentRoute: () => formRoute,
+  path: '/preview',
+  component: FormPreviewPage,
+})
+
+const formShareRoute = createRoute({
+  getParentRoute: () => formRoute,
+  path: '/share',
+  component: FormSharePage,
+})
+
+const formSubmissionsRoute = createRoute({
+  getParentRoute: () => formRoute,
+  path: '/submissions',
+  validateSearch: validateSubmissionsSearch,
+  component: FormSubmissionsPage,
+})
+
+const submissionsImportRoute = createRoute({
+  getParentRoute: () => formRoute,
+  path: '/submissions/import',
+  component: SubmissionsImportPage,
+})
+
+const formSettingsRoute = createRoute({
+  getParentRoute: () => formRoute,
+  path: '/settings',
+  component: FormSettingsPage,
+})
+
+const routeTree = rootRoute.addChildren([
+  loginRoute,
+  inviteRoute,
+  authedRoute.addChildren([
+    indexRoute,
+    formsRoute,
+    jotformImportRoute,
+    orgSettingsRoute.addChildren([brandingSettingsRoute, formThemeSettingsRoute, peopleSettingsRoute]),
+    formRoute.addChildren([
+      formIndexRoute,
+      formEditorRoute,
+      formPreviewRoute,
+      formShareRoute,
+      formSubmissionsRoute,
+      submissionsImportRoute,
+      formSettingsRoute,
+    ]),
+  ]),
+])
+
+export function createAppRouter(queryClient: QueryClient) {
+  return createRouter({ routeTree, context: { queryClient }, defaultPreload: 'intent' })
+}
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: ReturnType<typeof createAppRouter>
+  }
+}

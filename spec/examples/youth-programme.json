@@ -1,0 +1,115 @@
+{
+  "schemaVersion": "1",
+  "settings": {
+    "language": "dv",
+    "title": "ޒުވާނުންގެ ޕްރޮގްރާމަށް ހުށަހަޅާ ފޯމު",
+    "submitLabel": "ހުށަހަޅާ",
+    "successMessage": "ޝުކުރިއްޔާ!",
+    "theme": { "accent": "#0f766e", "logoFileId": null }
+  },
+  "pages": [
+    {
+      "id": "p_applicant",
+      "title": "އަމިއްލަ މައުލޫމާތު",
+      "elements": [
+        {
+          "kind": "field", "id": "full_name", "type": "short_text",
+          "label": "ފުރިހަމަ ނަން",
+          "required": true, "inputScript": "auto", "maxLength": 120
+        },
+        {
+          "kind": "field", "id": "national_id", "type": "short_text",
+          "label": "އައިޑީ ކާޑު ނަންބަރު",
+          "required": true, "pattern": "^A[0-9]{6}$",
+          "patternMessage": "ފޯމެޓް: A123456",
+          "inputScript": "latin", "sensitive": true
+        },
+        {
+          "kind": "field", "id": "age", "type": "number",
+          "label": "އުމުރު",
+          "required": true, "integer": true, "min": 15, "max": 35
+        },
+        {
+          "kind": "field", "id": "has_dependents", "type": "yes_no",
+          "label": "ބަލަހައްޓަންޖެހޭ މީހުން ތިބިތޯ؟",
+          "required": true
+        },
+        {
+          "kind": "repeater", "id": "dependents",
+          "label": "ބަލަހައްޓަންޖެހޭ މީހުން",
+          "minRows": 1, "maxRows": 10,
+          "addLabel": "އިތުރުކުރޭ",
+          "visibleIf": { "field": "has_dependents", "op": "eq", "value": true },
+          "elements": [
+            { "kind": "field", "id": "dep_name", "type": "short_text",
+              "label": "ނަން", "required": true },
+            { "kind": "field", "id": "dep_relation", "type": "single_choice",
+              "label": "ގުޅުން", "required": true,
+              "display": "dropdown",
+              "options": [
+                { "value": "child",  "label": "ދަރިފުޅު" },
+                { "value": "parent", "label": "މައިންބަފައިން" },
+                { "value": "other",  "label": "އެހެނިހެން" }
+              ] },
+            { "kind": "field", "id": "dep_relation_other", "type": "short_text",
+              "label": "ބަޔާންކުރައްވާ",
+              "visibleIf": { "field": "dep_relation", "op": "eq", "value": "other" },
+              "required": true }
+          ]
+        }
+      ],
+      "next": [
+        { "if": { "field": "age", "op": "lt", "value": 18 }, "goto": "p_guardian" }
+      ]
+    },
+    {
+      "id": "p_guardian",
+      "title": "ބެލެނިވެރިޔާ",
+      "visibleIf": { "field": "age", "op": "lt", "value": 18 },
+      "elements": [
+        { "kind": "field", "id": "guardian_name", "type": "short_text",
+          "label": "ބެލެނިވެރިޔާގެ ނަން", "required": true },
+        { "kind": "field", "id": "guardian_phone", "type": "phone",
+          "label": "ފޯނު ނަންބަރު", "defaultCountry": "MV",
+          "required": true }
+      ]
+    },
+    {
+      "id": "p_docs",
+      "title": "ލިޔެކިޔުން",
+      "elements": [
+        {
+          "kind": "section", "id": "sec_docs",
+          "title": "ލިޔެކިޔުން",
+          "elements": [
+            { "kind": "field", "id": "id_copy", "type": "file",
+              "label": "އައިޑީ ކާޑުގެ ކޮޕީ",
+              "required": true, "accept": ["application/pdf", "image/jpeg", "image/png"],
+              "maxFiles": 2, "maxSizeMb": 10 },
+            { "kind": "field", "id": "interests", "type": "multi_choice",
+              "label": "ޝައުގުވެރިވާ ދާއިރާތައް",
+              "minSelected": 1, "maxSelected": 3,
+              "options": [
+                { "value": "law",    "label": "ގާނޫނު" },
+                { "value": "media",  "label": "މީޑިއާ" },
+                { "value": "it",     "label": "އައިޓީ" }
+              ] }
+          ]
+        },
+        { "kind": "content", "id": "decl_text", "contentType": "paragraph",
+          "text": "މަތީގައިވާ މައުލޫމާތަކީ ތެދު މައުލޫމާތުކަން ކަށަވަރުކުރަމެވެ." },
+        {
+          "kind": "field", "id": "applicant_signature", "type": "signature",
+          "label": "ސޮއި", "required": true,
+          "attestation": "އަޅުގަނޑު މި ފޯމުގައި ސޮއިކުރަމެވެ."
+        },
+        {
+          "kind": "field", "id": "guardian_signature", "type": "signature",
+          "label": "ބެލެނިވެރިޔާގެ ސޮއި",
+          "requiredIf": { "field": "age", "op": "lt", "value": 18 },
+          "visibleIf": { "field": "age", "op": "lt", "value": 18 }
+        }
+      ]
+    }
+  ]
+}

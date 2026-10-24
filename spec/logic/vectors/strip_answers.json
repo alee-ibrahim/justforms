@@ -1,0 +1,146 @@
+{
+  "name": "strip_answers",
+  "description": "Stored data keeps only visible value-producing fields; unknown and non-value keys are dropped",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "a",
+            "type": "short_text",
+            "label": "a"
+          },
+          {
+            "kind": "section",
+            "id": "sec",
+            "elements": [
+              {
+                "kind": "field",
+                "id": "b",
+                "type": "short_text",
+                "label": "b"
+              }
+            ]
+          },
+          {
+            "kind": "content",
+            "id": "cc",
+            "contentType": "paragraph",
+            "text": "cc"
+          },
+          {
+            "kind": "field",
+            "id": "h",
+            "type": "hidden",
+            "label": "h"
+          },
+          {
+            "kind": "field",
+            "id": "g",
+            "type": "yes_no",
+            "label": "g"
+          },
+          {
+            "kind": "field",
+            "id": "x",
+            "type": "short_text",
+            "label": "x",
+            "visibleIf": {
+              "field": "g",
+              "op": "eq",
+              "value": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "drops unknown, content and section keys",
+      "answers": {
+        "a": "1",
+        "b": "2",
+        "cc": "3",
+        "sec": "4",
+        "h": "5",
+        "unknown": "6",
+        "x": "7"
+      },
+      "expect": {
+        "strippedAnswers": {
+          "a": "1",
+          "b": "2",
+          "h": "5"
+        }
+      }
+    },
+    {
+      "name": "keeps null and empty values of visible fields",
+      "answers": {
+        "a": null,
+        "g": true,
+        "x": ""
+      },
+      "expect": {
+        "strippedAnswers": {
+          "a": null,
+          "g": true,
+          "x": ""
+        }
+      }
+    },
+    {
+      "name": "empty",
+      "answers": {},
+      "expect": {
+        "strippedAnswers": {}
+      }
+    },
+    {
+      "name": "keeps value shapes as given",
+      "answers": {
+        "g": false,
+        "x": "y",
+        "b": [
+          "arr"
+        ]
+      },
+      "expect": {
+        "strippedAnswers": {
+          "g": false,
+          "b": [
+            "arr"
+          ]
+        }
+      }
+    },
+    {
+      "name": "hidden-type fields are kept when visible",
+      "answers": {
+        "h": "campaign-7",
+        "g": true,
+        "x": "q"
+      },
+      "expect": {
+        "strippedAnswers": {
+          "h": "campaign-7",
+          "g": true,
+          "x": "q"
+        },
+        "visible": [
+          "h",
+          "x"
+        ]
+      }
+    }
+  ]
+}

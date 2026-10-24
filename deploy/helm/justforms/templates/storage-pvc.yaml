@@ -1,0 +1,22 @@
+{{- $persistence := .Values.storage.local.persistence -}}
+{{- if and (eq .Values.storage.backend "local") (not $persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "justforms.storageClaimName" . }}
+  labels:
+    {{- include "justforms.labels" . | nindent 4 }}
+    app.kubernetes.io/component: storage
+  annotations:
+    # Uploaded files must survive `helm uninstall`; delete the PVC by hand if intended.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    {{- toYaml $persistence.accessModes | nindent 4 }}
+  {{- with $persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $persistence.size }}
+{{- end }}

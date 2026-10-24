@@ -1,0 +1,33 @@
+{{- if .Values.ingress.enabled }}
+{{- $host := default (include "justforms.publicHost" .) .Values.ingress.host }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "justforms.fullname" . }}
+  labels:
+    {{- include "justforms.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          # nginx in the frontend pod serves the SPA and proxies /api/ to the backend.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "justforms.fullname" . }}-frontend
+                port:
+                  name: http
+{{- end }}

@@ -1,0 +1,5 @@
+export { applyOp, evaluate, isMissing, jsonEqual, LogicCycleError, MISSING } from './engine'
+export type { Evaluation, RowResult } from './engine'
+export { buildIndex, iterLeaves } from './form-index'
+export type { ElementInfo, FormIndex } from './form-index'
+export { buildGraph, findCycle } from './graph'

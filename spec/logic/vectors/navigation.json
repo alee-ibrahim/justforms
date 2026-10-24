@@ -1,0 +1,373 @@
+{
+  "name": "navigation",
+  "description": "next rules (first match wins, goto forward or submit) and page visibleIf build the path",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "age",
+            "type": "number",
+            "label": "age"
+          },
+          {
+            "kind": "field",
+            "id": "route",
+            "type": "single_choice",
+            "label": "route",
+            "options": [
+              {
+                "value": "a",
+                "label": "a"
+              },
+              {
+                "value": "b",
+                "label": "b"
+              },
+              {
+                "value": "c",
+                "label": "c"
+              }
+            ]
+          }
+        ],
+        "next": [
+          {
+            "if": {
+              "field": "age",
+              "op": "lt",
+              "value": 18
+            },
+            "goto": "p3"
+          },
+          {
+            "if": {
+              "field": "route",
+              "op": "eq",
+              "value": "c"
+            },
+            "goto": "submit"
+          }
+        ]
+      },
+      {
+        "id": "p2",
+        "title": "p2",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "p2f",
+            "type": "short_text",
+            "label": "p2f"
+          }
+        ]
+      },
+      {
+        "id": "p3",
+        "title": "p3",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "p3f",
+            "type": "short_text",
+            "label": "p3f"
+          }
+        ],
+        "next": [
+          {
+            "if": {
+              "field": "p3f",
+              "op": "eq",
+              "value": "skip"
+            },
+            "goto": "p5"
+          }
+        ]
+      },
+      {
+        "id": "p4",
+        "title": "p4",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "p4f",
+            "type": "short_text",
+            "label": "p4f"
+          }
+        ],
+        "visibleIf": {
+          "field": "route",
+          "op": "eq",
+          "value": "b"
+        }
+      },
+      {
+        "id": "p5",
+        "title": "p5",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "p5f",
+            "type": "short_text",
+            "label": "p5f"
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "default order skips hidden p4",
+      "answers": {
+        "age": 20,
+        "route": "a"
+      },
+      "expect": {
+        "visible": [
+          "age",
+          "route",
+          "p2f",
+          "p3f",
+          "p5f"
+        ],
+        "hidden": [
+          "p4f"
+        ],
+        "path": [
+          "p1",
+          "p2",
+          "p3",
+          "p5"
+        ]
+      }
+    },
+    {
+      "name": "under 18 jumps to p3",
+      "answers": {
+        "age": 16
+      },
+      "expect": {
+        "visible": [
+          "age",
+          "route",
+          "p3f",
+          "p5f"
+        ],
+        "hidden": [
+          "p2f",
+          "p4f"
+        ],
+        "path": [
+          "p1",
+          "p3",
+          "p5"
+        ]
+      }
+    },
+    {
+      "name": "route c submits after p1",
+      "answers": {
+        "age": 20,
+        "route": "c",
+        "p2f": "x",
+        "p5f": "y"
+      },
+      "expect": {
+        "visible": [
+          "age",
+          "route"
+        ],
+        "hidden": [
+          "p2f",
+          "p3f",
+          "p4f",
+          "p5f"
+        ],
+        "path": [
+          "p1"
+        ],
+        "strippedAnswers": {
+          "age": 20,
+          "route": "c"
+        }
+      }
+    },
+    {
+      "name": "first matching rule wins",
+      "answers": {
+        "age": 16,
+        "route": "c"
+      },
+      "expect": {
+        "visible": [
+          "age",
+          "route",
+          "p3f",
+          "p5f"
+        ],
+        "hidden": [
+          "p2f",
+          "p4f"
+        ],
+        "path": [
+          "p1",
+          "p3",
+          "p5"
+        ]
+      }
+    },
+    {
+      "name": "route b shows p4",
+      "answers": {
+        "route": "b"
+      },
+      "expect": {
+        "visible": [
+          "age",
+          "route",
+          "p2f",
+          "p3f",
+          "p4f",
+          "p5f"
+        ],
+        "hidden": [],
+        "path": [
+          "p1",
+          "p2",
+          "p3",
+          "p4",
+          "p5"
+        ]
+      }
+    },
+    {
+      "name": "everything answered on the full path",
+      "answers": {
+        "age": 20,
+        "route": "b",
+        "p2f": "x",
+        "p4f": "y",
+        "p5f": "z"
+      },
+      "expect": {
+        "visible": [
+          "age",
+          "route",
+          "p2f",
+          "p3f",
+          "p4f",
+          "p5f"
+        ],
+        "hidden": [],
+        "path": [
+          "p1",
+          "p2",
+          "p3",
+          "p4",
+          "p5"
+        ],
+        "strippedAnswers": {
+          "age": 20,
+          "route": "b",
+          "p2f": "x",
+          "p4f": "y",
+          "p5f": "z"
+        }
+      }
+    },
+    {
+      "name": "jumped-over page answers are stripped",
+      "answers": {
+        "age": 16,
+        "route": "b",
+        "p2f": "x"
+      },
+      "expect": {
+        "visible": [
+          "age",
+          "route",
+          "p3f",
+          "p4f",
+          "p5f"
+        ],
+        "hidden": [
+          "p2f"
+        ],
+        "path": [
+          "p1",
+          "p3",
+          "p4",
+          "p5"
+        ],
+        "strippedAnswers": {
+          "age": 16,
+          "route": "b"
+        }
+      }
+    },
+    {
+      "name": "goto from p3 skips p4 even when route is b",
+      "answers": {
+        "age": 20,
+        "route": "b",
+        "p3f": "skip",
+        "p4f": "y"
+      },
+      "expect": {
+        "visible": [
+          "age",
+          "route",
+          "p2f",
+          "p3f",
+          "p5f"
+        ],
+        "hidden": [
+          "p4f"
+        ],
+        "path": [
+          "p1",
+          "p2",
+          "p3",
+          "p5"
+        ],
+        "strippedAnswers": {
+          "age": 20,
+          "route": "b",
+          "p3f": "skip"
+        }
+      }
+    },
+    {
+      "name": "age as string does not compare",
+      "answers": {
+        "age": "16"
+      },
+      "expect": {
+        "visible": [
+          "age",
+          "route",
+          "p2f",
+          "p3f",
+          "p5f"
+        ],
+        "hidden": [
+          "p4f"
+        ],
+        "path": [
+          "p1",
+          "p2",
+          "p3",
+          "p5"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "realm": "justforms",
+  "enabled": true,
+  "displayName": "JustForms (development)",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "groups": [{ "name": "justforms-admins" }, { "name": "justforms-users" }],
+  "clients": [
+    {
+      "clientId": "justforms",
+      "name": "JustForms",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${JUSTFORMS_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["${JUSTFORMS_REDIRECT_URI}"],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "${JUSTFORMS_POST_LOGOUT_URI}"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "false",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "email": "admin@example.org",
+      "emailVerified": true,
+      "firstName": "Dev",
+      "lastName": "Admin",
+      "enabled": true,
+      "groups": ["/justforms-admins"],
+      "credentials": [{ "type": "password", "value": "${JUSTFORMS_DEV_USER_PASSWORD}", "temporary": false }]
+    },
+    {
+      "username": "member",
+      "email": "member@example.org",
+      "emailVerified": true,
+      "firstName": "Dev",
+      "lastName": "Member",
+      "enabled": true,
+      "groups": ["/justforms-users"],
+      "credentials": [{ "type": "password", "value": "${JUSTFORMS_DEV_USER_PASSWORD}", "temporary": false }]
+    }
+  ]
+}

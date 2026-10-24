@@ -1,0 +1,235 @@
+{
+  "name": "required_in_rows",
+  "description": "requiredIf inside repeater rows, reading siblings in the same row and fields outside",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "strict",
+            "type": "yes_no",
+            "label": "strict"
+          },
+          {
+            "kind": "repeater",
+            "id": "people",
+            "label": "People",
+            "elements": [
+              {
+                "kind": "field",
+                "id": "pname",
+                "type": "short_text",
+                "label": "pname",
+                "requiredIf": {
+                  "field": "strict",
+                  "op": "eq",
+                  "value": true
+                }
+              },
+              {
+                "kind": "field",
+                "id": "pphone",
+                "type": "phone",
+                "label": "pphone",
+                "requiredIf": {
+                  "field": "pname",
+                  "op": "not_empty"
+                }
+              },
+              {
+                "kind": "field",
+                "id": "pemail",
+                "type": "email",
+                "label": "pemail",
+                "required": true,
+                "visibleIf": {
+                  "field": "pphone",
+                  "op": "empty"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "strict with name and phone",
+      "answers": {
+        "strict": true,
+        "people": [
+          {
+            "pname": "A",
+            "pphone": "+9607000000"
+          }
+        ]
+      },
+      "expect": {
+        "rows": {
+          "people": [
+            {
+              "required": [
+                "pname",
+                "pphone"
+              ],
+              "notRequired": [
+                "pemail"
+              ],
+              "hidden": [
+                "pemail"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "not strict, empty row",
+      "answers": {
+        "strict": false,
+        "people": [
+          {}
+        ]
+      },
+      "expect": {
+        "rows": {
+          "people": [
+            {
+              "notRequired": [
+                "pname",
+                "pphone"
+              ],
+              "visible": [
+                "pemail"
+              ],
+              "required": [
+                "pemail"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "rows are independent",
+      "answers": {
+        "strict": true,
+        "people": [
+          {
+            "pphone": "1"
+          },
+          {
+            "pname": "B"
+          }
+        ]
+      },
+      "expect": {
+        "rows": {
+          "people": [
+            {
+              "required": [
+                "pname"
+              ],
+              "notRequired": [
+                "pphone",
+                "pemail"
+              ],
+              "hidden": [
+                "pemail"
+              ]
+            },
+            {
+              "required": [
+                "pname",
+                "pphone",
+                "pemail"
+              ],
+              "visible": [
+                "pemail"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "empty name is missing",
+      "answers": {
+        "people": [
+          {
+            "pname": ""
+          }
+        ]
+      },
+      "expect": {
+        "rows": {
+          "people": [
+            {
+              "notRequired": [
+                "pname",
+                "pphone"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "no rows",
+      "answers": {
+        "strict": true,
+        "people": []
+      },
+      "expect": {
+        "rows": {
+          "people": []
+        }
+      }
+    },
+    {
+      "name": "email row kept, nothing leaks",
+      "answers": {
+        "strict": true,
+        "people": [
+          {
+            "pname": "A",
+            "pemail": "a@example.org"
+          }
+        ]
+      },
+      "expect": {
+        "rows": {
+          "people": [
+            {
+              "visible": [
+                "pemail"
+              ],
+              "required": [
+                "pemail",
+                "pphone"
+              ]
+            }
+          ]
+        },
+        "strippedAnswers": {
+          "strict": true,
+          "people": [
+            {
+              "pname": "A",
+              "pemail": "a@example.org"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

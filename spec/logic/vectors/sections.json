@@ -1,0 +1,220 @@
+{
+  "name": "sections",
+  "description": "Section visibility propagates to all descendants; sections contribute no answer keys",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "toggle",
+            "type": "yes_no",
+            "label": "toggle"
+          },
+          {
+            "kind": "section",
+            "id": "sec_outer",
+            "title": "Outer",
+            "visibleIf": {
+              "field": "toggle",
+              "op": "eq",
+              "value": true
+            },
+            "elements": [
+              {
+                "kind": "field",
+                "id": "inner_field",
+                "type": "short_text",
+                "label": "inner_field"
+              },
+              {
+                "kind": "section",
+                "id": "sec_inner",
+                "visibleIf": {
+                  "field": "inner_field",
+                  "op": "eq",
+                  "value": "show"
+                },
+                "elements": [
+                  {
+                    "kind": "field",
+                    "id": "deep",
+                    "type": "short_text",
+                    "label": "deep",
+                    "required": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "content",
+            "id": "watcher",
+            "contentType": "paragraph",
+            "text": "watcher",
+            "visibleIf": {
+              "field": "deep",
+              "op": "not_empty"
+            }
+          },
+          {
+            "kind": "field",
+            "id": "outside",
+            "type": "short_text",
+            "label": "outside",
+            "requiredIf": {
+              "field": "toggle",
+              "op": "eq",
+              "value": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "all shown",
+      "answers": {
+        "toggle": true,
+        "inner_field": "show",
+        "deep": "x"
+      },
+      "expect": {
+        "visible": [
+          "toggle",
+          "sec_outer",
+          "inner_field",
+          "sec_inner",
+          "deep",
+          "watcher",
+          "outside"
+        ],
+        "hidden": [],
+        "required": [
+          "deep",
+          "outside"
+        ],
+        "strippedAnswers": {
+          "toggle": true,
+          "inner_field": "show",
+          "deep": "x"
+        }
+      }
+    },
+    {
+      "name": "outer hidden hides everything inside",
+      "answers": {
+        "toggle": false,
+        "inner_field": "show",
+        "deep": "x",
+        "outside": "o"
+      },
+      "expect": {
+        "visible": [
+          "toggle",
+          "outside"
+        ],
+        "hidden": [
+          "sec_outer",
+          "inner_field",
+          "sec_inner",
+          "deep",
+          "watcher"
+        ],
+        "notRequired": [
+          "deep",
+          "outside"
+        ],
+        "strippedAnswers": {
+          "toggle": false,
+          "outside": "o"
+        }
+      }
+    },
+    {
+      "name": "inner hidden",
+      "answers": {
+        "toggle": true,
+        "inner_field": "hide",
+        "deep": "x"
+      },
+      "expect": {
+        "visible": [
+          "toggle",
+          "sec_outer",
+          "inner_field",
+          "outside"
+        ],
+        "hidden": [
+          "sec_inner",
+          "deep",
+          "watcher"
+        ],
+        "required": [
+          "outside"
+        ],
+        "notRequired": [
+          "deep"
+        ],
+        "strippedAnswers": {
+          "toggle": true,
+          "inner_field": "hide"
+        }
+      }
+    },
+    {
+      "name": "nothing answered",
+      "answers": {},
+      "expect": {
+        "visible": [
+          "toggle",
+          "outside"
+        ],
+        "hidden": [
+          "sec_outer",
+          "inner_field",
+          "sec_inner",
+          "deep",
+          "watcher"
+        ],
+        "notRequired": [
+          "outside",
+          "deep"
+        ]
+      }
+    },
+    {
+      "name": "section ids in answers are ignored",
+      "answers": {
+        "toggle": true,
+        "sec_outer": "junk",
+        "sec_inner": "junk",
+        "watcher": "junk"
+      },
+      "expect": {
+        "visible": [
+          "toggle",
+          "sec_outer",
+          "inner_field",
+          "outside"
+        ],
+        "hidden": [
+          "sec_inner",
+          "deep",
+          "watcher"
+        ],
+        "strippedAnswers": {
+          "toggle": true
+        }
+      }
+    }
+  ]
+}

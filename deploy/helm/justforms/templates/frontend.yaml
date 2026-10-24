@@ -1,0 +1,132 @@
+{{- $c := .Values.frontend -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "justforms.fullname" . }}-frontend
+  labels:
+    {{- include "justforms.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  {{- if not $c.autoscaling.enabled }}
+  replicas: {{ $c.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "justforms.selectorLabels" (list . "frontend") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "justforms.labels" . | nindent 8 }}
+        app.kubernetes.io/component: frontend
+        {{- with $c.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with $c.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "justforms.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with $c.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with (include "justforms.podCommon" (dict "root" . "c" $c) | trim) }}{{ . | nindent 6 }}{{- end }}
+      {{- with $c.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        # Writable paths for the stock nginx image; the root filesystem is read-only.
+        - name: nginx-conf
+          emptyDir: {}
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        {{- with $c.fontsConfigMap }}
+        - name: fonts
+          configMap:
+            name: {{ . }}
+        {{- end }}
+      containers:
+        - name: frontend
+          image: {{ include "justforms.frontendImage" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            # Fully qualified: nginx resolves it at runtime without search domains.
+            - name: BACKEND_URL
+              value: {{ include "justforms.backendUrl" . | quote }}
+            # The nginx image's 15-local-resolvers.envsh exports NGINX_LOCAL_RESOLVERS from
+            # /etc/resolv.conf.
+            - name: NGINX_ENTRYPOINT_LOCAL_RESOLVERS
+              value: "1"
+            {{- with $c.nginxResolver }}
+            - name: NGINX_RESOLVER
+              value: {{ . | quote }}
+            {{- end }}
+            # Used to build the Content Security Policy.
+            - name: JUSTFORMS_THAANA_FONT_CSS_URL
+              value: {{ .Values.thaanaFontCssUrl | quote }}
+            - name: JUSTFORMS_CAPTCHA_PROVIDER
+              value: {{ .Values.captcha.provider | quote }}
+            - name: JUSTFORMS_CSP_EXTRA_CONNECT_SRC
+              value: {{ include "justforms.cspExtraConnectSrc" . | quote }}
+          ports:
+            - name: http
+              containerPort: {{ $c.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: nginx-run
+              mountPath: /run
+            - name: tmp
+              mountPath: /tmp
+            {{- if $c.fontsConfigMap }}
+            - name: fonts
+              mountPath: /srv/fonts
+              readOnly: true
+            {{- end }}
+          {{- with $c.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $c.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $c.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $c.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "justforms.fullname" . }}-frontend
+  labels:
+    {{- include "justforms.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+  {{- with $c.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ $c.service.type }}
+  selector:
+    {{- include "justforms.selectorLabels" (list . "frontend") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $c.port }}
+      targetPort: http
+      protocol: TCP

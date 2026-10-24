@@ -1,0 +1,350 @@
+{
+  "name": "ops_count",
+  "description": "count_eq/gte/lte on multi_choice, file and repeater arrays; missing is false",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "mc",
+            "type": "multi_choice",
+            "label": "mc",
+            "options": [
+              {
+                "value": "a",
+                "label": "a"
+              },
+              {
+                "value": "b",
+                "label": "b"
+              },
+              {
+                "value": "c",
+                "label": "c"
+              },
+              {
+                "value": "d",
+                "label": "d"
+              }
+            ]
+          },
+          {
+            "kind": "field",
+            "id": "f",
+            "type": "file",
+            "label": "f",
+            "maxFiles": 5
+          },
+          {
+            "kind": "repeater",
+            "id": "rep",
+            "label": "rep",
+            "elements": [
+              {
+                "kind": "field",
+                "id": "rn",
+                "type": "short_text",
+                "label": "rn"
+              }
+            ]
+          },
+          {
+            "kind": "content",
+            "id": "mc_eq2",
+            "contentType": "paragraph",
+            "text": "mc_eq2",
+            "visibleIf": {
+              "field": "mc",
+              "op": "count_eq",
+              "value": 2
+            }
+          },
+          {
+            "kind": "content",
+            "id": "mc_gte2",
+            "contentType": "paragraph",
+            "text": "mc_gte2",
+            "visibleIf": {
+              "field": "mc",
+              "op": "count_gte",
+              "value": 2
+            }
+          },
+          {
+            "kind": "content",
+            "id": "mc_lte1",
+            "contentType": "paragraph",
+            "text": "mc_lte1",
+            "visibleIf": {
+              "field": "mc",
+              "op": "count_lte",
+              "value": 1
+            }
+          },
+          {
+            "kind": "content",
+            "id": "f_gte1",
+            "contentType": "paragraph",
+            "text": "f_gte1",
+            "visibleIf": {
+              "field": "f",
+              "op": "count_gte",
+              "value": 1
+            }
+          },
+          {
+            "kind": "content",
+            "id": "f_eq0",
+            "contentType": "paragraph",
+            "text": "f_eq0",
+            "visibleIf": {
+              "field": "f",
+              "op": "count_eq",
+              "value": 0
+            }
+          },
+          {
+            "kind": "content",
+            "id": "rep_gte2",
+            "contentType": "paragraph",
+            "text": "rep_gte2",
+            "visibleIf": {
+              "field": "rep",
+              "op": "count_gte",
+              "value": 2
+            }
+          },
+          {
+            "kind": "content",
+            "id": "rep_lte3",
+            "contentType": "paragraph",
+            "text": "rep_lte3",
+            "visibleIf": {
+              "field": "rep",
+              "op": "count_lte",
+              "value": 3
+            }
+          },
+          {
+            "kind": "content",
+            "id": "rep_empty",
+            "contentType": "paragraph",
+            "text": "rep_empty",
+            "visibleIf": {
+              "field": "rep",
+              "op": "empty"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "rep_not_empty",
+            "contentType": "paragraph",
+            "text": "rep_not_empty",
+            "visibleIf": {
+              "field": "rep",
+              "op": "not_empty"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "two of each",
+      "answers": {
+        "mc": [
+          "a",
+          "b"
+        ],
+        "f": [
+          {
+            "fileId": "x"
+          }
+        ],
+        "rep": [
+          {
+            "rn": "1"
+          },
+          {
+            "rn": "2"
+          }
+        ]
+      },
+      "expect": {
+        "visible": [
+          "mc_eq2",
+          "mc_gte2",
+          "f_gte1",
+          "rep_gte2",
+          "rep_lte3",
+          "rep_not_empty"
+        ],
+        "hidden": [
+          "mc_lte1",
+          "f_eq0",
+          "rep_empty"
+        ],
+        "strippedAnswers": {
+          "mc": [
+            "a",
+            "b"
+          ],
+          "f": [
+            {
+              "fileId": "x"
+            }
+          ],
+          "rep": [
+            {
+              "rn": "1"
+            },
+            {
+              "rn": "2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "empty arrays are missing (count_eq 0 is false)",
+      "answers": {
+        "mc": [
+          "a"
+        ],
+        "f": [],
+        "rep": []
+      },
+      "expect": {
+        "visible": [
+          "mc_lte1",
+          "rep_empty"
+        ],
+        "hidden": [
+          "mc_eq2",
+          "mc_gte2",
+          "f_gte1",
+          "f_eq0",
+          "rep_gte2",
+          "rep_lte3",
+          "rep_not_empty"
+        ]
+      }
+    },
+    {
+      "name": "nothing answered",
+      "answers": {},
+      "expect": {
+        "visible": [
+          "rep_empty"
+        ],
+        "hidden": [
+          "mc_eq2",
+          "mc_gte2",
+          "mc_lte1",
+          "f_gte1",
+          "f_eq0",
+          "rep_gte2",
+          "rep_lte3",
+          "rep_not_empty"
+        ]
+      }
+    },
+    {
+      "name": "four of each",
+      "answers": {
+        "mc": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "f": [
+          {},
+          {}
+        ],
+        "rep": [
+          {},
+          {},
+          {},
+          {}
+        ]
+      },
+      "expect": {
+        "visible": [
+          "mc_gte2",
+          "f_gte1",
+          "rep_gte2",
+          "rep_not_empty"
+        ],
+        "hidden": [
+          "mc_eq2",
+          "mc_lte1",
+          "f_eq0",
+          "rep_lte3",
+          "rep_empty"
+        ]
+      }
+    },
+    {
+      "name": "non-arrays never count",
+      "answers": {
+        "mc": "a",
+        "rep": {},
+        "f": null
+      },
+      "expect": {
+        "visible": [
+          "rep_not_empty"
+        ],
+        "hidden": [
+          "mc_eq2",
+          "mc_gte2",
+          "mc_lte1",
+          "f_gte1",
+          "f_eq0",
+          "rep_gte2",
+          "rep_lte3",
+          "rep_empty"
+        ]
+      }
+    },
+    {
+      "name": "one row",
+      "answers": {
+        "rep": [
+          {
+            "rn": "only"
+          }
+        ],
+        "mc": [
+          "c",
+          "d"
+        ]
+      },
+      "expect": {
+        "visible": [
+          "mc_eq2",
+          "mc_gte2",
+          "rep_lte3",
+          "rep_not_empty"
+        ],
+        "hidden": [
+          "mc_lte1",
+          "f_gte1",
+          "f_eq0",
+          "rep_gte2",
+          "rep_empty"
+        ]
+      }
+    }
+  ]
+}

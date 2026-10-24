@@ -1,0 +1,45 @@
+{
+  "name": "repeater_children_mutual",
+  "expect": "cycle",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Cycle"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "elements": [
+          {
+            "kind": "repeater",
+            "id": "r",
+            "label": "r",
+            "elements": [
+              {
+                "kind": "field",
+                "id": "ra",
+                "type": "short_text",
+                "label": "ra",
+                "visibleIf": {
+                  "field": "rb",
+                  "op": "not_empty"
+                }
+              },
+              {
+                "kind": "field",
+                "id": "rb",
+                "type": "short_text",
+                "label": "rb",
+                "visibleIf": {
+                  "field": "ra",
+                  "op": "not_empty"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

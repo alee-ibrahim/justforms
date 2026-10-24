@@ -1,0 +1,564 @@
+{
+  "name": "ops_missing_values",
+  "description": "Missing values (absent, null, '', [], hidden): empty/neq/not_in/not_contains true, all else false",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "gate",
+            "type": "yes_no",
+            "label": "gate"
+          },
+          {
+            "kind": "field",
+            "id": "t",
+            "type": "short_text",
+            "label": "t",
+            "visibleIf": {
+              "field": "gate",
+              "op": "eq",
+              "value": true
+            }
+          },
+          {
+            "kind": "field",
+            "id": "n",
+            "type": "number",
+            "label": "n",
+            "visibleIf": {
+              "field": "gate",
+              "op": "eq",
+              "value": true
+            }
+          },
+          {
+            "kind": "field",
+            "id": "m",
+            "type": "multi_choice",
+            "label": "m",
+            "visibleIf": {
+              "field": "gate",
+              "op": "eq",
+              "value": true
+            },
+            "options": [
+              {
+                "value": "a",
+                "label": "a"
+              },
+              {
+                "value": "b",
+                "label": "b"
+              },
+              {
+                "value": "c",
+                "label": "c"
+              }
+            ]
+          },
+          {
+            "kind": "content",
+            "id": "t_empty",
+            "contentType": "paragraph",
+            "text": "t_empty",
+            "visibleIf": {
+              "field": "t",
+              "op": "empty"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "t_not_empty",
+            "contentType": "paragraph",
+            "text": "t_not_empty",
+            "visibleIf": {
+              "field": "t",
+              "op": "not_empty"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "t_eq",
+            "contentType": "paragraph",
+            "text": "t_eq",
+            "visibleIf": {
+              "field": "t",
+              "op": "eq",
+              "value": "x"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "t_neq",
+            "contentType": "paragraph",
+            "text": "t_neq",
+            "visibleIf": {
+              "field": "t",
+              "op": "neq",
+              "value": "x"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "t_in",
+            "contentType": "paragraph",
+            "text": "t_in",
+            "visibleIf": {
+              "field": "t",
+              "op": "in",
+              "value": [
+                "x",
+                "y"
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "t_not_in",
+            "contentType": "paragraph",
+            "text": "t_not_in",
+            "visibleIf": {
+              "field": "t",
+              "op": "not_in",
+              "value": [
+                "x",
+                "y"
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "t_contains",
+            "contentType": "paragraph",
+            "text": "t_contains",
+            "visibleIf": {
+              "field": "t",
+              "op": "contains",
+              "value": "x"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "t_not_contains",
+            "contentType": "paragraph",
+            "text": "t_not_contains",
+            "visibleIf": {
+              "field": "t",
+              "op": "not_contains",
+              "value": "x"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "n_gt",
+            "contentType": "paragraph",
+            "text": "n_gt",
+            "visibleIf": {
+              "field": "n",
+              "op": "gt",
+              "value": 0
+            }
+          },
+          {
+            "kind": "content",
+            "id": "n_gte",
+            "contentType": "paragraph",
+            "text": "n_gte",
+            "visibleIf": {
+              "field": "n",
+              "op": "gte",
+              "value": 0
+            }
+          },
+          {
+            "kind": "content",
+            "id": "n_lt",
+            "contentType": "paragraph",
+            "text": "n_lt",
+            "visibleIf": {
+              "field": "n",
+              "op": "lt",
+              "value": 100
+            }
+          },
+          {
+            "kind": "content",
+            "id": "n_lte",
+            "contentType": "paragraph",
+            "text": "n_lte",
+            "visibleIf": {
+              "field": "n",
+              "op": "lte",
+              "value": 100
+            }
+          },
+          {
+            "kind": "content",
+            "id": "m_count_eq0",
+            "contentType": "paragraph",
+            "text": "m_count_eq0",
+            "visibleIf": {
+              "field": "m",
+              "op": "count_eq",
+              "value": 0
+            }
+          },
+          {
+            "kind": "content",
+            "id": "m_count_gte0",
+            "contentType": "paragraph",
+            "text": "m_count_gte0",
+            "visibleIf": {
+              "field": "m",
+              "op": "count_gte",
+              "value": 0
+            }
+          },
+          {
+            "kind": "content",
+            "id": "m_count_lte5",
+            "contentType": "paragraph",
+            "text": "m_count_lte5",
+            "visibleIf": {
+              "field": "m",
+              "op": "count_lte",
+              "value": 5
+            }
+          },
+          {
+            "kind": "content",
+            "id": "m_empty",
+            "contentType": "paragraph",
+            "text": "m_empty",
+            "visibleIf": {
+              "field": "m",
+              "op": "empty"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "m_not_empty",
+            "contentType": "paragraph",
+            "text": "m_not_empty",
+            "visibleIf": {
+              "field": "m",
+              "op": "not_empty"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "all absent",
+      "answers": {
+        "gate": true
+      },
+      "expect": {
+        "visible": [
+          "t_empty",
+          "t_neq",
+          "t_not_in",
+          "t_not_contains",
+          "m_empty"
+        ],
+        "hidden": [
+          "t_not_empty",
+          "t_eq",
+          "t_in",
+          "t_contains",
+          "n_gt",
+          "n_gte",
+          "n_lt",
+          "n_lte",
+          "m_count_eq0",
+          "m_count_gte0",
+          "m_count_lte5",
+          "m_not_empty"
+        ]
+      }
+    },
+    {
+      "name": "all null",
+      "answers": {
+        "gate": true,
+        "t": null,
+        "n": null,
+        "m": null
+      },
+      "expect": {
+        "visible": [
+          "t_empty",
+          "t_neq",
+          "t_not_in",
+          "t_not_contains",
+          "m_empty"
+        ],
+        "hidden": [
+          "t_not_empty",
+          "t_eq",
+          "t_in",
+          "t_contains",
+          "n_gt",
+          "n_gte",
+          "n_lt",
+          "n_lte",
+          "m_count_eq0",
+          "m_count_gte0",
+          "m_count_lte5",
+          "m_not_empty"
+        ]
+      }
+    },
+    {
+      "name": "empty string and empty array",
+      "answers": {
+        "gate": true,
+        "t": "",
+        "m": []
+      },
+      "expect": {
+        "visible": [
+          "t_empty",
+          "t_neq",
+          "t_not_in",
+          "t_not_contains",
+          "m_empty"
+        ],
+        "hidden": [
+          "t_not_empty",
+          "t_eq",
+          "t_in",
+          "t_contains",
+          "n_gt",
+          "n_gte",
+          "n_lt",
+          "n_lte",
+          "m_count_eq0",
+          "m_count_gte0",
+          "m_count_lte5",
+          "m_not_empty"
+        ]
+      }
+    },
+    {
+      "name": "answered but hidden reads as missing",
+      "answers": {
+        "gate": false,
+        "t": "x",
+        "n": 5,
+        "m": [
+          "a"
+        ]
+      },
+      "expect": {
+        "visible": [
+          "t_empty",
+          "t_neq",
+          "t_not_in",
+          "t_not_contains",
+          "m_empty"
+        ],
+        "hidden": [
+          "t_not_empty",
+          "t_eq",
+          "t_in",
+          "t_contains",
+          "n_gt",
+          "n_gte",
+          "n_lt",
+          "n_lte",
+          "m_count_eq0",
+          "m_count_gte0",
+          "m_count_lte5",
+          "m_not_empty"
+        ],
+        "strippedAnswers": {
+          "gate": false
+        }
+      }
+    },
+    {
+      "name": "gate unanswered hides the fields",
+      "answers": {
+        "t": "x",
+        "n": 5,
+        "m": [
+          "a"
+        ]
+      },
+      "expect": {
+        "visible": [
+          "t_empty",
+          "t_neq",
+          "t_not_in",
+          "t_not_contains",
+          "m_empty"
+        ],
+        "hidden": [
+          "t_not_empty",
+          "t_eq",
+          "t_in",
+          "t_contains",
+          "n_gt",
+          "n_gte",
+          "n_lt",
+          "n_lte",
+          "m_count_eq0",
+          "m_count_gte0",
+          "m_count_lte5",
+          "m_not_empty"
+        ],
+        "strippedAnswers": {}
+      }
+    },
+    {
+      "name": "all answered",
+      "answers": {
+        "gate": true,
+        "t": "x",
+        "n": 5,
+        "m": [
+          "a"
+        ]
+      },
+      "expect": {
+        "visible": [
+          "t_not_empty",
+          "t_eq",
+          "t_in",
+          "t_contains",
+          "n_gt",
+          "n_gte",
+          "n_lt",
+          "n_lte",
+          "m_count_gte0",
+          "m_count_lte5",
+          "m_not_empty"
+        ],
+        "hidden": [
+          "t_empty",
+          "t_neq",
+          "t_not_in",
+          "t_not_contains",
+          "m_count_eq0",
+          "m_empty"
+        ],
+        "strippedAnswers": {
+          "gate": true,
+          "t": "x",
+          "n": 5,
+          "m": [
+            "a"
+          ]
+        }
+      }
+    },
+    {
+      "name": "other values",
+      "answers": {
+        "gate": true,
+        "t": "y",
+        "n": 0,
+        "m": [
+          "a",
+          "b"
+        ]
+      },
+      "expect": {
+        "visible": [
+          "t_not_empty",
+          "t_neq",
+          "t_in",
+          "t_not_contains",
+          "n_gte",
+          "n_lt",
+          "n_lte",
+          "m_count_gte0",
+          "m_count_lte5",
+          "m_not_empty"
+        ],
+        "hidden": [
+          "t_empty",
+          "t_eq",
+          "t_not_in",
+          "t_contains",
+          "n_gt",
+          "m_count_eq0",
+          "m_empty"
+        ]
+      }
+    },
+    {
+      "name": "whitespace is not missing",
+      "answers": {
+        "gate": true,
+        "t": " "
+      },
+      "expect": {
+        "visible": [
+          "t_not_empty",
+          "t_neq",
+          "t_not_in",
+          "t_not_contains",
+          "m_empty"
+        ],
+        "hidden": [
+          "t_empty",
+          "t_eq",
+          "t_in",
+          "t_contains",
+          "n_gt",
+          "n_gte",
+          "n_lt",
+          "n_lte",
+          "m_count_eq0",
+          "m_count_gte0",
+          "m_count_lte5",
+          "m_not_empty"
+        ]
+      }
+    },
+    {
+      "name": "zero and false are not missing",
+      "answers": {
+        "gate": true,
+        "n": 0,
+        "t": "0"
+      },
+      "expect": {
+        "visible": [
+          "t_not_empty",
+          "t_neq",
+          "t_not_in",
+          "t_not_contains",
+          "n_gte",
+          "n_lt",
+          "n_lte",
+          "m_empty"
+        ],
+        "hidden": [
+          "t_empty",
+          "t_eq",
+          "t_in",
+          "t_contains",
+          "n_gt",
+          "m_count_eq0",
+          "m_count_gte0",
+          "m_count_lte5",
+          "m_not_empty"
+        ]
+      }
+    }
+  ]
+}

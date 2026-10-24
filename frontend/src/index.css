@@ -1,0 +1,390 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/atkinson-hyperlegible-next";
+@import "@fontsource-variable/atkinson-hyperlegible-mono";
+/* Noto Sans Thaana (SIL OFL) is bundled as the Thaana fallback. Faruma / MV Faseyha are used
+   when installed locally or supplied by the operator via /fonts/fonts.css (see docs/DESIGN.md). */
+@import "@fontsource/noto-sans-thaana/400.css";
+@import "@fontsource/noto-sans-thaana/700.css";
+
+/* `.light` forces light inside a dark page (a light form on the canvas of a dark studio). */
+@custom-variant dark (&:is(.dark *):not(.light *));
+
+/* Not inline: utilities must read var(--text-*) so :lang(dv) can rescale them. */
+@theme {
+    /* Minor-third type scale (DESIGN-SYSTEM 4.2). Thaana redefines these under :lang(dv). */
+    --text-lg: 1.1875rem;
+    --text-lg--line-height: 1.75rem;
+    --text-xl: 1.4375rem;
+    --text-xl--line-height: 2rem;
+    --text-2xl: 1.75rem;
+    --text-2xl--line-height: 2.25rem;
+    --text-3xl: 2.0625rem;
+    --text-3xl--line-height: 2.5rem;
+    /* The one elevation, for floating layers only (popover, menu, dialog, sheet, drag overlay). */
+    --shadow-md: 0 8px 24px -8px oklch(0.25 0.05 270 / 0.25);
+    --shadow-lg: 0 8px 24px -8px oklch(0.25 0.05 270 / 0.25);
+    /* The one orchestrated moment: the reference number lands like a stamp. */
+    --animate-stamp: stamp 240ms ease-out both;
+
+    @keyframes stamp {
+        from {
+            opacity: 0;
+            transform: scale(0.96);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+}
+
+@theme inline {
+    /* Named Latin fallbacks sit before the Thaana faces: while a Latin web font loads, Latin text
+       must fall back to a Latin face, never to Faruma's serif Latin glyphs (DESIGN-SYSTEM 4.1). */
+    --font-sans: 'Atkinson Hyperlegible Next Variable', Roboto, 'Segoe UI', 'Helvetica Neue', Arial, Faruma, 'MV Faseyha', 'Noto Sans Thaana', sans-serif;
+    --font-heading: var(--font-sans);
+    --font-mono: 'Atkinson Hyperlegible Mono Variable', ui-monospace, monospace;
+    --font-thaana: Faruma, 'MV Faseyha', 'Noto Sans Thaana', sans-serif;
+    /* Project tokens (docs/ux/DESIGN-SYSTEM.md 3.2). Use at call sites, never in components/ui. */
+    --color-marker: var(--marker);
+    --color-marker-edge: var(--marker-edge);
+    --color-marker-wash: var(--accent);
+    --color-sheet: var(--card);
+    /* Paper stays white in dark mode where ink must read as ink (signature images). */
+    --color-paper: oklch(1 0 0);
+    --color-paper-ink: oklch(0.250 0.051 269.6);
+    --shadow-float: 0 8px 24px -8px oklch(0.25 0.05 270 / 0.25);
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root,
+.light {
+    /* "The sheet on the desk": Desk, Sheet, Ink, Carbon, Marker, Stamp (DESIGN-SYSTEM 3). */
+    --background: oklch(0.970 0.006 264.5);
+    --foreground: oklch(0.250 0.051 269.6);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.250 0.051 269.6);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.250 0.051 269.6);
+    --primary: oklch(0.454 0.198 273.9);
+    --primary-foreground: oklch(1 0 0);
+    --secondary: oklch(0.935 0.018 273);
+    --secondary-foreground: oklch(0.250 0.051 269.6);
+    --muted: oklch(0.970 0.006 264.5);
+    --muted-foreground: oklch(0.503 0.048 271.2);
+    --accent: oklch(0.967 0.071 99.8);
+    --accent-foreground: oklch(0.250 0.051 269.6);
+    --destructive: oklch(0.540 0.176 28.6);
+    --border: oklch(0.907 0.014 268.5);
+    /* 3.4:1 on Sheet, 3.2:1 on Desk (inputs also sit on the desk: search, palette). */
+    --input: oklch(0.635 0.037 272.5);
+    --ring: oklch(0.454 0.198 273.9);
+    --marker: #ffe45c;
+    --marker-edge: oklch(0.566 0.116 91.8);
+    --chart-1: oklch(0.454 0.198 273.9);
+    --chart-2: #6e72d9;
+    --chart-3: #e8c93a;
+    --chart-4: oklch(0.540 0.176 28.6);
+    --chart-5: oklch(0.503 0.048 271.2);
+    --radius: 0.5rem;
+    --sidebar: oklch(1 0 0);
+    --sidebar-foreground: oklch(0.250 0.051 269.6);
+    --sidebar-primary: oklch(0.454 0.198 273.9);
+    --sidebar-primary-foreground: oklch(1 0 0);
+    --sidebar-accent: oklch(0.967 0.071 99.8);
+    --sidebar-accent-foreground: oklch(0.250 0.051 269.6);
+    --sidebar-border: oklch(0.907 0.014 268.5);
+    --sidebar-ring: oklch(0.454 0.198 273.9);
+}
+
+.dark {
+    --background: oklch(0.209 0.037 271.2);
+    --foreground: oklch(0.934 0.013 271.3);
+    --card: oklch(0.251 0.046 272.0);
+    --card-foreground: oklch(0.934 0.013 271.3);
+    --popover: oklch(0.251 0.046 272.0);
+    --popover-foreground: oklch(0.934 0.013 271.3);
+    --primary: oklch(0.746 0.133 280.3);
+    --primary-foreground: oklch(0.209 0.037 271.2);
+    --secondary: oklch(0.300 0.060 274);
+    --secondary-foreground: oklch(0.934 0.013 271.3);
+    --muted: oklch(0.280 0.045 272);
+    --muted-foreground: oklch(0.740 0.035 272.6);
+    --accent: oklch(0.337 0.033 103.1);
+    --accent-foreground: oklch(0.934 0.013 271.3);
+    --destructive: oklch(0.758 0.145 29.0);
+    --border: oklch(0.333 0.058 272.3);
+    --input: oklch(0.561 0.051 273.7);
+    --ring: oklch(0.746 0.133 280.3);
+    --marker: #e8d34a;
+    --marker-edge: #e8d34a;
+    --chart-1: oklch(0.746 0.133 280.3);
+    --chart-2: #9da2ff;
+    --chart-3: #e8d34a;
+    --chart-4: oklch(0.758 0.145 29.0);
+    --chart-5: oklch(0.740 0.035 272.6);
+    --sidebar: oklch(0.251 0.046 272.0);
+    --sidebar-foreground: oklch(0.934 0.013 271.3);
+    --sidebar-primary: oklch(0.746 0.133 280.3);
+    --sidebar-primary-foreground: oklch(0.209 0.037 271.2);
+    --sidebar-accent: oklch(0.337 0.033 103.1);
+    --sidebar-accent-foreground: oklch(0.934 0.013 271.3);
+    --sidebar-border: oklch(0.333 0.058 272.3);
+    --sidebar-ring: oklch(0.746 0.133 280.3);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: 'kern';
+  }
+  /* A form theme (docs/ux/FORM-THEME-SCREENS.md 3.5): the form root carries data-df-theme; the
+     theme's variables (--df-*) come from its stylesheet (public pages) or inline (studio). Latin
+     sizes scale with the theme's text size; Thaana sizes below scale the same way. */
+  [data-df-theme] {
+    font-family: var(--df-font-latin, 'Atkinson Hyperlegible Next Variable'), Roboto, 'Segoe UI', 'Helvetica Neue', Arial, Faruma, 'MV Faseyha',
+      'Noto Sans Thaana', sans-serif;
+    --text-xs: calc(0.75rem * var(--df-text-scale, 1));
+    --text-xs--line-height: calc(1rem * var(--df-text-scale, 1));
+    --text-sm: calc(0.875rem * var(--df-text-scale, 1));
+    --text-sm--line-height: calc(1.25rem * var(--df-text-scale, 1));
+    --text-base: calc(1rem * var(--df-text-scale, 1));
+    --text-base--line-height: calc(1.5rem * var(--df-text-scale, 1));
+    --text-lg: calc(1.1875rem * var(--df-text-scale, 1));
+    --text-lg--line-height: calc(1.75rem * var(--df-text-scale, 1));
+    --text-xl: calc(1.4375rem * var(--df-text-scale, 1));
+    --text-xl--line-height: calc(2rem * var(--df-text-scale, 1));
+    --text-2xl: calc(1.75rem * var(--df-text-scale, 1));
+    --text-2xl--line-height: calc(2.25rem * var(--df-text-scale, 1));
+    --text-3xl: calc(2.0625rem * var(--df-text-scale, 1));
+    --text-3xl--line-height: calc(2.5rem * var(--df-text-scale, 1));
+  }
+  /* Form content in Dhivehi (elements get lang="dv" from the form's language). Thaana is set
+     about 1.12x larger with about 1.75x line-height so fili never clip. Redefining Tailwind's
+     type-scale variables here makes shadcn components (which hard-code text-sm etc.) scale
+     without being edited (DESIGN-SYSTEM 4.2). Never size Thaana per component. */
+  :lang(dv) {
+    --text-xs: calc(0.875rem * var(--df-text-scale, 1));
+    --text-xs--line-height: calc(1.5rem * var(--df-text-scale, 1));
+    --text-sm: calc(1rem * var(--df-text-scale, 1));
+    --text-sm--line-height: calc(1.75rem * var(--df-text-scale, 1));
+    --text-base: calc(1.125rem * var(--df-text-scale, 1));
+    --text-base--line-height: calc(2rem * var(--df-text-scale, 1));
+    --text-lg: calc(1.3125rem * var(--df-text-scale, 1));
+    --text-lg--line-height: calc(2.25rem * var(--df-text-scale, 1));
+    --text-xl: calc(1.625rem * var(--df-text-scale, 1));
+    --text-xl--line-height: calc(2.5rem * var(--df-text-scale, 1));
+    --text-2xl: calc(1.9375rem * var(--df-text-scale, 1));
+    --text-2xl--line-height: calc(3rem * var(--df-text-scale, 1));
+    --text-3xl: calc(2.3125rem * var(--df-text-scale, 1));
+    --text-3xl--line-height: calc(3.5rem * var(--df-text-scale, 1));
+    font-family: var(--df-font-thaana, Faruma), Faruma, 'MV Faseyha', 'Noto Sans Thaana',
+      var(--df-font-latin, 'Atkinson Hyperlegible Next Variable'), sans-serif;
+    font-synthesis-style: none;
+    letter-spacing: 0;
+  }
+  /* Latin data typed inside a dv form (emails, phone numbers, IDs) and English runs marked
+     lang="en" (the organisation name) keep the Latin face; otherwise they inherit the Thaana
+     stack and pick up Faruma's serif Latin glyphs. */
+  :lang(dv) [dir='ltr'],
+  :lang(dv) [dir='ltr'] *,
+  :lang(dv) [lang='en'],
+  :lang(dv) [lang='en'] * {
+    font-family: var(--df-font-latin, 'Atkinson Hyperlegible Next Variable'), Roboto, 'Segoe UI', 'Helvetica Neue', Arial, Faruma, 'MV Faseyha',
+      'Noto Sans Thaana', sans-serif;
+  }
+  /* A form's own accent replaces primary and ring inside the form root only (light mode; the
+     renderer has already darkened it to 4.5:1 on white). */
+  [data-accent]:not(.dark *) {
+    --primary: var(--form-accent);
+    --ring: var(--form-accent);
+  }
+  /* Thaana underlines sit below the lower vowel signs. */
+  :lang(dv) a {
+    text-underline-offset: 0.4em;
+    text-decoration-thickness: 1px;
+  }
+}
+
+/* Touch screens: every studio control is at least 44x44px (DESIGN-SYSTEM 6, WCAG 2.5.5).
+   min-height/min-width win over the fixed h-N and size-N classes of the shadcn components without
+   editing them. Buttons are matched by data-variant + data-size because a Radix trigger rendered
+   asChild replaces their data-slot. The calendar keeps its grid (its cells fill the popover). */
+@layer base {
+  @media (pointer: coarse) {
+    :where(
+        button[data-variant][data-size],
+        a[data-variant][data-size],
+        [data-slot='toggle'],
+        [data-slot='toggle-group-item'],
+        [data-slot='select-trigger'],
+        [data-slot='native-select'],
+        [data-slot='input'],
+        [data-slot='input-group'],
+        [data-slot='tabs-list'],
+        [data-slot='accordion-trigger'],
+        [data-slot='dropdown-menu-item'],
+        [data-slot='dropdown-menu-checkbox-item'],
+        [data-slot='dropdown-menu-radio-item'],
+        [data-slot='context-menu-item'],
+        [data-slot='command-item'],
+        [data-slot='select-item'],
+        [data-slot='command-input-wrapper'] [data-slot='input-group'],
+        [data-slot='field'][data-orientation='horizontal']:has(> [role='radio'], > [role='checkbox'], > [role='switch'])
+          [data-slot='field-label']:not(div)
+      ):not([data-slot='calendar'] *) {
+      min-height: 2.75rem;
+    }
+    :where(button[data-variant][data-size], a[data-variant][data-size], [data-slot='toggle'], [data-slot='toggle-group-item']):not(
+        [data-slot='calendar'] *
+      ) {
+      min-width: 2.75rem;
+    }
+    :where([data-slot='tabs-trigger']) {
+      min-height: 2.75rem;
+      min-width: 2.75rem;
+    }
+    :where([data-slot='tabs-list']) {
+      min-height: calc(2.75rem + 6px);
+    }
+    :where([data-slot='breadcrumb-link']) {
+      display: inline-flex;
+      align-items: center;
+      min-height: 2.75rem;
+      min-width: 2.75rem;
+    }
+  }
+}
+
+/* Unlayered so they beat the components' own after: hit areas: finger-sized on touch. */
+@media (pointer: coarse) {
+  [data-slot='resizable-handle']::after {
+    width: 2.75rem;
+  }
+  [data-slot='checkbox']::after,
+  [data-slot='radio-group-item']::after {
+    inset: -0.875rem;
+  }
+}
+
+/* Form theme options that need more than variables (docs/ux/FORM-THEME-SCREENS.md 3.5). The form
+   root carries data-df-* attributes; these restyle the generated components from outside, so
+   components/ui stays untouched. Unlayered so they beat the components' utilities. */
+[data-df-theme] .df-title {
+  font-size: calc(var(--text-2xl) * var(--df-heading-scale, 1));
+  line-height: calc(var(--text-2xl--line-height) * var(--df-heading-scale, 1));
+}
+@media (width >= 40rem) {
+  [data-df-theme] .df-title {
+    font-size: calc(var(--text-3xl) * var(--df-heading-scale, 1));
+    line-height: calc(var(--text-3xl--line-height) * var(--df-heading-scale, 1));
+  }
+}
+[data-df-theme] .df-page-title {
+  font-size: calc(var(--text-xl) * var(--df-heading-scale, 1));
+  line-height: calc(var(--text-xl--line-height) * var(--df-heading-scale, 1));
+}
+[data-df-frame='page'] {
+  background-image: var(--df-desk-image, none);
+  background-size: cover;
+  background-position: center;
+}
+[data-df-button='outline'] [data-slot='button'][data-variant='default'] {
+  background-color: transparent;
+  color: var(--primary);
+  border-color: var(--primary);
+}
+[data-df-button='outline'] [data-slot='button'][data-variant='default']:hover {
+  background-color: color-mix(in oklab, var(--primary) 10%, transparent);
+}
+[data-df-input='filled']
+  :is([data-slot='input'], [data-slot='textarea'], [data-slot='native-select'], [data-slot='input-group']):not(
+    [data-slot='input-group'] *
+  ) {
+  background-color: var(--muted);
+  border-color: transparent;
+  border-bottom-color: var(--input);
+}
+[data-df-input='underlined']
+  :is([data-slot='input'], [data-slot='textarea'], [data-slot='native-select'], [data-slot='input-group']):not(
+    [data-slot='input-group'] *
+  ) {
+  background-color: transparent;
+  border-width: 0 0 1px;
+  border-color: var(--input);
+  border-radius: 0;
+}
+
+/* Inactive tab labels: the generated foreground/60 is 4.2:1 on the desk; muted foreground is
+   5.45:1 (WCAG 1.4.3). Dark mode already uses muted foreground. */
+[data-slot='tabs-trigger']:not([data-state='active']):not(:hover) {
+  color: var(--muted-foreground);
+}
+
+/* Primary button hover inside a form: the generated primary/80 is translucent and drops the label
+   below 4.5:1 on a light accent. Hover goes darker instead (lighter in dark mode, where the label
+   is dark), so it is never less legible than the resting state. */
+[data-df-theme]:not([data-df-button='outline']) [data-slot='button'][data-variant='default']:hover {
+  background-color: color-mix(in oklab, var(--primary) 86%, black);
+}
+.dark [data-df-theme]:not([data-df-button='outline']) [data-slot='button'][data-variant='default']:hover,
+[data-df-theme].dark:not([data-df-button='outline']) [data-slot='button'][data-variant='default']:hover {
+  background-color: color-mix(in oklab, var(--primary) 86%, white);
+}
+
+/* Phones: the Back / Next bar is sticky at the bottom of the form page. Focusing a field scrolls
+   it clear of the bar (WCAG 2.4.11); --df-bar-h is measured by the renderer. */
+@media (width < 48rem) {
+  html:has([data-df-sticky-bar]) {
+    scroll-padding-bottom: calc(var(--df-bar-h, 4.75rem) + 1rem);
+  }
+}

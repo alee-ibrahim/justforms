@@ -1,0 +1,3 @@
+minimumReleaseAgeExclude:
+  - '@yashau/thaana-react@2026.1023.1'
+  - '@yashau/thaana@2026.1023.1'

@@ -1,0 +1,98 @@
+{
+  "name": "long_chain_back_to_start",
+  "expect": "cycle",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Cycle"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "n0",
+            "type": "short_text",
+            "label": "n0",
+            "visibleIf": {
+              "field": "n1",
+              "op": "not_empty"
+            }
+          },
+          {
+            "kind": "field",
+            "id": "n1",
+            "type": "short_text",
+            "label": "n1",
+            "visibleIf": {
+              "field": "n2",
+              "op": "not_empty"
+            }
+          },
+          {
+            "kind": "field",
+            "id": "n2",
+            "type": "short_text",
+            "label": "n2",
+            "visibleIf": {
+              "field": "n3",
+              "op": "not_empty"
+            }
+          },
+          {
+            "kind": "field",
+            "id": "n3",
+            "type": "short_text",
+            "label": "n3",
+            "visibleIf": {
+              "field": "n4",
+              "op": "not_empty"
+            }
+          },
+          {
+            "kind": "field",
+            "id": "n4",
+            "type": "short_text",
+            "label": "n4",
+            "visibleIf": {
+              "field": "n5",
+              "op": "not_empty"
+            }
+          },
+          {
+            "kind": "field",
+            "id": "n5",
+            "type": "short_text",
+            "label": "n5",
+            "visibleIf": {
+              "field": "n6",
+              "op": "not_empty"
+            }
+          },
+          {
+            "kind": "field",
+            "id": "n6",
+            "type": "short_text",
+            "label": "n6",
+            "visibleIf": {
+              "field": "n7",
+              "op": "not_empty"
+            }
+          },
+          {
+            "kind": "field",
+            "id": "n7",
+            "type": "short_text",
+            "label": "n7",
+            "visibleIf": {
+              "field": "n0",
+              "op": "not_empty"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

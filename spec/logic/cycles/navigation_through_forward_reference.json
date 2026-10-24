@@ -1,0 +1,59 @@
+{
+  "name": "navigation_through_forward_reference",
+  "expect": "cycle",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Cycle"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "f",
+            "type": "short_text",
+            "label": "f",
+            "visibleIf": {
+              "field": "g",
+              "op": "not_empty"
+            }
+          }
+        ],
+        "next": [
+          {
+            "if": {
+              "field": "f",
+              "op": "not_empty"
+            },
+            "goto": "p3"
+          }
+        ]
+      },
+      {
+        "id": "p2",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "g",
+            "type": "short_text",
+            "label": "g"
+          }
+        ]
+      },
+      {
+        "id": "p3",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "h",
+            "type": "short_text",
+            "label": "h"
+          }
+        ]
+      }
+    ]
+  }
+}

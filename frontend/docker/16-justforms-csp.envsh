@@ -1,0 +1,44 @@
+#!/bin/sh
+# Builds the Content-Security-Policy values used in nginx.conf (DESIGN 14.4) and picks the
+# DNS resolver. Sourced by the nginx image's entrypoint before the templates are rendered.
+#   JUSTFORMS_THAANA_FONT_CSS_URL     absolute URL: its origin is allowed in style-src/font-src
+#   JUSTFORMS_CAPTCHA_PROVIDER        turnstile | hcaptcha add the provider's script/frame origins
+#   JUSTFORMS_CSP_EXTRA_CONNECT_SRC   extra origins for connect-src/img-src (e.g. an S3 bucket)
+#   NGINX_RESOLVER                  DNS server for the backend name (default: from resolv.conf)
+
+font_origin=""
+case "${JUSTFORMS_THAANA_FONT_CSS_URL:-}" in
+  https://*)
+    font_origin=$(printf '%s' "$JUSTFORMS_THAANA_FONT_CSS_URL" | sed -E 's#^(https://[^/?#]+).*#\1#')
+    ;;
+esac
+
+captcha_script=""
+captcha_frame=""
+captcha_connect=""
+case "${JUSTFORMS_CAPTCHA_PROVIDER:-none}" in
+  turnstile)
+    captcha_script="https://challenges.cloudflare.com"
+    captcha_frame="https://challenges.cloudflare.com"
+    ;;
+  hcaptcha)
+    captcha_script="https://hcaptcha.com https://*.hcaptcha.com"
+    captcha_frame="https://hcaptcha.com https://*.hcaptcha.com"
+    captcha_connect="https://hcaptcha.com https://*.hcaptcha.com"
+    ;;
+esac
+
+extra="${JUSTFORMS_CSP_EXTRA_CONNECT_SRC:-}"
+
+join() { printf '%s' "$*" | tr -s ' ' | sed -e 's/^ //' -e 's/ $//'; }
+
+base="default-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"
+studio="$base; $(join "script-src 'self'"); $(join "style-src 'self' 'unsafe-inline' $font_origin"); $(join "font-src 'self' data: $font_origin"); $(join "img-src 'self' data: blob: $extra"); $(join "connect-src 'self' $extra")"
+public="$base; $(join "script-src 'self' $captcha_script"); $(join "style-src 'self' 'unsafe-inline' $font_origin $captcha_script"); $(join "font-src 'self' data: $font_origin"); $(join "img-src 'self' data: blob: $extra"); $(join "connect-src 'self' $extra $captcha_connect")"
+if [ -n "$captcha_frame" ]; then
+  public="$public; frame-src $captcha_frame"
+fi
+
+export JUSTFORMS_CSP_STUDIO="$studio"
+export JUSTFORMS_CSP_PUBLIC="$public"
+export JUSTFORMS_NGINX_RESOLVER="${NGINX_RESOLVER:-${NGINX_LOCAL_RESOLVERS:-127.0.0.11}}"

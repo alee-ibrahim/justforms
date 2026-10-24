@@ -1,0 +1,93 @@
+{{- include "justforms.validate" . -}}
+{{- $c := .Values.backend -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "justforms.fullname" . }}-backend
+  labels:
+    {{- include "justforms.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  {{- if not $c.autoscaling.enabled }}
+  replicas: {{ $c.replicas }}
+  {{- end }}
+  {{- if include "justforms.storageIsRwo" . }}
+  # A ReadWriteOnce storage volume can't always attach to a surge pod on another node.
+  strategy:
+    type: Recreate
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "justforms.selectorLabels" (list . "backend") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "justforms.labels" . | nindent 8 }}
+        app.kubernetes.io/component: backend
+        {{- with $c.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with $c.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "justforms.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with (include "justforms.podCommon" (dict "root" . "c" $c) | trim) }}{{ . | nindent 6 }}{{- end }}
+      {{- with $c.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- include "justforms.appVolumes" (dict "root" . "storage" true) | nindent 6 }}
+      containers:
+        - name: backend
+          image: {{ include "justforms.backendImage" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ $c.port }}
+              protocol: TCP
+          {{- include "justforms.backendEnv" . | trim | nindent 10 }}
+            - name: FORWARDED_ALLOW_IPS
+              value: {{ $c.forwardedAllowIps | quote }}
+          {{- include "justforms.appVolumeMounts" (dict "root" . "storage" true) | nindent 10 }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          {{- with $c.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $c.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $c.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "justforms.fullname" . }}-backend
+  labels:
+    {{- include "justforms.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+  {{- with $c.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ $c.service.type }}
+  selector:
+    {{- include "justforms.selectorLabels" (list . "backend") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $c.port }}
+      targetPort: http
+      protocol: TCP

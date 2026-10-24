@@ -1,0 +1,4 @@
+# Operator-supplied font files (e.g. licensed Faruma) and fonts.css go here.
+# Never commit them: their licences may not allow redistribution.
+*
+!.gitignore

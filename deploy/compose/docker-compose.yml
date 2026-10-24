@@ -1,0 +1,224 @@
+# JustForms local/self-hosted stack.
+#   cp .env.example .env   # then edit secrets
+#   docker compose up -d --build
+#   docker compose run --rm migrate python -m app.cli create-admin --email you@example.org
+# Frontend: http://localhost:${JUSTFORMS_HTTP_PORT:-8080}
+#
+# Profiles / overlays:
+#   --profile dev                         adds mailpit (catches every email; UI on :8025)
+#   -f docker-compose.yml -f docker-compose.keycloak.yml
+#                                         adds a dev Keycloak and switches staff login to OIDC
+#   --profile tunnel                      adds cloudflared for a named Cloudflare Tunnel
+#                                         (CLOUDFLARE_TUNNEL_TOKEN)
+#   --profile quick-tunnel                adds cloudflared with a temporary trycloudflare.com URL
+#
+# Files (uploads, PDFs, exports) are stored on the `storage-data` volume by default
+# (JUSTFORMS_STORAGE_BACKEND=local). Set JUSTFORMS_STORAGE_BACKEND=s3 and the JUSTFORMS_S3_* vars
+# in .env to use an external S3-compatible service instead; no object store is bundled.
+name: justforms
+
+x-backend-env: &backend-env
+  JUSTFORMS_ENVIRONMENT: ${JUSTFORMS_ENVIRONMENT:-development}
+  JUSTFORMS_PUBLIC_URL: ${JUSTFORMS_PUBLIC_URL:-http://localhost:8080}
+  JUSTFORMS_CORS_ORIGINS: ${JUSTFORMS_PUBLIC_URL:-http://localhost:8080}
+  JUSTFORMS_SECRET_KEY: ${JUSTFORMS_SECRET_KEY:-}
+  JUSTFORMS_COOKIE_SECURE: ${JUSTFORMS_COOKIE_SECURE:-false}
+  JUSTFORMS_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-justforms}:${POSTGRES_PASSWORD:-justforms}@postgres:5432/${POSTGRES_DB:-justforms}
+  JUSTFORMS_REDIS_URL: redis://redis:6379/0
+  JUSTFORMS_SMTP_HOST: ${JUSTFORMS_SMTP_HOST:-}
+  JUSTFORMS_SMTP_PORT: ${JUSTFORMS_SMTP_PORT:-587}
+  JUSTFORMS_SMTP_USERNAME: ${JUSTFORMS_SMTP_USERNAME:-}
+  JUSTFORMS_SMTP_PASSWORD: ${JUSTFORMS_SMTP_PASSWORD:-}
+  JUSTFORMS_SMTP_SECURITY: ${JUSTFORMS_SMTP_SECURITY:-starttls}
+  JUSTFORMS_SMTP_FROM: ${JUSTFORMS_SMTP_FROM:-JustForms <no-reply@localhost>}
+  JUSTFORMS_OIDC_ISSUER: ${JUSTFORMS_OIDC_ISSUER:-}
+  JUSTFORMS_OIDC_DISCOVERY_URL: ${JUSTFORMS_OIDC_DISCOVERY_URL:-}
+  JUSTFORMS_OIDC_CLIENT_ID: ${JUSTFORMS_OIDC_CLIENT_ID:-}
+  JUSTFORMS_OIDC_CLIENT_SECRET: ${JUSTFORMS_OIDC_CLIENT_SECRET:-}
+  JUSTFORMS_OIDC_ADMIN_GROUPS: ${JUSTFORMS_OIDC_ADMIN_GROUPS:-}
+  JUSTFORMS_OIDC_CREATOR_GROUPS: ${JUSTFORMS_OIDC_CREATOR_GROUPS:-}
+  JUSTFORMS_OIDC_MEMBER_GROUPS: ${JUSTFORMS_OIDC_MEMBER_GROUPS:-}
+  JUSTFORMS_OIDC_DEFAULT_ROLE: ${JUSTFORMS_OIDC_DEFAULT_ROLE:-creator}
+  JUSTFORMS_INVITE_DAYS: ${JUSTFORMS_INVITE_DAYS:-14}
+  # Demo instances only (see .env.example); empty = off.
+  JUSTFORMS_DEMO_LOGIN_CODE: ${JUSTFORMS_DEMO_LOGIN_CODE:-}
+  JUSTFORMS_DEMO_LOGIN_EMAILS: ${JUSTFORMS_DEMO_LOGIN_EMAILS:-}
+  JUSTFORMS_STORAGE_BACKEND: ${JUSTFORMS_STORAGE_BACKEND:-local}
+  JUSTFORMS_STORAGE_LOCAL_PATH: /data/storage
+  JUSTFORMS_S3_ENDPOINT_URL: ${JUSTFORMS_S3_ENDPOINT_URL:-}
+  JUSTFORMS_S3_REGION: ${JUSTFORMS_S3_REGION:-us-east-1}
+  JUSTFORMS_S3_BUCKET: ${JUSTFORMS_S3_BUCKET:-}
+  JUSTFORMS_S3_ACCESS_KEY_ID: ${JUSTFORMS_S3_ACCESS_KEY_ID:-}
+  JUSTFORMS_S3_SECRET_ACCESS_KEY: ${JUSTFORMS_S3_SECRET_ACCESS_KEY:-}
+  JUSTFORMS_S3_ADDRESSING_STYLE: ${JUSTFORMS_S3_ADDRESSING_STYLE:-auto}
+  JUSTFORMS_MAX_UPLOAD_MB: ${JUSTFORMS_MAX_UPLOAD_MB:-25}
+  JUSTFORMS_TIMEZONE: ${JUSTFORMS_TIMEZONE:-UTC}
+  JUSTFORMS_TRUSTED_PROXIES: ${JUSTFORMS_TRUSTED_PROXIES:-}
+  JUSTFORMS_PDF_SIGNING_P12: ${JUSTFORMS_PDF_SIGNING_P12:-}
+  JUSTFORMS_PDF_SIGNING_P12_PASSWORD: ${JUSTFORMS_PDF_SIGNING_P12_PASSWORD:-}
+  JUSTFORMS_PDF_TSA_URL: ${JUSTFORMS_PDF_TSA_URL:-}
+  # Abuse controls and webhooks (see .env.example).
+  JUSTFORMS_RATE_LIMIT_ENABLED: ${JUSTFORMS_RATE_LIMIT_ENABLED:-true}
+  JUSTFORMS_RATE_LIMITS: ${JUSTFORMS_RATE_LIMITS:-}
+  JUSTFORMS_CAPTCHA_PROVIDER: ${JUSTFORMS_CAPTCHA_PROVIDER:-none}
+  JUSTFORMS_CAPTCHA_SITE_KEY: ${JUSTFORMS_CAPTCHA_SITE_KEY:-}
+  JUSTFORMS_CAPTCHA_SECRET_KEY: ${JUSTFORMS_CAPTCHA_SECRET_KEY:-}
+  JUSTFORMS_WEBHOOK_ALLOWED_CIDRS: ${JUSTFORMS_WEBHOOK_ALLOWED_CIDRS:-}
+  # AI assistant (optional; see .env.example).
+  JUSTFORMS_AI_PROVIDER: ${JUSTFORMS_AI_PROVIDER:-none}
+  JUSTFORMS_AI_MODEL: ${JUSTFORMS_AI_MODEL:-}
+  JUSTFORMS_AI_API_KEY: ${JUSTFORMS_AI_API_KEY:-}
+  JUSTFORMS_AI_BASE_URL: ${JUSTFORMS_AI_BASE_URL:-}
+  JUSTFORMS_AI_VISION_MODEL: ${JUSTFORMS_AI_VISION_MODEL:-}
+  JUSTFORMS_AI_VISION: ${JUSTFORMS_AI_VISION:-}
+  JUSTFORMS_AI_PROVIDER_LABEL: ${JUSTFORMS_AI_PROVIDER_LABEL:-}
+  # Branding defaults (organisations override them in the studio). Files: put them in
+  # ./branding (or JUSTFORMS_BRANDING_DIR) and name them, e.g. /etc/justforms/branding/logo.svg.
+  JUSTFORMS_BRAND_NAME: ${JUSTFORMS_BRAND_NAME:-}
+  JUSTFORMS_BRAND_PRIMARY_COLOR: ${JUSTFORMS_BRAND_PRIMARY_COLOR:-}
+  JUSTFORMS_BRAND_SUPPORT_URL: ${JUSTFORMS_BRAND_SUPPORT_URL:-}
+  JUSTFORMS_BRAND_LOGO_FILE: ${JUSTFORMS_BRAND_LOGO_FILE:-}
+  JUSTFORMS_BRAND_LOGO_DARK_FILE: ${JUSTFORMS_BRAND_LOGO_DARK_FILE:-}
+  JUSTFORMS_BRAND_ICON_FILE: ${JUSTFORMS_BRAND_ICON_FILE:-}
+  JUSTFORMS_BRAND_POWERED_BY: ${JUSTFORMS_BRAND_POWERED_BY:-optional}
+  # Faruma stylesheet (default: dvfonts CDN). Empty disables; /fonts/... uses a self-hosted copy.
+  JUSTFORMS_THAANA_FONT_CSS_URL: "${JUSTFORMS_THAANA_FONT_CSS_URL-https://dvfonts.yashau.com/css2?family=Faruma&display=swap}"
+  # Thaana fonts a form theme can choose (comma-separated family names). Empty: the built-in list.
+  JUSTFORMS_THAANA_FONTS: ${JUSTFORMS_THAANA_FONTS:-}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-justforms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-justforms}
+      POSTGRES_DB: ${POSTGRES_DB:-justforms}
+    ports:
+      # Published on localhost only, for running the backend outside Docker (just infra).
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # One-shot: apply database migrations, then exit. Also used to run the admin CLI.
+  migrate:
+    build: ../../backend
+    image: justforms-backend:dev
+    command: alembic upgrade head
+    environment: *backend-env
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    image: justforms-backend:dev
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'
+    environment: *backend-env
+    volumes:
+      - storage-data:/data/storage
+      - ${JUSTFORMS_BRANDING_DIR:-./branding}:/etc/justforms/branding:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    image: justforms-backend:dev
+    restart: unless-stopped
+    command: arq app.worker.WorkerSettings
+    environment: *backend-env
+    volumes:
+      # Same volume as the backend: the worker reads uploads and writes PDFs/exports.
+      - storage-data:/data/storage
+      - ${JUSTFORMS_BRANDING_DIR:-./branding}:/etc/justforms/branding:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  frontend:
+    build: ../../frontend
+    image: justforms-frontend:dev
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://backend:8000
+      # Used to build the Content-Security-Policy (font and CAPTCHA origins, S3 bucket).
+      JUSTFORMS_THAANA_FONT_CSS_URL: "${JUSTFORMS_THAANA_FONT_CSS_URL-https://dvfonts.yashau.com/css2?family=Faruma&display=swap}"
+      JUSTFORMS_CAPTCHA_PROVIDER: ${JUSTFORMS_CAPTCHA_PROVIDER:-none}
+      JUSTFORMS_CSP_EXTRA_CONNECT_SRC: ${JUSTFORMS_CSP_EXTRA_CONNECT_SRC:-}
+    volumes:
+      # Optional operator fonts (e.g. licensed Faruma) served at /fonts/;
+      # see "Thaana fonts" in the README. The directory may be empty.
+      - ${JUSTFORMS_FONTS_DIR:-./fonts}:/srv/fonts:ro
+    ports:
+      - "${JUSTFORMS_HTTP_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # Development mail catcher: set JUSTFORMS_SMTP_HOST=mailpit, JUSTFORMS_SMTP_PORT=1025 and
+  # JUSTFORMS_SMTP_SECURITY=none, then read sign-in codes, notifications and receipts at
+  # http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:v1.29
+    profiles: ["dev"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MAILPIT_PORT:-8025}:8025"
+
+  # Optional Cloudflare Tunnel in front of the web container (see "Cloudflare Tunnel" in the
+  # README). Either way set JUSTFORMS_PUBLIC_URL to the tunnel's https:// URL and
+  # JUSTFORMS_COOKIE_SECURE=true, so links, QR codes and the Origin check use it.
+  #
+  # --profile tunnel: a named tunnel from the Cloudflare dashboard. Set CLOUDFLARE_TUNNEL_TOKEN
+  #   and point the tunnel's public hostname at http://frontend:80.
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.3
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - frontend
+
+  # --profile quick-tunnel: a throwaway https://<random>.trycloudflare.com URL, no account
+  #   needed. For demos only: the URL changes every time this container starts. Read it with
+  #   `docker compose logs cloudflared-quick`.
+  cloudflared-quick:
+    image: cloudflare/cloudflared:2026.10.3
+    profiles: ["quick-tunnel"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://frontend:80
+    depends_on:
+      - frontend
+
+volumes:
+  postgres-data:
+  redis-data:
+  storage-data:

@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+FROM node:24-alpine AS build
+# pnpm is provisioned by corepack from the "packageManager" field in package.json.
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY . .
+RUN pnpm build
+
+FROM nginx:1.29-alpine
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+COPY docker/security-headers.inc /etc/nginx/snippets/justforms-security-headers.inc
+COPY --chmod=0755 docker/16-justforms-csp.envsh /docker-entrypoint.d/16-justforms-csp.envsh
+COPY --from=build /app/dist /usr/share/nginx/html
+# BACKEND_URL is resolved at request time (resolver from /etc/resolv.conf), so it must be a
+# name the DNS server answers for (on Kubernetes: the fully qualified service name).
+ENV BACKEND_URL=http://backend:8000 \
+    NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1 \
+    JUSTFORMS_THAANA_FONT_CSS_URL="https://dvfonts.yashau.com/css2?family=Faruma&display=swap" \
+    JUSTFORMS_CAPTCHA_PROVIDER=none
+EXPOSE 80

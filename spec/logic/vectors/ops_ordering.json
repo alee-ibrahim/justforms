@@ -1,0 +1,434 @@
+{
+  "name": "ops_ordering",
+  "description": "gt/gte/lt/lte on numbers, YYYY-MM-DD dates and HH:MM times; anything else is false",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "n",
+            "type": "number",
+            "label": "n"
+          },
+          {
+            "kind": "field",
+            "id": "d",
+            "type": "date",
+            "label": "d"
+          },
+          {
+            "kind": "field",
+            "id": "tm",
+            "type": "time",
+            "label": "tm"
+          },
+          {
+            "kind": "field",
+            "id": "t",
+            "type": "short_text",
+            "label": "t"
+          },
+          {
+            "kind": "field",
+            "id": "r",
+            "type": "rating",
+            "label": "r"
+          },
+          {
+            "kind": "content",
+            "id": "n_gt_10",
+            "contentType": "paragraph",
+            "text": "n_gt_10",
+            "visibleIf": {
+              "field": "n",
+              "op": "gt",
+              "value": 10
+            }
+          },
+          {
+            "kind": "content",
+            "id": "n_gte_10",
+            "contentType": "paragraph",
+            "text": "n_gte_10",
+            "visibleIf": {
+              "field": "n",
+              "op": "gte",
+              "value": 10
+            }
+          },
+          {
+            "kind": "content",
+            "id": "n_lt_10",
+            "contentType": "paragraph",
+            "text": "n_lt_10",
+            "visibleIf": {
+              "field": "n",
+              "op": "lt",
+              "value": 10
+            }
+          },
+          {
+            "kind": "content",
+            "id": "n_lte_10",
+            "contentType": "paragraph",
+            "text": "n_lte_10",
+            "visibleIf": {
+              "field": "n",
+              "op": "lte",
+              "value": 10
+            }
+          },
+          {
+            "kind": "content",
+            "id": "d_gt",
+            "contentType": "paragraph",
+            "text": "d_gt",
+            "visibleIf": {
+              "field": "d",
+              "op": "gt",
+              "value": "2026-06-15"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "d_lte",
+            "contentType": "paragraph",
+            "text": "d_lte",
+            "visibleIf": {
+              "field": "d",
+              "op": "lte",
+              "value": "2026-06-15"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "tm_lt",
+            "contentType": "paragraph",
+            "text": "tm_lt",
+            "visibleIf": {
+              "field": "tm",
+              "op": "lt",
+              "value": "12:00"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "tm_gte",
+            "contentType": "paragraph",
+            "text": "tm_gte",
+            "visibleIf": {
+              "field": "tm",
+              "op": "gte",
+              "value": "12:00"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "t_gt_date",
+            "contentType": "paragraph",
+            "text": "t_gt_date",
+            "visibleIf": {
+              "field": "t",
+              "op": "gt",
+              "value": "2026-01-01"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "n_gt_str",
+            "contentType": "paragraph",
+            "text": "n_gt_str",
+            "visibleIf": {
+              "field": "n",
+              "op": "gt",
+              "value": "5"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "d_gt_num",
+            "contentType": "paragraph",
+            "text": "d_gt_num",
+            "visibleIf": {
+              "field": "d",
+              "op": "gt",
+              "value": 5
+            }
+          },
+          {
+            "kind": "content",
+            "id": "r_gte_4",
+            "contentType": "paragraph",
+            "text": "r_gte_4",
+            "visibleIf": {
+              "field": "r",
+              "op": "gte",
+              "value": 4
+            }
+          },
+          {
+            "kind": "content",
+            "id": "n_lt_neg",
+            "contentType": "paragraph",
+            "text": "n_lt_neg",
+            "visibleIf": {
+              "field": "n",
+              "op": "lt",
+              "value": -1
+            }
+          },
+          {
+            "kind": "content",
+            "id": "d_gt_time",
+            "contentType": "paragraph",
+            "text": "d_gt_time",
+            "visibleIf": {
+              "field": "d",
+              "op": "gt",
+              "value": "12:00"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "boundaries are inclusive for gte/lte",
+      "answers": {
+        "n": 10,
+        "d": "2026-06-15",
+        "tm": "12:00",
+        "t": "2026-05-01",
+        "r": 4
+      },
+      "expect": {
+        "visible": [
+          "n_gte_10",
+          "n_lte_10",
+          "d_lte",
+          "tm_gte",
+          "t_gt_date",
+          "r_gte_4"
+        ],
+        "hidden": [
+          "n_gt_10",
+          "n_lt_10",
+          "d_gt",
+          "tm_lt",
+          "n_gt_str",
+          "d_gt_num",
+          "n_lt_neg",
+          "d_gt_time"
+        ]
+      }
+    },
+    {
+      "name": "just above / below",
+      "answers": {
+        "n": 10.5,
+        "d": "2026-06-16",
+        "tm": "11:59",
+        "t": "hello",
+        "r": 3
+      },
+      "expect": {
+        "visible": [
+          "n_gt_10",
+          "n_gte_10",
+          "d_gt",
+          "tm_lt"
+        ],
+        "hidden": [
+          "n_lt_10",
+          "n_lte_10",
+          "d_lte",
+          "tm_gte",
+          "t_gt_date",
+          "n_gt_str",
+          "d_gt_num",
+          "r_gte_4",
+          "n_lt_neg",
+          "d_gt_time"
+        ]
+      }
+    },
+    {
+      "name": "negative numbers and earlier dates",
+      "answers": {
+        "n": -3,
+        "d": "2025-12-31",
+        "tm": "00:00",
+        "t": "2025-01-01",
+        "r": 5
+      },
+      "expect": {
+        "visible": [
+          "n_lt_10",
+          "n_lte_10",
+          "d_lte",
+          "tm_lt",
+          "r_gte_4",
+          "n_lt_neg"
+        ],
+        "hidden": [
+          "n_gt_10",
+          "n_gte_10",
+          "d_gt",
+          "tm_gte",
+          "t_gt_date",
+          "n_gt_str",
+          "d_gt_num",
+          "d_gt_time"
+        ]
+      }
+    },
+    {
+      "name": "wrong shapes never compare",
+      "answers": {
+        "n": "11",
+        "d": "2026-06-15T00:00",
+        "tm": "12:00:00",
+        "t": "2027-01-01",
+        "r": "5"
+      },
+      "expect": {
+        "visible": [
+          "t_gt_date"
+        ],
+        "hidden": [
+          "n_gt_10",
+          "n_gte_10",
+          "n_lt_10",
+          "n_lte_10",
+          "d_gt",
+          "d_lte",
+          "tm_lt",
+          "tm_gte",
+          "n_gt_str",
+          "d_gt_num",
+          "r_gte_4",
+          "n_lt_neg",
+          "d_gt_time"
+        ]
+      }
+    },
+    {
+      "name": "boolean is not a number",
+      "answers": {
+        "n": true
+      },
+      "expect": {
+        "visible": [],
+        "hidden": [
+          "n_gt_10",
+          "n_gte_10",
+          "n_lt_10",
+          "n_lte_10",
+          "d_gt",
+          "d_lte",
+          "tm_lt",
+          "tm_gte",
+          "t_gt_date",
+          "n_gt_str",
+          "d_gt_num",
+          "r_gte_4",
+          "n_lt_neg",
+          "d_gt_time"
+        ]
+      }
+    },
+    {
+      "name": "zero, late time",
+      "answers": {
+        "n": 0,
+        "d": "2026-06-15",
+        "tm": "23:59",
+        "r": 1
+      },
+      "expect": {
+        "visible": [
+          "n_lt_10",
+          "n_lte_10",
+          "d_lte",
+          "tm_gte"
+        ],
+        "hidden": [
+          "n_gt_10",
+          "n_gte_10",
+          "d_gt",
+          "tm_lt",
+          "t_gt_date",
+          "n_gt_str",
+          "d_gt_num",
+          "r_gte_4",
+          "n_lt_neg",
+          "d_gt_time"
+        ]
+      }
+    },
+    {
+      "name": "large number, day before",
+      "answers": {
+        "n": 1000,
+        "d": "2026-06-14",
+        "tm": "12:01"
+      },
+      "expect": {
+        "visible": [
+          "n_gt_10",
+          "n_gte_10",
+          "d_lte",
+          "tm_gte"
+        ],
+        "hidden": [
+          "n_lt_10",
+          "n_lte_10",
+          "d_gt",
+          "tm_lt",
+          "t_gt_date",
+          "n_gt_str",
+          "d_gt_num",
+          "r_gte_4",
+          "n_lt_neg",
+          "d_gt_time"
+        ]
+      }
+    },
+    {
+      "name": "date vs time strings are incompatible",
+      "answers": {
+        "d": "2027-01-01",
+        "tm": "09:30"
+      },
+      "expect": {
+        "visible": [
+          "d_gt",
+          "tm_lt"
+        ],
+        "hidden": [
+          "n_gt_10",
+          "n_gte_10",
+          "n_lt_10",
+          "n_lte_10",
+          "d_lte",
+          "tm_gte",
+          "t_gt_date",
+          "n_gt_str",
+          "d_gt_num",
+          "r_gte_4",
+          "n_lt_neg",
+          "d_gt_time"
+        ]
+      }
+    }
+  ]
+}

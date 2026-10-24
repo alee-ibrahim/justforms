@@ -1,0 +1,62 @@
+{
+  "name": "ok_diamond",
+  "expect": "ok",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Cycle"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "a",
+            "type": "short_text",
+            "label": "a"
+          },
+          {
+            "kind": "field",
+            "id": "b",
+            "type": "short_text",
+            "label": "b",
+            "visibleIf": {
+              "field": "a",
+              "op": "not_empty"
+            }
+          },
+          {
+            "kind": "field",
+            "id": "c",
+            "type": "short_text",
+            "label": "c",
+            "visibleIf": {
+              "field": "a",
+              "op": "not_empty"
+            }
+          },
+          {
+            "kind": "field",
+            "id": "d",
+            "type": "short_text",
+            "label": "d",
+            "visibleIf": {
+              "all": [
+                {
+                  "field": "b",
+                  "op": "not_empty"
+                },
+                {
+                  "field": "c",
+                  "op": "not_empty"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

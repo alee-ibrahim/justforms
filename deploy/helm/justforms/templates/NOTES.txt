@@ -1,0 +1,47 @@
+JustForms {{ .Chart.AppVersion }} is installed as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Public URL: {{ .Values.publicUrl }}
+{{- if .Values.ingress.enabled }}
+Exposed through Ingress host {{ default (include "justforms.publicHost" .) .Values.ingress.host }}.
+{{- else if .Values.httpRoute.enabled }}
+Exposed through a Gateway API HTTPRoute.
+{{- else }}
+No Ingress or HTTPRoute is enabled. Try it locally with:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "justforms.fullname" . }}-frontend 8080:{{ .Values.frontend.port }}
+(publicUrl must match the URL in your browser for sign-in to work.)
+{{- end }}
+
+Secrets this release reads (create them first; the chart never renders secret values):
+  - {{ .Values.existingSecret }}: {{ .Values.existingSecretKeys.secretKey }}, {{ .Values.existingSecretKeys.databaseUrl }}, {{ .Values.existingSecretKeys.redisUrl }}
+{{- if .Values.auth.oidc.enabled }}
+  - {{ .Values.auth.oidc.existingSecret }}: {{ .Values.auth.oidc.existingSecretKey }}
+{{- end }}
+{{- with .Values.smtp.existingSecret }}
+  - {{ . }}: {{ $.Values.smtp.usernameKey }}, {{ $.Values.smtp.passwordKey }} (both optional)
+{{- end }}
+{{- if eq .Values.storage.backend "s3" }}
+  - {{ .Values.storage.s3.existingSecret }}: {{ .Values.storage.s3.accessKeyIdKey }}, {{ .Values.storage.s3.secretAccessKeyKey }}
+{{- end }}
+{{- with .Values.pdf.signingP12.existingSecret }}
+  - {{ . }}: {{ $.Values.pdf.signingP12.fileKey }} (PKCS#12 file), {{ $.Values.pdf.signingP12.passwordKey }}
+{{- end }}
+{{- if has .Values.captcha.provider (list "turnstile" "hcaptcha") }}
+  - {{ .Values.captcha.existingSecret }}: {{ .Values.captcha.existingSecretKey }}
+{{- end }}
+
+Staff sign-in:
+{{- if .Values.auth.oidc.enabled }}
+  OIDC via {{ .Values.auth.oidc.issuer }}. Register {{ trimSuffix "/" .Values.publicUrl }}/api/v1/auth/callback as the redirect URI.
+{{- else }}
+  Emailed one-time codes{{ if not .Values.smtp.host }} (smtp.host is empty: no email will be sent){{ end }}. Create the first admin:
+  kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "justforms.fullname" . }}-backend -- python -m app.cli create-admin --email you@example.org
+{{- end }}
+{{- if .Values.migrations.enabled }}
+
+Migrations run as the pre-install/pre-upgrade hook Job {{ include "justforms.fullname" . }}-migrate.
+{{- end }}
+{{- if and (include "justforms.storageIsRwo" .) (or .Values.backend.autoscaling.enabled .Values.worker.autoscaling.enabled (gt (int .Values.backend.replicas) 1)) }}
+
+WARNING: local storage is ReadWriteOnce, so every backend and worker pod must run on one
+node. Use a ReadWriteMany storage class or storage.backend=s3 to scale across nodes.
+{{- end }}

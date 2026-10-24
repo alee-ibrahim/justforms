@@ -1,0 +1,258 @@
+{
+  "name": "ops_number_edges",
+  "description": "Decimals, zero, negatives and large numbers",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "n",
+            "type": "number",
+            "label": "n"
+          },
+          {
+            "kind": "content",
+            "id": "n_gt_0_1",
+            "contentType": "paragraph",
+            "text": "n_gt_0_1",
+            "visibleIf": {
+              "field": "n",
+              "op": "gt",
+              "value": 0.1
+            }
+          },
+          {
+            "kind": "content",
+            "id": "n_eq_0",
+            "contentType": "paragraph",
+            "text": "n_eq_0",
+            "visibleIf": {
+              "field": "n",
+              "op": "eq",
+              "value": 0
+            }
+          },
+          {
+            "kind": "content",
+            "id": "n_lte_neg",
+            "contentType": "paragraph",
+            "text": "n_lte_neg",
+            "visibleIf": {
+              "field": "n",
+              "op": "lte",
+              "value": -0.5
+            }
+          },
+          {
+            "kind": "content",
+            "id": "n_in_dec",
+            "contentType": "paragraph",
+            "text": "n_in_dec",
+            "visibleIf": {
+              "field": "n",
+              "op": "in",
+              "value": [
+                0.5,
+                1.5
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "n_gte_big",
+            "contentType": "paragraph",
+            "text": "n_gte_big",
+            "visibleIf": {
+              "field": "n",
+              "op": "gte",
+              "value": 1000000
+            }
+          },
+          {
+            "kind": "content",
+            "id": "n_neq_0",
+            "contentType": "paragraph",
+            "text": "n_neq_0",
+            "visibleIf": {
+              "field": "n",
+              "op": "neq",
+              "value": 0
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "0.1 is not greater than 0.1",
+      "answers": {
+        "n": 0.1
+      },
+      "expect": {
+        "visible": [
+          "n_neq_0"
+        ],
+        "hidden": [
+          "n_gt_0_1",
+          "n_eq_0",
+          "n_lte_neg",
+          "n_in_dec",
+          "n_gte_big"
+        ]
+      }
+    },
+    {
+      "name": "0.2",
+      "answers": {
+        "n": 0.2
+      },
+      "expect": {
+        "visible": [
+          "n_gt_0_1",
+          "n_neq_0"
+        ],
+        "hidden": [
+          "n_eq_0",
+          "n_lte_neg",
+          "n_in_dec",
+          "n_gte_big"
+        ]
+      }
+    },
+    {
+      "name": "zero",
+      "answers": {
+        "n": 0
+      },
+      "expect": {
+        "visible": [
+          "n_eq_0"
+        ],
+        "hidden": [
+          "n_gt_0_1",
+          "n_lte_neg",
+          "n_in_dec",
+          "n_gte_big",
+          "n_neq_0"
+        ]
+      }
+    },
+    {
+      "name": "negative half",
+      "answers": {
+        "n": -0.5
+      },
+      "expect": {
+        "visible": [
+          "n_lte_neg",
+          "n_neq_0"
+        ],
+        "hidden": [
+          "n_gt_0_1",
+          "n_eq_0",
+          "n_in_dec",
+          "n_gte_big"
+        ]
+      }
+    },
+    {
+      "name": "decimal member",
+      "answers": {
+        "n": 1.5
+      },
+      "expect": {
+        "visible": [
+          "n_gt_0_1",
+          "n_in_dec",
+          "n_neq_0"
+        ],
+        "hidden": [
+          "n_eq_0",
+          "n_lte_neg",
+          "n_gte_big"
+        ]
+      }
+    },
+    {
+      "name": "one million",
+      "answers": {
+        "n": 1000000
+      },
+      "expect": {
+        "visible": [
+          "n_gt_0_1",
+          "n_gte_big",
+          "n_neq_0"
+        ],
+        "hidden": [
+          "n_eq_0",
+          "n_lte_neg",
+          "n_in_dec"
+        ]
+      }
+    },
+    {
+      "name": "zero as float",
+      "answers": {
+        "n": 0.0
+      },
+      "expect": {
+        "visible": [
+          "n_eq_0"
+        ],
+        "hidden": [
+          "n_gt_0_1",
+          "n_lte_neg",
+          "n_in_dec",
+          "n_gte_big",
+          "n_neq_0"
+        ]
+      }
+    },
+    {
+      "name": "null",
+      "answers": {
+        "n": null
+      },
+      "expect": {
+        "visible": [
+          "n_neq_0"
+        ],
+        "hidden": [
+          "n_gt_0_1",
+          "n_eq_0",
+          "n_lte_neg",
+          "n_in_dec",
+          "n_gte_big"
+        ]
+      }
+    },
+    {
+      "name": "just under a million",
+      "answers": {
+        "n": 999999.99
+      },
+      "expect": {
+        "visible": [
+          "n_gt_0_1",
+          "n_neq_0"
+        ],
+        "hidden": [
+          "n_eq_0",
+          "n_lte_neg",
+          "n_in_dec",
+          "n_gte_big"
+        ]
+      }
+    }
+  ]
+}

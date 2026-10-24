@@ -1,0 +1,97 @@
+# CI values: local (PVC) storage, OIDC, SMTP with credentials, Turnstile CAPTCHA, an
+# organisation PKCS#12 signing certificate, Ingress, PDBs and NetworkPolicies.
+# Placeholders only: every Secret named here is expected to exist in the namespace.
+publicUrl: https://forms.example.org
+timezone: Europe/Lisbon
+trustedProxies: ["10.0.0.0/8"]
+maxUploadMb: 40
+thaanaFontCssUrl: /fonts/faruma.css
+corsOrigins: ["https://forms.example.org", "https://www.example.org"]
+
+existingSecret: justforms-core
+
+auth:
+  oidc:
+    enabled: true
+    issuer: https://idp.example.org/realms/example
+    clientId: justforms
+    adminGroups: [justforms-admins]
+    creatorGroups: [justforms-builders]
+    memberGroups: [justforms-users, staff]
+    existingSecret: justforms-oidc
+
+smtp:
+  host: smtp.example.org
+  port: 465
+  security: tls
+  from: "Forms <forms@example.org>"
+  existingSecret: justforms-smtp
+
+storage:
+  backend: local
+  local:
+    persistence:
+      size: 20Gi
+      storageClass: standard
+
+pdf:
+  signingP12:
+    existingSecret: justforms-pdf-signing
+  tsaUrl: https://tsa.example.org
+  signerName: Example forms signing
+
+captcha:
+  provider: turnstile
+  siteKey: 0x0000000000000000placeholder
+  existingSecret: justforms-captcha
+
+webhooks:
+  allowedCidrs: ["10.20.0.0/16", "192.168.10.0/24"]
+
+config:
+  JUSTFORMS_DEFAULT_ORG_NAME: Example
+
+extraEnv:
+  - name: JUSTFORMS_SESSION_IDLE_SECONDS
+    value: "14400"
+
+frontend:
+  fontsConfigMap: justforms-fonts
+  nginxResolver: "10.96.0.10 valid=30s"
+  pdb:
+    enabled: true
+
+backend:
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {memory: 512Mi}
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+ingress:
+  enabled: true
+  className: nginx
+  tls:
+    - secretName: justforms-tls
+      hosts: [forms.example.org]
+
+networkPolicy:
+  enabled: true
+  frontend:
+    from:
+      - namespaceSelector:
+          matchLabels: {kubernetes.io/metadata.name: ingress}
+  egress:
+    enabled: true
+    to:
+      - to: [{ipBlock: {cidr: 10.0.0.0/8}}]
+        ports: [{port: 5432, protocol: TCP}, {port: 6379, protocol: TCP}]
+      - ports: [{port: 443, protocol: TCP}, {port: 465, protocol: TCP}]
+
+ai:
+  provider: openai_compat
+  model: example-local-model
+  baseUrl: http://llm.example.internal:8000/v1
+  vision: true
+  providerLabel: the organisation's own AI server

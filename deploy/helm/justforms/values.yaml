@@ -1,0 +1,451 @@
+# JustForms Helm chart values.
+#
+# Postgres and Redis are external: the chart bundles neither. File storage is a PVC by default
+# (storage.backend: local) or an external S3-compatible service (storage.backend: s3).
+#
+# Secrets are never rendered by this chart. Every secret is read from a Secret you create
+# beforehand (by hand, or synced by an external secrets operator) and referenced by name
+# through an `existingSecret` value. See README.md next to this file for every expected key.
+
+nameOverride: ""
+fullnameOverride: ""
+# Extra labels added to every resource.
+commonLabels: {}
+
+# Cluster DNS domain. Used to build the fully qualified backend URL for nginx, which resolves
+# it at runtime without search domains.
+clusterDomain: cluster.local
+
+image:
+  backend:
+    repository: ghcr.io/example/justforms-backend
+    tag: ""  # defaults to .Chart.AppVersion
+  frontend:
+    repository: ghcr.io/example/justforms-frontend
+    tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  # Defaults to the release fullname when create is true, "default" otherwise.
+  name: ""
+  annotations: {}
+  # The app never talks to the Kubernetes API.
+  automountServiceAccountToken: false
+
+# ------------------------------------------------------------------------------------------
+# Core settings (rendered as env on backend, worker and the migration Job)
+# ------------------------------------------------------------------------------------------
+
+# JUSTFORMS_PUBLIC_URL: the URL users open (scheme://host[:port]); redirects and Origin checks.
+# Also the default host for the Ingress / HTTPRoute.
+publicUrl: https://justforms.example.com
+# JUSTFORMS_ENVIRONMENT: development | test | production
+environment: production
+# JUSTFORMS_TIMEZONE: dates in exports/PDFs and "today" in date limits.
+timezone: UTC
+# JUSTFORMS_TRUSTED_PROXIES: proxies (IPs or CIDRs) whose X-Forwarded-For is trusted for the
+# client IP recorded with submissions and signatures. Include your pod CIDR (the bundled
+# nginx is the first hop) and your ingress controller's addresses.
+trustedProxies: []
+# JUSTFORMS_MAX_UPLOAD_MB: largest single upload (nginx accepts up to 50).
+maxUploadMb: 25
+# JUSTFORMS_THAANA_FONT_CSS_URL: stylesheet that provides Faruma. Default: the public dvfonts CDN
+# (a third party that sees visitors' IP addresses). "/fonts/faruma.css" with
+# frontend.fontsConfigMap self-hosts it; "" relies on the bundled Noto Sans Thaana only.
+# Also passed to the frontend, which allows its origin in the CSP.
+thaanaFontCssUrl: "https://dvfonts.yashau.com/css2?family=Faruma&display=swap"
+# JUSTFORMS_THAANA_FONTS: Thaana fonts a form theme can choose (family names; the first is the
+# default). Empty: the built-in list. With a self-hosted stylesheet, list only what it provides.
+thaanaFonts: []
+# JUSTFORMS_COOKIE_SECURE: true/false; set to null to use the backend default (on in production).
+cookieSecure: true
+# JUSTFORMS_CORS_ORIGINS: browser origins allowed to call the API. Empty = [publicUrl].
+corsOrigins: []
+
+# Name of an existing Secret holding the core secrets (required). Keys default to the env
+# var names; rename them with existingSecretKeys if your Secret uses other keys.
+existingSecret: justforms
+existingSecretKeys:
+  secretKey: JUSTFORMS_SECRET_KEY        # long random string; keep it stable (encrypts the PDF signing key)
+  databaseUrl: JUSTFORMS_DATABASE_URL    # postgresql+asyncpg://user:pass@host:5432/db
+  redisUrl: JUSTFORMS_REDIS_URL          # redis://host:6379/0
+
+# ------------------------------------------------------------------------------------------
+# Staff sign-in
+# ------------------------------------------------------------------------------------------
+# With OIDC off, staff sign in with one-time codes sent by email (configure smtp below) and
+# only existing users can sign in. Create the first admin with
+#   kubectl exec deploy/<fullname>-backend -- python -m app.cli create-admin --email you@example.org
+auth:
+  oidc:
+    enabled: false
+    issuer: ""            # JUSTFORMS_OIDC_ISSUER, e.g. https://idp.example.org/realms/example
+    discoveryUrl: ""      # JUSTFORMS_OIDC_DISCOVERY_URL, only when the issuer is not reachable from the pod
+    clientId: ""          # JUSTFORMS_OIDC_CLIENT_ID
+    scopes: "openid email profile"
+    groupsClaim: groups
+    # IdP groups mapped to roles in the default organisation at each sign-in:
+    # admin > creator (can create forms) > member (only forms shared with them).
+    adminGroups: []       # JUSTFORMS_OIDC_ADMIN_GROUPS
+    creatorGroups: []     # JUSTFORMS_OIDC_CREATOR_GROUPS
+    memberGroups: []      # JUSTFORMS_OIDC_MEMBER_GROUPS
+    # Without group mapping: role on first sign-in (creator, member, or none = invitation only).
+    defaultRole: creator  # JUSTFORMS_OIDC_DEFAULT_ROLE
+    # Secret holding the client secret (required when enabled). Register
+    # {publicUrl}/api/v1/auth/callback as the redirect URI.
+    existingSecret: ""
+    existingSecretKey: JUSTFORMS_OIDC_CLIENT_SECRET
+  # DEMO INSTANCES ONLY - not a chart value and never on by default. A fixed sign-in code for
+  # allow-listed addresses (JUSTFORMS_DEMO_LOGIN_CODE + JUSTFORMS_DEMO_LOGIN_EMAILS, see the
+  # README) can be set through extraEnv on a throwaway demo install:
+  # extraEnv:
+  #   - name: JUSTFORMS_DEMO_LOGIN_EMAILS
+  #     value: demo@example.org
+  #   - name: JUSTFORMS_DEMO_LOGIN_CODE
+  #     valueFrom: {secretKeyRef: {name: justforms-demo, key: JUSTFORMS_DEMO_LOGIN_CODE}}
+
+# ------------------------------------------------------------------------------------------
+# Email (sent by the worker)
+# ------------------------------------------------------------------------------------------
+smtp:
+  host: ""                # JUSTFORMS_SMTP_HOST; empty disables email
+  port: 587
+  security: starttls      # none | starttls | tls
+  from: "JustForms <no-reply@example.com>"
+  # Optional Secret with the relay credentials. Both keys are optional within the Secret.
+  existingSecret: ""
+  usernameKey: JUSTFORMS_SMTP_USERNAME
+  passwordKey: JUSTFORMS_SMTP_PASSWORD
+
+# ------------------------------------------------------------------------------------------
+# File storage
+# ------------------------------------------------------------------------------------------
+storage:
+  # local: files on a PersistentVolumeClaim mounted into backend and worker.
+  # s3:    an external S3-compatible service (nothing is bundled).
+  backend: local
+
+  local:
+    mountPath: /data/storage
+    persistence:
+      # Use an existing PVC instead of creating one.
+      existingClaim: ""
+      size: 10Gi
+      storageClass: ""
+      # Backend and worker share this volume. With ReadWriteOnce the backend uses the
+      # Recreate strategy and the worker is scheduled onto the backend's node; use
+      # ReadWriteMany (or s3) to spread pods across nodes.
+      accessModes:
+        - ReadWriteOnce
+
+  s3:
+    endpointUrl: ""         # empty for AWS S3
+    region: us-east-1
+    bucket: ""              # required when backend is s3
+    addressingStyle: auto   # path | virtual | auto
+    # Secret with the access keys (required when backend is s3). May be the same Secret as
+    # existingSecret.
+    existingSecret: ""
+    accessKeyIdKey: JUSTFORMS_S3_ACCESS_KEY_ID
+    secretAccessKeyKey: JUSTFORMS_S3_SECRET_ACCESS_KEY
+
+# ------------------------------------------------------------------------------------------
+# Signed PDFs
+# ------------------------------------------------------------------------------------------
+# By default the install signs with its own key, created on first use and stored encrypted
+# with JUSTFORMS_SECRET_KEY. To sign with an organisation certificate, point
+# signingP12.existingSecret at a Secret holding the PKCS#12 file and its password.
+pdf:
+  signingP12:
+    existingSecret: ""
+    fileKey: signing.p12                          # key holding the .p12 file
+    passwordKey: JUSTFORMS_PDF_SIGNING_P12_PASSWORD # key holding its password
+    # Mounted read-only; JUSTFORMS_PDF_SIGNING_P12 is set to <mountPath>/signing.p12.
+    mountPath: /run/secrets/justforms-pdf
+  tsaUrl: ""        # JUSTFORMS_PDF_TSA_URL: optional RFC 3161 timestamp authority
+  signerName: ""    # JUSTFORMS_PDF_SIGNER_NAME: subject of the self-signed certificate (empty = app default)
+
+# ------------------------------------------------------------------------------------------
+# Abuse controls
+# ------------------------------------------------------------------------------------------
+captcha:
+  # none | altcha | turnstile | hcaptcha. altcha is self-hosted proof-of-work and signs its
+  # challenges with JUSTFORMS_SECRET_KEY, so it needs no siteKey or Secret.
+  provider: none
+  siteKey: ""             # JUSTFORMS_CAPTCHA_SITE_KEY (turnstile, hcaptcha)
+  existingSecret: ""      # required for turnstile and hcaptcha
+  existingSecretKey: JUSTFORMS_CAPTCHA_SECRET_KEY
+
+rateLimits:
+  enabled: true           # JUSTFORMS_RATE_LIMIT_ENABLED
+
+# ------------------------------------------------------------------------------------------
+# AI assistant (optional; every AI feature is hidden while provider is none)
+# ------------------------------------------------------------------------------------------
+ai:
+  # none | gemini | anthropic | openai_compat (OpenAI, Azure OpenAI, vLLM, Ollama, LM Studio...)
+  provider: none
+  model: ""               # JUSTFORMS_AI_MODEL (required with a provider)
+  baseUrl: ""             # JUSTFORMS_AI_BASE_URL (required for openai_compat, e.g. http://ollama:11434/v1)
+  visionModel: ""         # JUSTFORMS_AI_VISION_MODEL: model for blank paper forms (default: model)
+  vision: ""              # JUSTFORMS_AI_VISION: "true"/"false"; empty = on for gemini and anthropic
+  providerLabel: ""       # JUSTFORMS_AI_PROVIDER_LABEL: named to staff before a paper form is sent
+  dailyTokensPerUser: ""  # JUSTFORMS_AI_DAILY_TOKENS_PER_USER (empty = app default)
+  dailyTokensPerOrg: ""   # JUSTFORMS_AI_DAILY_TOKENS_PER_ORG (empty = app default)
+  # Secret with the provider key. Required for gemini and anthropic; optional for
+  # openai_compat (local servers usually need none). Give JustForms its own key.
+  existingSecret: ""
+  existingSecretKey: JUSTFORMS_AI_API_KEY
+
+# ------------------------------------------------------------------------------------------
+# Branding: instance defaults. Each organisation can override them in the studio
+# (Organisation settings); with nothing set anywhere JustForms keeps its own identity.
+# ------------------------------------------------------------------------------------------
+branding:
+  name: ""                # JUSTFORMS_BRAND_NAME, e.g. "Example Forms"
+  primaryColor: ""        # JUSTFORMS_BRAND_PRIMARY_COLOR, "#RRGGBB" (adjusted for contrast)
+  supportUrl: ""          # JUSTFORMS_BRAND_SUPPORT_URL, https:// or mailto:
+  poweredBy: optional     # JUSTFORMS_BRAND_POWERED_BY: optional | always
+  # ConfigMap with PNG/SVG files (binaryData for PNG), mounted read-only into the API and
+  # worker. Name the keys below; empty keys are skipped.
+  configMap: ""
+  logoKey: ""             # -> JUSTFORMS_BRAND_LOGO_FILE
+  logoDarkKey: ""         # -> JUSTFORMS_BRAND_LOGO_DARK_FILE
+  iconKey: ""             # -> JUSTFORMS_BRAND_ICON_FILE (square)
+  mountPath: /etc/justforms/branding
+
+webhooks:
+  # JUSTFORMS_WEBHOOK_ALLOWED_CIDRS: private ranges webhooks may reach (the SSRF guard blocks
+  # private, loopback, link-local and metadata ranges otherwise).
+  allowedCidrs: []
+
+# ------------------------------------------------------------------------------------------
+# Escape hatches
+# ------------------------------------------------------------------------------------------
+# Free-form non-secret JUSTFORMS_* settings without a dedicated value above, rendered as env on
+# backend, worker and migrate. Do not repeat settings that have a dedicated value.
+config: {}
+#  JUSTFORMS_SESSION_IDLE_SECONDS: "28800"
+#  JUSTFORMS_DEFAULT_ORG_NAME: "Example"
+
+# Extra env (EnvVar list) and envFrom (EnvFromSource list) for backend, worker and migrate.
+extraEnv: []
+extraEnvFrom: []
+# Extra volumes / mounts for backend, worker and migrate.
+extraVolumes: []
+extraVolumeMounts: []
+
+# ------------------------------------------------------------------------------------------
+# Security contexts (backend, worker, migrate)
+# ------------------------------------------------------------------------------------------
+# fsGroup makes the storage PVC writable by the non-root app user (uid 10001).
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true   # /tmp is an emptyDir
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: RuntimeDefault
+
+# ------------------------------------------------------------------------------------------
+# Workloads
+# ------------------------------------------------------------------------------------------
+backend:
+  replicas: 1
+  port: 8000
+  # uvicorn honours X-Forwarded-Proto/-For only from these addresses (env FORWARDED_ALLOW_IPS).
+  # The bundled nginx is the only client; "*" matches the compose stack.
+  forwardedAllowIps: "*"
+  resources: {}
+  #  requests: {cpu: 100m, memory: 256Mi}
+  #  limits: {memory: 512Mi}
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+  priorityClassName: ""
+  readinessProbe:
+    httpGet: {path: /api/health, port: http}
+    periodSeconds: 10
+    timeoutSeconds: 5
+  livenessProbe:
+    httpGet: {path: /api/health, port: http}
+    initialDelaySeconds: 10
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 3
+  service:
+    type: ClusterIP
+    annotations: {}
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 75
+    targetMemoryUtilizationPercentage: null
+  pdb:
+    enabled: false
+    minAvailable: null
+    maxUnavailable: 1
+
+worker:
+  replicas: 1
+  resources: {}
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  # When empty and local storage is ReadWriteOnce, the chart adds a podAffinity that puts
+  # the worker on the backend's node. Setting this replaces that default.
+  affinity: {}
+  topologySpreadConstraints: []
+  priorityClassName: ""
+  # The arq worker serves no HTTP; add an exec probe here if you want one.
+  livenessProbe: {}
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 75
+    targetMemoryUtilizationPercentage: null
+  pdb:
+    enabled: false
+    minAvailable: null
+    maxUnavailable: 1
+
+frontend:
+  replicas: 1
+  port: 80
+  resources: {}
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+  priorityClassName: ""
+  # Operator-supplied fonts (e.g. licensed Faruma) served at /fonts/. Point this at a
+  # ConfigMap holding fonts.css and the font files (binaryData), e.g.
+  #   kubectl create configmap justforms-fonts --from-file=fonts.css --from-file=Faruma.woff2
+  fontsConfigMap: ""
+  csp:
+    # Extra origins for connect-src (and img-src) in the CSP, e.g. a CDN in front of the
+    # bucket. With storage.backend s3 the bucket origin is added automatically.
+    extraConnectSrc: []
+  # DNS resolver nginx uses for BACKEND_URL (env NGINX_RESOLVER). Empty: taken from the pod's
+  # /etc/resolv.conf by the nginx image's local-resolvers entrypoint script.
+  nginxResolver: ""
+  # Stock nginx: root master process (drops to the nginx user for workers) on port 80. It
+  # writes rendered templates to /etc/nginx/conf.d, its cache to /var/cache/nginx and its pid
+  # to /run; those are emptyDirs so the root filesystem stays read-only.
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+      add: ["NET_BIND_SERVICE", "CHOWN", "SETUID", "SETGID"]
+    seccompProfile:
+      type: RuntimeDefault
+  readinessProbe:
+    httpGet: {path: /, port: http}
+    periodSeconds: 10
+  livenessProbe:
+    httpGet: {path: /, port: http}
+    initialDelaySeconds: 5
+    periodSeconds: 20
+  service:
+    type: ClusterIP
+    annotations: {}
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 75
+    targetMemoryUtilizationPercentage: null
+  pdb:
+    enabled: false
+    minAvailable: null
+    maxUnavailable: 1
+
+# Database migrations (alembic upgrade head) run as a Helm hook Job before install and before
+# every upgrade. Disable if you run migrations another way.
+migrations:
+  enabled: true
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  # Successful Jobs are deleted; a failed Job stays for `kubectl logs` until the next attempt.
+  hookDeletePolicy: before-hook-creation,hook-succeeded
+  resources: {}
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  priorityClassName: ""
+  # The hook runs before the chart's own resources exist, so it cannot use the chart-created
+  # ServiceAccount. It uses serviceAccount.name when serviceAccount.create is false, otherwise
+  # this value (empty = the namespace's default ServiceAccount).
+  serviceAccountName: ""
+
+# ------------------------------------------------------------------------------------------
+# Exposure
+# ------------------------------------------------------------------------------------------
+# All routes go to the frontend (nginx), which proxies /api/ to the backend.
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: ""          # empty = host of publicUrl
+  tls: []
+  #  - secretName: justforms-tls
+  #    hosts: [justforms.example.com]
+
+# Gateway API HTTPRoute (alternative to ingress).
+httpRoute:
+  enabled: false
+  annotations: {}
+  parentRefs: []
+  #  - name: gateway
+  #    namespace: gateway-system
+  #    sectionName: https
+  hostnames: []     # empty = host of publicUrl
+
+# ------------------------------------------------------------------------------------------
+# NetworkPolicy (off by default)
+# ------------------------------------------------------------------------------------------
+# Ingress: frontend accepts traffic on its HTTP port from `frontend.from` peers (empty = any);
+# backend accepts traffic only from the frontend; worker accepts none.
+# Egress (when egress.enabled): every pod may reach DNS; frontend may reach the backend;
+# backend and worker may reach `egress.to` rules (Postgres, Redis, SMTP, S3, IdP, webhook
+# receivers). Leave egress disabled unless you list all of those.
+networkPolicy:
+  enabled: false
+  frontend:
+    from: []
+    #  - namespaceSelector:
+    #      matchLabels: {kubernetes.io/metadata.name: ingress-system}
+  egress:
+    enabled: false
+    dnsNamespaceSelector:
+      kubernetes.io/metadata.name: kube-system
+    to: []
+    #  - to: [{ipBlock: {cidr: 10.0.0.0/8}}]
+    #    ports: [{port: 5432, protocol: TCP}, {port: 6379, protocol: TCP}]
+
+# Monitoring: there is no metrics endpoint yet, so the chart ships no ServiceMonitor.

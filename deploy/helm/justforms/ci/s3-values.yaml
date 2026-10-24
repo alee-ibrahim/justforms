@@ -1,0 +1,59 @@
+# CI values: external S3-compatible storage (virtual-hosted addressing), email-code sign-in,
+# ALTCHA CAPTCHA, autoscaling and a Gateway API HTTPRoute. Placeholders only.
+publicUrl: https://forms.example.net
+existingSecret: justforms
+cookieSecure: null
+
+smtp:
+  host: smtp.example.net
+  port: 587
+  security: starttls
+  from: "Forms <no-reply@example.net>"
+  existingSecret: justforms
+
+storage:
+  backend: s3
+  s3:
+    endpointUrl: https://objects.example.net
+    region: eu-west-1
+    bucket: justforms-files
+    addressingStyle: virtual
+    existingSecret: justforms-s3
+
+captcha:
+  provider: altcha
+
+rateLimits:
+  enabled: false
+
+frontend:
+  csp:
+    extraConnectSrc: ["https://cdn.example.net"]
+  autoscaling:
+    enabled: true
+
+backend:
+  autoscaling:
+    enabled: true
+    targetMemoryUtilizationPercentage: 80
+  pdb:
+    enabled: true
+
+worker:
+  replicas: 2
+  pdb:
+    enabled: true
+
+migrations:
+  hookDeletePolicy: before-hook-creation
+
+serviceAccount:
+  create: false
+  name: justforms-runtime
+
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: public-gateway
+      namespace: gateway
+      sectionName: https

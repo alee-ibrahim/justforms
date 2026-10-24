@@ -1,0 +1,98 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $np := .Values.networkPolicy }}
+# Frontend: HTTP from `networkPolicy.frontend.from` (any source when empty).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "justforms.fullname" . }}-frontend
+  labels:
+    {{- include "justforms.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "justforms.selectorLabels" (list . "frontend") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if $np.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    - ports:
+        - port: http
+          protocol: TCP
+      {{- with $np.frontend.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- if $np.egress.enabled }}
+  egress:
+    {{- include "justforms.dnsEgress" . | nindent 4 }}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "justforms.selectorLabels" (list . "backend") | nindent 14 }}
+      ports:
+        - port: {{ .Values.backend.port }}
+          protocol: TCP
+  {{- end }}
+---
+# Backend: only the frontend may connect.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "justforms.fullname" . }}-backend
+  labels:
+    {{- include "justforms.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "justforms.selectorLabels" (list . "backend") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if $np.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "justforms.selectorLabels" (list . "frontend") | nindent 14 }}
+      ports:
+        - port: http
+          protocol: TCP
+  {{- if $np.egress.enabled }}
+  egress:
+    {{- include "justforms.dnsEgress" . | nindent 4 }}
+    {{- with $np.egress.to }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+---
+# Worker: no inbound traffic.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "justforms.fullname" . }}-worker
+  labels:
+    {{- include "justforms.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "justforms.selectorLabels" (list . "worker") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if $np.egress.enabled }}
+    - Egress
+    {{- end }}
+  ingress: []
+  {{- if $np.egress.enabled }}
+  egress:
+    {{- include "justforms.dnsEgress" . | nindent 4 }}
+    {{- with $np.egress.to }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

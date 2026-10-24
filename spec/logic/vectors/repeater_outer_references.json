@@ -1,0 +1,258 @@
+{
+  "name": "repeater_outer_references",
+  "description": "Repeater children may read fields outside the repeater; outside logic may count rows",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "mode",
+            "type": "single_choice",
+            "label": "mode",
+            "options": [
+              {
+                "value": "simple",
+                "label": "simple"
+              },
+              {
+                "value": "detailed",
+                "label": "detailed"
+              }
+            ]
+          },
+          {
+            "kind": "repeater",
+            "id": "items",
+            "label": "Items",
+            "elements": [
+              {
+                "kind": "field",
+                "id": "item_name",
+                "type": "short_text",
+                "label": "item_name"
+              },
+              {
+                "kind": "field",
+                "id": "item_detail",
+                "type": "short_text",
+                "label": "item_detail",
+                "visibleIf": {
+                  "field": "mode",
+                  "op": "eq",
+                  "value": "detailed"
+                }
+              },
+              {
+                "kind": "field",
+                "id": "item_extra",
+                "type": "short_text",
+                "label": "item_extra",
+                "requiredIf": {
+                  "all": [
+                    {
+                      "field": "mode",
+                      "op": "eq",
+                      "value": "detailed"
+                    },
+                    {
+                      "field": "item_name",
+                      "op": "not_empty"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "kind": "field",
+            "id": "summary",
+            "type": "long_text",
+            "label": "summary",
+            "visibleIf": {
+              "field": "items",
+              "op": "count_gte",
+              "value": 3
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "detailed mode shows the detail column",
+      "answers": {
+        "mode": "detailed",
+        "items": [
+          {
+            "item_name": "a",
+            "item_detail": "d"
+          }
+        ]
+      },
+      "expect": {
+        "visible": [
+          "mode",
+          "items"
+        ],
+        "hidden": [
+          "summary"
+        ],
+        "rows": {
+          "items": [
+            {
+              "visible": [
+                "item_name",
+                "item_detail",
+                "item_extra"
+              ],
+              "required": [
+                "item_extra"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "simple mode hides it in every row",
+      "answers": {
+        "mode": "simple",
+        "items": [
+          {
+            "item_name": "a",
+            "item_detail": "d"
+          },
+          {
+            "item_name": "b"
+          },
+          {
+            "item_name": "c"
+          }
+        ]
+      },
+      "expect": {
+        "visible": [
+          "mode",
+          "items",
+          "summary"
+        ],
+        "hidden": [],
+        "rows": {
+          "items": [
+            {
+              "visible": [
+                "item_name"
+              ],
+              "hidden": [
+                "item_detail"
+              ],
+              "notRequired": [
+                "item_extra"
+              ]
+            },
+            {
+              "hidden": [
+                "item_detail"
+              ]
+            },
+            {
+              "hidden": [
+                "item_detail"
+              ]
+            }
+          ]
+        },
+        "strippedAnswers": {
+          "mode": "simple",
+          "items": [
+            {
+              "item_name": "a"
+            },
+            {
+              "item_name": "b"
+            },
+            {
+              "item_name": "c"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "nothing answered",
+      "answers": {},
+      "expect": {
+        "visible": [
+          "mode",
+          "items"
+        ],
+        "hidden": [
+          "summary"
+        ],
+        "rows": {
+          "items": []
+        }
+      }
+    },
+    {
+      "name": "three detailed rows",
+      "answers": {
+        "mode": "detailed",
+        "items": [
+          {
+            "item_detail": "1"
+          },
+          {
+            "item_name": "x"
+          },
+          {}
+        ]
+      },
+      "expect": {
+        "visible": [
+          "mode",
+          "items",
+          "summary"
+        ],
+        "hidden": [],
+        "rows": {
+          "items": [
+            {
+              "visible": [
+                "item_detail"
+              ],
+              "notRequired": [
+                "item_extra"
+              ]
+            },
+            {
+              "visible": [
+                "item_detail"
+              ],
+              "required": [
+                "item_extra"
+              ]
+            },
+            {
+              "visible": [
+                "item_detail"
+              ],
+              "notRequired": [
+                "item_extra"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

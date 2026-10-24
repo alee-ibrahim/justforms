@@ -1,0 +1,215 @@
+{
+  "name": "navigation_page_visibility",
+  "description": "Hidden first page, goto onto a hidden page lands on the next visible page",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p0",
+        "title": "p0",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "z",
+            "type": "short_text",
+            "label": "z"
+          }
+        ],
+        "visibleIf": {
+          "any": []
+        }
+      },
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "k",
+            "type": "yes_no",
+            "label": "k"
+          }
+        ],
+        "next": [
+          {
+            "if": {
+              "field": "k",
+              "op": "eq",
+              "value": true
+            },
+            "goto": "p3"
+          }
+        ]
+      },
+      {
+        "id": "p2",
+        "title": "p2",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "m",
+            "type": "short_text",
+            "label": "m"
+          }
+        ]
+      },
+      {
+        "id": "p3",
+        "title": "p3",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "n",
+            "type": "short_text",
+            "label": "n"
+          }
+        ],
+        "visibleIf": {
+          "field": "k",
+          "op": "eq",
+          "value": false
+        }
+      },
+      {
+        "id": "p4",
+        "title": "p4",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "o",
+            "type": "short_text",
+            "label": "o"
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "start skips hidden p0",
+      "answers": {},
+      "expect": {
+        "visible": [
+          "k",
+          "m",
+          "o"
+        ],
+        "hidden": [
+          "z",
+          "n"
+        ],
+        "path": [
+          "p1",
+          "p2",
+          "p4"
+        ]
+      }
+    },
+    {
+      "name": "goto hidden p3 lands on p4",
+      "answers": {
+        "k": true
+      },
+      "expect": {
+        "visible": [
+          "k",
+          "o"
+        ],
+        "hidden": [
+          "z",
+          "m",
+          "n"
+        ],
+        "path": [
+          "p1",
+          "p4"
+        ]
+      }
+    },
+    {
+      "name": "k false shows p3",
+      "answers": {
+        "k": false
+      },
+      "expect": {
+        "visible": [
+          "k",
+          "m",
+          "n",
+          "o"
+        ],
+        "hidden": [
+          "z"
+        ],
+        "path": [
+          "p1",
+          "p2",
+          "p3",
+          "p4"
+        ]
+      }
+    },
+    {
+      "name": "answers on hidden pages are stripped",
+      "answers": {
+        "z": "x",
+        "k": false,
+        "n": "y",
+        "m": "w"
+      },
+      "expect": {
+        "visible": [
+          "k",
+          "m",
+          "n",
+          "o"
+        ],
+        "hidden": [
+          "z"
+        ],
+        "path": [
+          "p1",
+          "p2",
+          "p3",
+          "p4"
+        ],
+        "strippedAnswers": {
+          "k": false,
+          "m": "w",
+          "n": "y"
+        }
+      }
+    },
+    {
+      "name": "goto skips p2 answers",
+      "answers": {
+        "k": true,
+        "m": "w",
+        "o": "v"
+      },
+      "expect": {
+        "visible": [
+          "k",
+          "o"
+        ],
+        "hidden": [
+          "z",
+          "m",
+          "n"
+        ],
+        "path": [
+          "p1",
+          "p4"
+        ],
+        "strippedAnswers": {
+          "k": true,
+          "o": "v"
+        }
+      }
+    }
+  ]
+}

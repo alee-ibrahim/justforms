@@ -1,0 +1,225 @@
+{
+  "name": "navigation_page_conditions",
+  "description": "Page visibleIf with all/any over earlier pages, including fields on skipped pages",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "role",
+            "type": "single_choice",
+            "label": "role",
+            "options": [
+              {
+                "value": "staff",
+                "label": "staff"
+              },
+              {
+                "value": "public",
+                "label": "public"
+              }
+            ]
+          },
+          {
+            "kind": "field",
+            "id": "consent",
+            "type": "yes_no",
+            "label": "consent"
+          }
+        ]
+      },
+      {
+        "id": "p2",
+        "title": "p2",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "staff_id",
+            "type": "short_text",
+            "label": "staff_id"
+          }
+        ],
+        "visibleIf": {
+          "all": [
+            {
+              "field": "role",
+              "op": "eq",
+              "value": "staff"
+            },
+            {
+              "field": "consent",
+              "op": "eq",
+              "value": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "p3",
+        "title": "p3",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "pub_name",
+            "type": "short_text",
+            "label": "pub_name"
+          }
+        ],
+        "visibleIf": {
+          "any": [
+            {
+              "field": "role",
+              "op": "eq",
+              "value": "public"
+            },
+            {
+              "field": "consent",
+              "op": "neq",
+              "value": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "p4",
+        "title": "p4",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "badge",
+            "type": "short_text",
+            "label": "badge"
+          }
+        ],
+        "visibleIf": {
+          "field": "staff_id",
+          "op": "not_empty"
+        }
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "staff with consent",
+      "answers": {
+        "role": "staff",
+        "consent": true,
+        "staff_id": "S1"
+      },
+      "expect": {
+        "visible": [
+          "role",
+          "consent",
+          "staff_id",
+          "badge"
+        ],
+        "hidden": [
+          "pub_name"
+        ],
+        "path": [
+          "p1",
+          "p2",
+          "p4"
+        ]
+      }
+    },
+    {
+      "name": "staff without consent: staff_id is on a skipped page",
+      "answers": {
+        "role": "staff",
+        "consent": false,
+        "staff_id": "S1"
+      },
+      "expect": {
+        "visible": [
+          "role",
+          "consent",
+          "pub_name"
+        ],
+        "hidden": [
+          "staff_id",
+          "badge"
+        ],
+        "path": [
+          "p1",
+          "p3"
+        ],
+        "strippedAnswers": {
+          "role": "staff",
+          "consent": false
+        }
+      }
+    },
+    {
+      "name": "public",
+      "answers": {
+        "role": "public"
+      },
+      "expect": {
+        "visible": [
+          "role",
+          "consent",
+          "pub_name"
+        ],
+        "hidden": [
+          "staff_id",
+          "badge"
+        ],
+        "path": [
+          "p1",
+          "p3"
+        ]
+      }
+    },
+    {
+      "name": "nothing answered",
+      "answers": {},
+      "expect": {
+        "visible": [
+          "role",
+          "consent",
+          "pub_name"
+        ],
+        "hidden": [
+          "staff_id",
+          "badge"
+        ],
+        "path": [
+          "p1",
+          "p3"
+        ]
+      }
+    },
+    {
+      "name": "empty staff id hides p4",
+      "answers": {
+        "role": "staff",
+        "consent": true,
+        "staff_id": ""
+      },
+      "expect": {
+        "visible": [
+          "role",
+          "consent",
+          "staff_id"
+        ],
+        "hidden": [
+          "pub_name",
+          "badge"
+        ],
+        "path": [
+          "p1",
+          "p2"
+        ]
+      }
+    }
+  ]
+}

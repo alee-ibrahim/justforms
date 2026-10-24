@@ -1,0 +1,44 @@
+{
+  "name": "ok_section_reads_sibling",
+  "expect": "ok",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Cycle"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "x",
+            "type": "short_text",
+            "label": "x"
+          },
+          {
+            "kind": "section",
+            "id": "s",
+            "elements": [
+              {
+                "kind": "field",
+                "id": "y",
+                "type": "short_text",
+                "label": "y",
+                "visibleIf": {
+                  "field": "x",
+                  "op": "not_empty"
+                }
+              }
+            ],
+            "visibleIf": {
+              "field": "x",
+              "op": "not_empty"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

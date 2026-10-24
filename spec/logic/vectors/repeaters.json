@@ -1,0 +1,407 @@
+{
+  "name": "repeaters",
+  "description": "Repeater children are evaluated per row; sibling references resolve within the same row",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "has_deps",
+            "type": "yes_no",
+            "label": "has_deps"
+          },
+          {
+            "kind": "repeater",
+            "id": "deps",
+            "label": "Dependents",
+            "visibleIf": {
+              "field": "has_deps",
+              "op": "eq",
+              "value": true
+            },
+            "elements": [
+              {
+                "kind": "field",
+                "id": "dep_name",
+                "type": "short_text",
+                "label": "dep_name",
+                "required": true
+              },
+              {
+                "kind": "field",
+                "id": "dep_rel",
+                "type": "single_choice",
+                "label": "dep_rel",
+                "options": [
+                  {
+                    "value": "child",
+                    "label": "child"
+                  },
+                  {
+                    "value": "parent",
+                    "label": "parent"
+                  },
+                  {
+                    "value": "other",
+                    "label": "other"
+                  }
+                ],
+                "required": true
+              },
+              {
+                "kind": "field",
+                "id": "dep_other",
+                "type": "short_text",
+                "label": "dep_other",
+                "required": true,
+                "visibleIf": {
+                  "field": "dep_rel",
+                  "op": "eq",
+                  "value": "other"
+                }
+              },
+              {
+                "kind": "field",
+                "id": "dep_age",
+                "type": "number",
+                "label": "dep_age",
+                "requiredIf": {
+                  "field": "dep_rel",
+                  "op": "eq",
+                  "value": "child"
+                }
+              },
+              {
+                "kind": "section",
+                "id": "dep_sec",
+                "visibleIf": {
+                  "field": "has_deps",
+                  "op": "eq",
+                  "value": true
+                },
+                "elements": [
+                  {
+                    "kind": "field",
+                    "id": "dep_note",
+                    "type": "short_text",
+                    "label": "dep_note",
+                    "visibleIf": {
+                      "field": "dep_age",
+                      "op": "lt",
+                      "value": 5
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "content",
+            "id": "many_deps",
+            "contentType": "paragraph",
+            "text": "many_deps",
+            "visibleIf": {
+              "field": "deps",
+              "op": "count_gte",
+              "value": 2
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "two rows with different branches",
+      "answers": {
+        "has_deps": true,
+        "deps": [
+          {
+            "dep_name": "A",
+            "dep_rel": "other",
+            "dep_other": "x"
+          },
+          {
+            "dep_name": "B",
+            "dep_rel": "child",
+            "dep_age": 3,
+            "dep_note": "n",
+            "dep_other": "leak"
+          }
+        ]
+      },
+      "expect": {
+        "visible": [
+          "has_deps",
+          "deps",
+          "many_deps"
+        ],
+        "hidden": [],
+        "rows": {
+          "deps": [
+            {
+              "visible": [
+                "dep_name",
+                "dep_rel",
+                "dep_other",
+                "dep_age",
+                "dep_sec"
+              ],
+              "hidden": [
+                "dep_note"
+              ],
+              "required": [
+                "dep_name",
+                "dep_rel",
+                "dep_other"
+              ],
+              "notRequired": [
+                "dep_age"
+              ]
+            },
+            {
+              "visible": [
+                "dep_name",
+                "dep_rel",
+                "dep_age",
+                "dep_sec",
+                "dep_note"
+              ],
+              "hidden": [
+                "dep_other"
+              ],
+              "required": [
+                "dep_name",
+                "dep_rel",
+                "dep_age"
+              ]
+            }
+          ]
+        },
+        "strippedAnswers": {
+          "has_deps": true,
+          "deps": [
+            {
+              "dep_name": "A",
+              "dep_rel": "other",
+              "dep_other": "x"
+            },
+            {
+              "dep_name": "B",
+              "dep_rel": "child",
+              "dep_age": 3,
+              "dep_note": "n"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "hidden repeater is stripped entirely",
+      "answers": {
+        "has_deps": false,
+        "deps": [
+          {
+            "dep_name": "A"
+          },
+          {
+            "dep_name": "B"
+          }
+        ]
+      },
+      "expect": {
+        "visible": [
+          "has_deps"
+        ],
+        "hidden": [
+          "deps",
+          "many_deps"
+        ],
+        "strippedAnswers": {
+          "has_deps": false
+        }
+      }
+    },
+    {
+      "name": "zero rows",
+      "answers": {
+        "has_deps": true,
+        "deps": []
+      },
+      "expect": {
+        "visible": [
+          "has_deps",
+          "deps"
+        ],
+        "hidden": [
+          "many_deps"
+        ],
+        "rows": {
+          "deps": []
+        },
+        "strippedAnswers": {
+          "has_deps": true,
+          "deps": []
+        }
+      }
+    },
+    {
+      "name": "repeater not answered",
+      "answers": {
+        "has_deps": true
+      },
+      "expect": {
+        "visible": [
+          "has_deps",
+          "deps"
+        ],
+        "hidden": [
+          "many_deps"
+        ],
+        "rows": {
+          "deps": []
+        },
+        "strippedAnswers": {
+          "has_deps": true
+        }
+      }
+    },
+    {
+      "name": "row-level visibility uses the row's own values",
+      "answers": {
+        "has_deps": true,
+        "deps": [
+          {
+            "dep_rel": "child",
+            "dep_age": 10,
+            "dep_note": "x"
+          }
+        ]
+      },
+      "expect": {
+        "visible": [
+          "has_deps",
+          "deps"
+        ],
+        "hidden": [
+          "many_deps"
+        ],
+        "rows": {
+          "deps": [
+            {
+              "visible": [
+                "dep_age",
+                "dep_sec"
+              ],
+              "hidden": [
+                "dep_note",
+                "dep_other"
+              ],
+              "required": [
+                "dep_age",
+                "dep_name"
+              ]
+            }
+          ]
+        },
+        "strippedAnswers": {
+          "has_deps": true,
+          "deps": [
+            {
+              "dep_rel": "child",
+              "dep_age": 10
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "non-object rows act as empty rows",
+      "answers": {
+        "has_deps": true,
+        "deps": [
+          "junk",
+          {
+            "dep_name": "C"
+          }
+        ]
+      },
+      "expect": {
+        "visible": [
+          "has_deps",
+          "deps",
+          "many_deps"
+        ],
+        "hidden": [],
+        "rows": {
+          "deps": [
+            {
+              "visible": [
+                "dep_name"
+              ],
+              "hidden": [
+                "dep_other",
+                "dep_note"
+              ]
+            },
+            {
+              "visible": [
+                "dep_name"
+              ],
+              "hidden": [
+                "dep_other"
+              ]
+            }
+          ]
+        },
+        "strippedAnswers": {
+          "has_deps": true,
+          "deps": [
+            {},
+            {
+              "dep_name": "C"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "unknown keys in rows are dropped",
+      "answers": {
+        "has_deps": true,
+        "deps": [
+          {
+            "dep_name": "A",
+            "bogus": 1,
+            "dep_sec": "x"
+          }
+        ]
+      },
+      "expect": {
+        "visible": [
+          "has_deps",
+          "deps"
+        ],
+        "hidden": [
+          "many_deps"
+        ],
+        "strippedAnswers": {
+          "has_deps": true,
+          "deps": [
+            {
+              "dep_name": "A"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

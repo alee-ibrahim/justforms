@@ -1,0 +1,41 @@
+{
+  "name": "section_in_repeater_reads_child",
+  "expect": "cycle",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Cycle"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "elements": [
+          {
+            "kind": "repeater",
+            "id": "r",
+            "label": "r",
+            "elements": [
+              {
+                "kind": "section",
+                "id": "rs",
+                "elements": [
+                  {
+                    "kind": "field",
+                    "id": "rx",
+                    "type": "short_text",
+                    "label": "rx"
+                  }
+                ],
+                "visibleIf": {
+                  "field": "rx",
+                  "op": "not_empty"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

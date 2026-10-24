@@ -1,0 +1,183 @@
+{
+  "name": "unicode_thaana",
+  "description": "Thaana values compare exactly; strings are NFC-normalised before comparison",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "dv",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "name",
+            "type": "short_text",
+            "label": "name",
+            "inputScript": "thaana"
+          },
+          {
+            "kind": "field",
+            "id": "island",
+            "type": "single_choice",
+            "label": "island",
+            "options": [
+              {
+                "value": "މާލެ",
+                "label": "މާލެ"
+              },
+              {
+                "value": "ހުޅުމާލެ",
+                "label": "ހުޅުމާލެ"
+              },
+              {
+                "value": "އައްޑޫ",
+                "label": "އައްޑޫ"
+              }
+            ]
+          },
+          {
+            "kind": "field",
+            "id": "word",
+            "type": "short_text",
+            "label": "word"
+          },
+          {
+            "kind": "content",
+            "id": "name_is_ali",
+            "contentType": "paragraph",
+            "text": "name_is_ali",
+            "visibleIf": {
+              "field": "name",
+              "op": "eq",
+              "value": "ޢަލީ"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "name_has",
+            "contentType": "paragraph",
+            "text": "name_has",
+            "visibleIf": {
+              "field": "name",
+              "op": "contains",
+              "value": "ޢަ"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "island_in",
+            "contentType": "paragraph",
+            "text": "island_in",
+            "visibleIf": {
+              "field": "island",
+              "op": "in",
+              "value": [
+                "މާލެ",
+                "ހުޅުމާލެ"
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "word_nfc",
+            "contentType": "paragraph",
+            "text": "word_nfc",
+            "visibleIf": {
+              "field": "word",
+              "op": "eq",
+              "value": "ṩ"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "exact Thaana match",
+      "answers": {
+        "name": "ޢަލީ",
+        "island": "މާލެ"
+      },
+      "expect": {
+        "visible": [
+          "name_is_ali",
+          "name_has",
+          "island_in"
+        ],
+        "hidden": [
+          "word_nfc"
+        ]
+      }
+    },
+    {
+      "name": "different name",
+      "answers": {
+        "name": "ޢާއިޝާ",
+        "island": "އައްޑޫ"
+      },
+      "expect": {
+        "visible": [],
+        "hidden": [
+          "name_is_ali",
+          "name_has",
+          "island_in",
+          "word_nfc"
+        ]
+      }
+    },
+    {
+      "name": "substring",
+      "answers": {
+        "name": "މުޙައްމަދު ޢަލީ"
+      },
+      "expect": {
+        "visible": [
+          "name_has"
+        ],
+        "hidden": [
+          "name_is_ali",
+          "island_in",
+          "word_nfc"
+        ]
+      }
+    },
+    {
+      "name": "NFC: s + dot below + dot above",
+      "answers": {
+        "word": "ṩ"
+      },
+      "expect": {
+        "visible": [
+          "word_nfc"
+        ],
+        "hidden": [
+          "name_is_ali",
+          "name_has",
+          "island_in"
+        ]
+      }
+    },
+    {
+      "name": "NFC: precomposed",
+      "answers": {
+        "word": "ṩ",
+        "island": "ހުޅުމާލެ"
+      },
+      "expect": {
+        "visible": [
+          "island_in",
+          "word_nfc"
+        ],
+        "hidden": [
+          "name_is_ali",
+          "name_has"
+        ]
+      }
+    }
+  ]
+}

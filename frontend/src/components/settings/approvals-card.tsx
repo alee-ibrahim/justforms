@@ -1,0 +1,424 @@
+/**
+ * "Approvals" (APPROVALS-SCREENS 1): up to three ordered approval steps, each with a name and
+ * an approver taken from an email question or a fixed address, plus the outcome email.
+ * Edited locally and saved together ("Save approvals"), because a step is several fields.
+ */
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ChevronDownIcon, ChevronUpIcon, PlusIcon, Trash2Icon, TriangleAlertIcon } from 'lucide-react'
+import { useState } from 'react'
+import { toast } from 'sonner'
+
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSeparator,
+  FieldSet,
+} from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Spinner } from '@/components/ui/spinner'
+import { Switch } from '@/components/ui/switch'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  api,
+  ApiError,
+  type ApprovalConfig,
+  type ApprovalIssue,
+  type ApprovalStepConfig,
+  type Approvals,
+  type FormSummary,
+} from '@/lib/api'
+import { contentProps } from '@/schema/language'
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const MAX_STEPS = 3
+const CONFIRMED = '__confirmed__'
+
+function newStep(a: Approvals): ApprovalStepConfig {
+  const first = a.emailFields[0]?.id ?? null
+  return { name: '', source: first ? 'field' : 'fixed', fieldId: first, email: null }
+}
+
+/** Errors found before saving, keyed by step (1-based). */
+function localErrors(c: ApprovalConfig): Map<number, string> {
+  const out = new Map<number, string>()
+  if (!c.enabled) return out
+  c.steps.forEach((s, i) => {
+    if (!s.name.trim()) out.set(i + 1, 'Give the step a name, like Supervisor')
+    else if (s.source === 'field' && !s.fieldId) out.set(i + 1, 'Choose a question')
+    else if (s.source === 'fixed' && !EMAIL.test(s.email?.trim() ?? ''))
+      out.set(i + 1, 'Enter an email address like name@example.org')
+  })
+  return out
+}
+
+function IconAction({ label, onClick, disabled, children }: { label: string; onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={label} disabled={disabled} onClick={onClick}>
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+function StepEditor({
+  step,
+  n,
+  total,
+  a,
+  disabled,
+  error,
+  warnings,
+  onChange,
+  onMove,
+  onRemove,
+}: {
+  step: ApprovalStepConfig
+  n: number
+  total: number
+  a: Approvals
+  disabled: boolean
+  error?: string
+  warnings: ApprovalIssue[]
+  onChange: (s: ApprovalStepConfig) => void
+  onMove: (by: -1 | 1) => void
+  onRemove: () => void
+}) {
+  const id = `approval-step-${n}`
+  const noQuestions = a.emailFields.length === 0
+  return (
+    <FieldSet className="gap-4 rounded-md border p-4" data-invalid={error ? true : undefined}>
+      <div className="flex items-center gap-1">
+        <FieldLegend variant="label" className="mb-0">
+          Step {n}
+        </FieldLegend>
+        <div className="ms-auto flex gap-1">
+          <IconAction label="Move up" disabled={disabled || n === 1} onClick={() => onMove(-1)}>
+            <ChevronUpIcon />
+          </IconAction>
+          <IconAction label="Move down" disabled={disabled || n === total} onClick={() => onMove(1)}>
+            <ChevronDownIcon />
+          </IconAction>
+          <IconAction label="Remove step" disabled={disabled} onClick={onRemove}>
+            <Trash2Icon />
+          </IconAction>
+        </div>
+      </div>
+      <Field>
+        <FieldLabel htmlFor={`${id}-name`}>Step name</FieldLabel>
+        <Input
+          id={`${id}-name`}
+          {...contentProps(a.language)}
+          maxLength={60}
+          placeholder={a.language === 'en' ? 'Supervisor' : undefined}
+          value={step.name}
+          disabled={disabled}
+          onChange={(e) => onChange({ ...step, name: e.target.value })}
+        />
+        <FieldDescription>Approvers and respondents see this name.</FieldDescription>
+      </Field>
+      <FieldSet>
+        <FieldLegend variant="label">Approver</FieldLegend>
+        <RadioGroup
+          value={step.source}
+          disabled={disabled}
+          onValueChange={(v) =>
+            onChange({
+              ...step,
+              source: v as 'field' | 'fixed',
+              fieldId: v === 'field' ? (step.fieldId ?? a.emailFields[0]?.id ?? null) : step.fieldId,
+            })
+          }
+          className="gap-4"
+        >
+          <div className="flex flex-col gap-2">
+            <Field orientation="horizontal" data-disabled={noQuestions ? true : undefined}>
+              <RadioGroupItem value="field" id={`${id}-field`} disabled={noQuestions} />
+              <FieldContent>
+                <FieldLabel htmlFor={`${id}-field`} className="font-normal">
+                  The answer to an email question
+                </FieldLabel>
+                {noQuestions && <FieldDescription>Add an email question to the form to use this.</FieldDescription>}
+              </FieldContent>
+            </Field>
+            {step.source === 'field' && !noQuestions && (
+              <div className="ps-7">
+                <NativeSelect
+                  aria-label={`Email question for step ${n}`}
+                  value={step.fieldId ?? ''}
+                  disabled={disabled}
+                  {...contentProps(a.language)}
+                  onChange={(e) => onChange({ ...step, fieldId: e.target.value || null })}
+                >
+                  {!step.fieldId && (
+                    <NativeSelectOption value="" lang="en" dir="ltr">
+                      Choose a question
+                    </NativeSelectOption>
+                  )}
+                  {step.fieldId && !a.emailFields.some((f) => f.id === step.fieldId) && (
+                    <NativeSelectOption value={step.fieldId} lang="en" dir="ltr">
+                      Deleted question ({step.fieldId})
+                    </NativeSelectOption>
+                  )}
+                  {a.emailFields.map((f) => (
+                    <NativeSelectOption key={f.id} value={f.id}>
+                      {f.label || f.id}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col gap-2">
+            <Field orientation="horizontal">
+              <RadioGroupItem value="fixed" id={`${id}-fixed`} />
+              <FieldLabel htmlFor={`${id}-fixed`} className="font-normal">
+                Always this address
+              </FieldLabel>
+            </Field>
+            {step.source === 'fixed' && (
+              <div className="ps-7">
+                <Input
+                  aria-label={`Approver email for step ${n}`}
+                  type="email"
+                  dir="ltr"
+                  inputMode="email"
+                  placeholder="name@example.org"
+                  value={step.email ?? ''}
+                  disabled={disabled}
+                  onChange={(e) => onChange({ ...step, email: e.target.value })}
+                />
+              </div>
+            )}
+          </div>
+        </RadioGroup>
+      </FieldSet>
+      {error && <FieldError>{error}</FieldError>}
+      {warnings.map((w) => (
+        <Alert key={w.code}>
+          <TriangleAlertIcon />
+          <AlertDescription>{w.message}</AlertDescription>
+        </Alert>
+      ))}
+    </FieldSet>
+  )
+}
+
+export function ApprovalsCard({ form, canManage }: { form: FormSummary; canManage: boolean }) {
+  const queryClient = useQueryClient()
+  const key = ['approvals', form.id]
+  const data = useQuery({ queryKey: key, queryFn: () => api.getApprovals(form.id) })
+  const [edit, setEdit] = useState<ApprovalConfig | null>(null)
+  const [errors, setErrors] = useState<Map<number, string>>(new Map())
+  const save = useMutation({
+    mutationFn: (c: ApprovalConfig) => api.putApprovals(form.id, c),
+    onSuccess: (next) => {
+      queryClient.setQueryData(key, next)
+      void queryClient.invalidateQueries({ queryKey: ['approval-problems', form.id] })
+      setEdit(null)
+      setErrors(new Map())
+      toast('Approvals saved')
+    },
+    onError: (err) => {
+      const issues = err instanceof ApiError ? (err.body as { issues?: ApprovalIssue[] } | null)?.issues : undefined
+      if (issues?.length) setErrors(new Map(issues.map((i) => [i.step, i.message])))
+      else toast.error("Couldn't save. Try again.")
+    },
+  })
+
+  const header = (
+    <CardHeader>
+      <CardTitle>Approvals</CardTitle>
+      <CardDescription>
+        Send each new response to people who approve or reject it, in order. Approvers confirm their email with a code;
+        they don't need an account. Changes save when you choose Save approvals.
+      </CardDescription>
+    </CardHeader>
+  )
+  if (!data.data)
+    return (
+      <Card className="rounded-md border shadow-none ring-0">
+        {header}
+        <CardContent>
+          {data.isError ? (
+            <p className="text-sm text-destructive">Couldn't load approvals. Reload the page to try again.</p>
+          ) : (
+            <Skeleton className="h-24" />
+          )}
+        </CardContent>
+      </Card>
+    )
+
+  const a = data.data
+  const c = edit ?? a.config
+  const dirty = edit !== null
+  const disabled = !canManage || save.isPending
+  const set = (next: ApprovalConfig) => {
+    setEdit(next)
+    setErrors(new Map())
+  }
+  const setStep = (i: number, s: ApprovalStepConfig) => set({ ...c, steps: c.steps.map((x, j) => (j === i ? s : x)) })
+  const move = (i: number, by: -1 | 1) => {
+    const steps = [...c.steps]
+    ;[steps[i], steps[i + by]] = [steps[i + by], steps[i]]
+    set({ ...c, steps })
+  }
+  const confirmedAvailable = form.accessMode !== 'public'
+  const outcomeTarget = c.respondentEmailField ?? (confirmedAvailable ? CONFIRMED : '')
+  const outcomePossible = confirmedAvailable || a.emailFields.length > 0
+  // Warnings describe the saved settings; hide them while editing.
+  const warnings = (n: number) => (dirty ? [] : a.issues.filter((i) => i.step === n && i.level === 'warning'))
+
+  return (
+    <Card className="rounded-md border shadow-none ring-0">
+      {header}
+      <CardContent className="flex flex-col gap-5">
+        <Field orientation="horizontal">
+          <FieldContent>
+            <FieldLabel htmlFor="approvals-on">Ask for approval</FieldLabel>
+            <FieldDescription>New responses stay In review until the last step decides.</FieldDescription>
+          </FieldContent>
+          <Switch
+            id="approvals-on"
+            checked={c.enabled}
+            disabled={disabled}
+            onCheckedChange={(on) => set({ ...c, enabled: on, steps: on && !c.steps.length ? [newStep(a)] : c.steps })}
+          />
+        </Field>
+        {c.enabled && (
+          <>
+            <div className="flex flex-col gap-3">
+              {c.steps.map((s, i) => (
+                <StepEditor
+                  key={i}
+                  step={s}
+                  n={i + 1}
+                  total={c.steps.length}
+                  a={a}
+                  disabled={disabled}
+                  error={errors.get(i + 1)}
+                  warnings={warnings(i + 1)}
+                  onChange={(next) => setStep(i, next)}
+                  onMove={(by) => move(i, by)}
+                  onRemove={() => set({ ...c, steps: c.steps.filter((_, j) => j !== i) })}
+                />
+              ))}
+              {c.steps.length < MAX_STEPS && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="self-start"
+                  disabled={disabled}
+                  onClick={() => set({ ...c, steps: [...c.steps, newStep(a)] })}
+                >
+                  <PlusIcon />
+                  Add step
+                </Button>
+              )}
+              {errors.get(0) && <FieldError>{errors.get(0)}</FieldError>}
+            </div>
+            <FieldSeparator />
+            <FieldGroup className="gap-4">
+              <Field orientation="horizontal" data-disabled={!outcomePossible ? true : undefined}>
+                <FieldContent>
+                  <FieldLabel htmlFor="approvals-outcome">Email the respondent the outcome</FieldLabel>
+                  <FieldDescription>
+                    {outcomePossible
+                      ? 'The email has the final signed PDF attached.'
+                      : 'Add an email question, or ask people to confirm their email, to send the outcome.'}
+                  </FieldDescription>
+                </FieldContent>
+                <Switch
+                  id="approvals-outcome"
+                  checked={c.notifyRespondent && outcomePossible}
+                  disabled={disabled || !outcomePossible}
+                  onCheckedChange={(on) =>
+                    set({
+                      ...c,
+                      notifyRespondent: on,
+                      respondentEmailField: c.respondentEmailField ?? (confirmedAvailable ? null : (a.emailFields[0]?.id ?? null)),
+                    })
+                  }
+                />
+              </Field>
+              {c.notifyRespondent && outcomePossible && (
+                <Field className="ps-4">
+                  <FieldLabel htmlFor="approvals-outcome-to">Send to</FieldLabel>
+                  <NativeSelect
+                    id="approvals-outcome-to"
+                    value={outcomeTarget}
+                    disabled={disabled}
+                    {...contentProps(a.language)}
+                    onChange={(e) => set({ ...c, respondentEmailField: e.target.value === CONFIRMED ? null : e.target.value })}
+                  >
+                    {confirmedAvailable && (
+                      <NativeSelectOption value={CONFIRMED} lang="en" dir="ltr">
+                        {form.accessMode === 'staff' ? 'The signed-in person' : 'The confirmed email'}
+                      </NativeSelectOption>
+                    )}
+                    {a.emailFields.map((f) => (
+                      <NativeSelectOption key={f.id} value={f.id}>
+                        {f.label || f.id}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                </Field>
+              )}
+            </FieldGroup>
+          </>
+        )}
+        {canManage && (dirty || save.isPending) && (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button type="button" variant="ghost" disabled={save.isPending} onClick={() => (setEdit(null), setErrors(new Map()))}>
+              Discard
+            </Button>
+            <Button
+              type="button"
+              disabled={save.isPending}
+              onClick={() => {
+                const local = localErrors(c)
+                if (local.size) return setErrors(local)
+                save.mutate({
+                  ...c,
+                  steps: c.steps.map((s) => ({ ...s, name: s.name.trim(), email: s.email?.trim() || null })),
+                })
+              }}
+            >
+              {save.isPending && <Spinner />}
+              Save approvals
+            </Button>
+          </div>
+        )}
+        {form.status === 'live' && c.enabled && (
+          <p className="text-sm text-muted-foreground">
+            Changes apply to new responses. Responses already waiting keep their steps.
+          </p>
+        )}
+        {!a.smtpEnabled && c.enabled && (
+          <Alert>
+            <TriangleAlertIcon />
+            <AlertDescription>
+              Email isn't set up on this install, so approvers won't get their links. An administrator can set the{' '}
+              <code className="font-mono text-xs">JUSTFORMS_SMTP_*</code> settings.
+            </AlertDescription>
+          </Alert>
+        )}
+      </CardContent>
+    </Card>
+  )
+}

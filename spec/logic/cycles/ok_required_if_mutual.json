@@ -1,0 +1,38 @@
+{
+  "name": "ok_required_if_mutual",
+  "expect": "ok",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Cycle"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "a",
+            "type": "short_text",
+            "label": "a",
+            "requiredIf": {
+              "field": "b",
+              "op": "not_empty"
+            }
+          },
+          {
+            "kind": "field",
+            "id": "b",
+            "type": "short_text",
+            "label": "b",
+            "requiredIf": {
+              "field": "a",
+              "op": "not_empty"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

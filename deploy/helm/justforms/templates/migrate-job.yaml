@@ -1,0 +1,54 @@
+{{- if .Values.migrations.enabled }}
+{{- $m := .Values.migrations }}
+{{- $sa := ternary $m.serviceAccountName .Values.serviceAccount.name .Values.serviceAccount.create }}
+# Database migrations as a hook: runs before install and before every upgrade, so new pods
+# only start against a migrated schema. The referenced Secrets must exist beforehand.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "justforms.fullname" . }}-migrate
+  labels:
+    {{- include "justforms.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migrate
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: {{ $m.hookDeletePolicy }}
+spec:
+  backoffLimit: {{ $m.backoffLimit }}
+  activeDeadlineSeconds: {{ $m.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "justforms.labels" . | nindent 8 }}
+        app.kubernetes.io/component: migrate
+      {{- with $m.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      restartPolicy: Never
+      {{- with $sa }}
+      serviceAccountName: {{ . }}
+      {{- end }}
+      automountServiceAccountToken: false
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with (include "justforms.podCommon" (dict "root" . "c" $m) | trim) }}{{ . | nindent 6 }}{{- end }}
+      {{- include "justforms.appVolumes" (dict "root" . "storage" false) | nindent 6 }}
+      containers:
+        - name: migrate
+          image: {{ include "justforms.backendImage" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["alembic", "upgrade", "head"]
+          {{- include "justforms.backendEnv" . | trim | nindent 10 }}
+          {{- include "justforms.appVolumeMounts" (dict "root" . "storage" false) | nindent 10 }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          {{- with $m.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

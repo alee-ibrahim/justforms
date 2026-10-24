@@ -1,0 +1,211 @@
+{
+  "name": "visibility_deep_chain",
+  "description": "Each field is visible only if the previous one is visible and true",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "s1",
+            "type": "yes_no",
+            "label": "s1"
+          },
+          {
+            "kind": "field",
+            "id": "s2",
+            "type": "yes_no",
+            "label": "s2",
+            "visibleIf": {
+              "field": "s1",
+              "op": "eq",
+              "value": true
+            }
+          },
+          {
+            "kind": "field",
+            "id": "s3",
+            "type": "yes_no",
+            "label": "s3",
+            "visibleIf": {
+              "field": "s2",
+              "op": "eq",
+              "value": true
+            }
+          },
+          {
+            "kind": "field",
+            "id": "s4",
+            "type": "yes_no",
+            "label": "s4",
+            "visibleIf": {
+              "field": "s3",
+              "op": "eq",
+              "value": true
+            }
+          },
+          {
+            "kind": "field",
+            "id": "s5",
+            "type": "yes_no",
+            "label": "s5",
+            "visibleIf": {
+              "field": "s4",
+              "op": "eq",
+              "value": true
+            }
+          },
+          {
+            "kind": "field",
+            "id": "s6",
+            "type": "yes_no",
+            "label": "s6",
+            "visibleIf": {
+              "field": "s5",
+              "op": "eq",
+              "value": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "all true",
+      "answers": {
+        "s1": true,
+        "s2": true,
+        "s3": true,
+        "s4": true,
+        "s5": true,
+        "s6": true
+      },
+      "expect": {
+        "visible": [
+          "s1",
+          "s2",
+          "s3",
+          "s4",
+          "s5",
+          "s6"
+        ],
+        "hidden": []
+      }
+    },
+    {
+      "name": "break at s3",
+      "answers": {
+        "s1": true,
+        "s2": true,
+        "s3": false,
+        "s4": true,
+        "s5": true
+      },
+      "expect": {
+        "visible": [
+          "s1",
+          "s2",
+          "s3"
+        ],
+        "hidden": [
+          "s4",
+          "s5",
+          "s6"
+        ]
+      }
+    },
+    {
+      "name": "break at s1",
+      "answers": {
+        "s1": false,
+        "s2": true,
+        "s3": true
+      },
+      "expect": {
+        "visible": [
+          "s1"
+        ],
+        "hidden": [
+          "s2",
+          "s3",
+          "s4",
+          "s5",
+          "s6"
+        ]
+      }
+    },
+    {
+      "name": "nothing answered",
+      "answers": {},
+      "expect": {
+        "visible": [
+          "s1"
+        ],
+        "hidden": [
+          "s2",
+          "s3",
+          "s4",
+          "s5",
+          "s6"
+        ]
+      }
+    },
+    {
+      "name": "hidden true values are stripped",
+      "answers": {
+        "s1": true,
+        "s2": false,
+        "s3": true,
+        "s4": true,
+        "s5": true,
+        "s6": true
+      },
+      "expect": {
+        "visible": [
+          "s1",
+          "s2"
+        ],
+        "hidden": [
+          "s3",
+          "s4",
+          "s5",
+          "s6"
+        ],
+        "strippedAnswers": {
+          "s1": true,
+          "s2": false
+        }
+      }
+    },
+    {
+      "name": "break at s5",
+      "answers": {
+        "s1": true,
+        "s2": true,
+        "s3": true,
+        "s4": true,
+        "s5": "yes"
+      },
+      "expect": {
+        "visible": [
+          "s1",
+          "s2",
+          "s3",
+          "s4",
+          "s5"
+        ],
+        "hidden": [
+          "s6"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{{- range $component := list "backend" "worker" "frontend" }}
+{{- $c := index $.Values $component }}
+{{- if $c.pdb.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "justforms.fullname" $ }}-{{ $component }}
+  labels:
+    {{- include "justforms.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  {{- if not (kindIs "invalid" $c.pdb.minAvailable) }}
+  minAvailable: {{ $c.pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ $c.pdb.maxUnavailable | default 1 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "justforms.selectorLabels" (list $ $component) | nindent 6 }}
+{{- end }}
+{{- end }}

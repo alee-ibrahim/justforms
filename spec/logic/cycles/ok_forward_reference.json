@@ -1,0 +1,39 @@
+{
+  "name": "ok_forward_reference",
+  "expect": "ok",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Cycle"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "f",
+            "type": "short_text",
+            "label": "f",
+            "visibleIf": {
+              "field": "g",
+              "op": "not_empty"
+            }
+          }
+        ]
+      },
+      {
+        "id": "p2",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "g",
+            "type": "short_text",
+            "label": "g"
+          }
+        ]
+      }
+    ]
+  }
+}

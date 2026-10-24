@@ -1,0 +1,16 @@
+/*
+ * Operator font overrides. This bundled file is intentionally empty.
+ *
+ * To use licensed Thaana fonts such as Faruma, put the font files and your own fonts.css in a
+ * directory mounted at /srv/fonts in the frontend container (compose: deploy/compose/fonts/).
+ * They are served at /fonts/. Example fonts.css:
+ *
+ *   @font-face {
+ *     font-family: "Faruma";
+ *     src: url("/fonts/Faruma.woff2") format("woff2"), url("/fonts/Faruma.ttf") format("truetype");
+ *     font-display: swap;
+ *     unicode-range: U+0780-07BF, U+060C, U+061B, U+061F, U+FDF2;
+ *   }
+ *
+ * Do not commit font files whose licence does not allow redistribution.
+ */

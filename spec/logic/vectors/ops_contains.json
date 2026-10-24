@@ -1,0 +1,279 @@
+{
+  "name": "ops_contains",
+  "description": "contains: array membership on arrays, case-sensitive NFC substring on strings",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "t",
+            "type": "short_text",
+            "label": "t"
+          },
+          {
+            "kind": "field",
+            "id": "lt",
+            "type": "long_text",
+            "label": "lt"
+          },
+          {
+            "kind": "field",
+            "id": "mc",
+            "type": "multi_choice",
+            "label": "mc",
+            "options": [
+              {
+                "value": "law",
+                "label": "law"
+              },
+              {
+                "value": "media",
+                "label": "media"
+              },
+              {
+                "value": "it",
+                "label": "it"
+              }
+            ]
+          },
+          {
+            "kind": "content",
+            "id": "mc_has_law",
+            "contentType": "paragraph",
+            "text": "mc_has_law",
+            "visibleIf": {
+              "field": "mc",
+              "op": "contains",
+              "value": "law"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "mc_not_law",
+            "contentType": "paragraph",
+            "text": "mc_not_law",
+            "visibleIf": {
+              "field": "mc",
+              "op": "not_contains",
+              "value": "law"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "t_has_ali",
+            "contentType": "paragraph",
+            "text": "t_has_ali",
+            "visibleIf": {
+              "field": "t",
+              "op": "contains",
+              "value": "Ali"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "t_not_ali",
+            "contentType": "paragraph",
+            "text": "t_not_ali",
+            "visibleIf": {
+              "field": "t",
+              "op": "not_contains",
+              "value": "Ali"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "lt_has_thaana",
+            "contentType": "paragraph",
+            "text": "lt_has_thaana",
+            "visibleIf": {
+              "field": "lt",
+              "op": "contains",
+              "value": "ދިވެހި"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "t_has_nfc",
+            "contentType": "paragraph",
+            "text": "t_has_nfc",
+            "visibleIf": {
+              "field": "t",
+              "op": "contains",
+              "value": "é"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "mc_has_num",
+            "contentType": "paragraph",
+            "text": "mc_has_num",
+            "visibleIf": {
+              "field": "mc",
+              "op": "contains",
+              "value": 1
+            }
+          },
+          {
+            "kind": "content",
+            "id": "t_has_num",
+            "contentType": "paragraph",
+            "text": "t_has_num",
+            "visibleIf": {
+              "field": "t",
+              "op": "contains",
+              "value": 1
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "member and substrings",
+      "answers": {
+        "mc": [
+          "law",
+          "it"
+        ],
+        "t": "Aishath Ali",
+        "lt": "ދިވެހި ބަސް"
+      },
+      "expect": {
+        "visible": [
+          "mc_has_law",
+          "t_has_ali",
+          "lt_has_thaana"
+        ],
+        "hidden": [
+          "mc_not_law",
+          "t_not_ali",
+          "t_has_nfc",
+          "mc_has_num",
+          "t_has_num"
+        ]
+      }
+    },
+    {
+      "name": "case-sensitive miss",
+      "answers": {
+        "mc": [
+          "media"
+        ],
+        "t": "ali",
+        "lt": "English"
+      },
+      "expect": {
+        "visible": [
+          "mc_not_law",
+          "t_not_ali"
+        ],
+        "hidden": [
+          "mc_has_law",
+          "t_has_ali",
+          "lt_has_thaana",
+          "t_has_nfc",
+          "mc_has_num",
+          "t_has_num"
+        ]
+      }
+    },
+    {
+      "name": "nothing answered",
+      "answers": {},
+      "expect": {
+        "visible": [
+          "mc_not_law",
+          "t_not_ali"
+        ],
+        "hidden": [
+          "mc_has_law",
+          "t_has_ali",
+          "lt_has_thaana",
+          "t_has_nfc",
+          "mc_has_num",
+          "t_has_num"
+        ]
+      }
+    },
+    {
+      "name": "decomposed text is normalised; numbers match in arrays",
+      "answers": {
+        "mc": [
+          1,
+          "x"
+        ],
+        "t": "Café Ali",
+        "lt": "ދިވެހި"
+      },
+      "expect": {
+        "visible": [
+          "mc_not_law",
+          "t_has_ali",
+          "lt_has_thaana",
+          "t_has_nfc",
+          "mc_has_num"
+        ],
+        "hidden": [
+          "mc_has_law",
+          "t_not_ali",
+          "t_has_num"
+        ]
+      }
+    },
+    {
+      "name": "shape decides: array in text field, string in choice field",
+      "answers": {
+        "t": [
+          "Ali"
+        ],
+        "mc": "law"
+      },
+      "expect": {
+        "visible": [
+          "mc_has_law",
+          "t_has_ali"
+        ],
+        "hidden": [
+          "mc_not_law",
+          "t_not_ali",
+          "lt_has_thaana",
+          "t_has_nfc",
+          "mc_has_num",
+          "t_has_num"
+        ]
+      }
+    },
+    {
+      "name": "substring is not an array member",
+      "answers": {
+        "mc": [
+          "lawyer"
+        ],
+        "t": "Alice"
+      },
+      "expect": {
+        "visible": [
+          "mc_not_law",
+          "t_has_ali"
+        ],
+        "hidden": [
+          "mc_has_law",
+          "t_not_ali",
+          "lt_has_thaana",
+          "t_has_nfc",
+          "mc_has_num",
+          "t_has_num"
+        ]
+      }
+    }
+  ]
+}

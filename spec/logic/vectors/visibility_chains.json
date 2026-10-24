@@ -1,0 +1,211 @@
+{
+  "name": "visibility_chains",
+  "description": "A hidden field reads as missing for everything that depends on it; forward references work",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "content",
+            "id": "fwd",
+            "contentType": "paragraph",
+            "text": "fwd",
+            "visibleIf": {
+              "field": "g",
+              "op": "eq",
+              "value": "yes"
+            }
+          },
+          {
+            "kind": "field",
+            "id": "a",
+            "type": "yes_no",
+            "label": "a"
+          },
+          {
+            "kind": "field",
+            "id": "b",
+            "type": "short_text",
+            "label": "b",
+            "visibleIf": {
+              "field": "a",
+              "op": "eq",
+              "value": true
+            }
+          },
+          {
+            "kind": "field",
+            "id": "c",
+            "type": "short_text",
+            "label": "c",
+            "visibleIf": {
+              "field": "b",
+              "op": "not_empty"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "d",
+            "contentType": "paragraph",
+            "text": "d",
+            "visibleIf": {
+              "field": "c",
+              "op": "eq",
+              "value": "go"
+            }
+          },
+          {
+            "kind": "field",
+            "id": "e",
+            "type": "short_text",
+            "label": "e",
+            "visibleIf": {
+              "field": "b",
+              "op": "empty"
+            }
+          },
+          {
+            "kind": "field",
+            "id": "g",
+            "type": "short_text",
+            "label": "g"
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "whole chain visible",
+      "answers": {
+        "a": true,
+        "b": "x",
+        "c": "go",
+        "g": "yes"
+      },
+      "expect": {
+        "visible": [
+          "fwd",
+          "a",
+          "b",
+          "c",
+          "d",
+          "g"
+        ],
+        "hidden": [
+          "e"
+        ],
+        "strippedAnswers": {
+          "a": true,
+          "b": "x",
+          "c": "go",
+          "g": "yes"
+        }
+      }
+    },
+    {
+      "name": "hiding b hides c and d, shows e",
+      "answers": {
+        "a": false,
+        "b": "x",
+        "c": "go"
+      },
+      "expect": {
+        "visible": [
+          "a",
+          "e",
+          "g"
+        ],
+        "hidden": [
+          "fwd",
+          "b",
+          "c",
+          "d"
+        ],
+        "strippedAnswers": {
+          "a": false
+        }
+      }
+    },
+    {
+      "name": "nothing answered",
+      "answers": {},
+      "expect": {
+        "visible": [
+          "a",
+          "e",
+          "g"
+        ],
+        "hidden": [
+          "fwd",
+          "b",
+          "c",
+          "d"
+        ],
+        "strippedAnswers": {}
+      }
+    },
+    {
+      "name": "visible but empty b",
+      "answers": {
+        "a": true,
+        "b": "",
+        "c": "go",
+        "e": "z"
+      },
+      "expect": {
+        "visible": [
+          "a",
+          "b",
+          "e",
+          "g"
+        ],
+        "hidden": [
+          "fwd",
+          "c",
+          "d"
+        ],
+        "strippedAnswers": {
+          "a": true,
+          "b": "",
+          "e": "z"
+        }
+      }
+    },
+    {
+      "name": "c answered differently",
+      "answers": {
+        "a": true,
+        "b": "x",
+        "c": "stop",
+        "g": "no"
+      },
+      "expect": {
+        "visible": [
+          "a",
+          "b",
+          "c",
+          "g"
+        ],
+        "hidden": [
+          "fwd",
+          "d",
+          "e"
+        ],
+        "strippedAnswers": {
+          "a": true,
+          "b": "x",
+          "c": "stop",
+          "g": "no"
+        }
+      }
+    }
+  ]
+}

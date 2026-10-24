@@ -1,0 +1,388 @@
+{
+  "name": "ops_eq",
+  "description": "eq/neq: deep JSON equality, no coercion, booleans are not numbers, NFC strings",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "t",
+            "type": "short_text",
+            "label": "t"
+          },
+          {
+            "kind": "field",
+            "id": "n",
+            "type": "number",
+            "label": "n"
+          },
+          {
+            "kind": "field",
+            "id": "y",
+            "type": "yes_no",
+            "label": "y"
+          },
+          {
+            "kind": "field",
+            "id": "sc",
+            "type": "single_choice",
+            "label": "sc",
+            "options": [
+              {
+                "value": "a",
+                "label": "a"
+              },
+              {
+                "value": "b",
+                "label": "b"
+              },
+              {
+                "value": "c",
+                "label": "c"
+              }
+            ]
+          },
+          {
+            "kind": "field",
+            "id": "mc",
+            "type": "multi_choice",
+            "label": "mc",
+            "options": [
+              {
+                "value": "a",
+                "label": "a"
+              },
+              {
+                "value": "b",
+                "label": "b"
+              },
+              {
+                "value": "c",
+                "label": "c"
+              }
+            ]
+          },
+          {
+            "kind": "field",
+            "id": "d",
+            "type": "date",
+            "label": "d"
+          },
+          {
+            "kind": "content",
+            "id": "t_eq_5str",
+            "contentType": "paragraph",
+            "text": "t_eq_5str",
+            "visibleIf": {
+              "field": "t",
+              "op": "eq",
+              "value": "5"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "n_eq_5",
+            "contentType": "paragraph",
+            "text": "n_eq_5",
+            "visibleIf": {
+              "field": "n",
+              "op": "eq",
+              "value": 5
+            }
+          },
+          {
+            "kind": "content",
+            "id": "n_neq_5",
+            "contentType": "paragraph",
+            "text": "n_neq_5",
+            "visibleIf": {
+              "field": "n",
+              "op": "neq",
+              "value": 5
+            }
+          },
+          {
+            "kind": "content",
+            "id": "y_eq_true",
+            "contentType": "paragraph",
+            "text": "y_eq_true",
+            "visibleIf": {
+              "field": "y",
+              "op": "eq",
+              "value": true
+            }
+          },
+          {
+            "kind": "content",
+            "id": "y_eq_false",
+            "contentType": "paragraph",
+            "text": "y_eq_false",
+            "visibleIf": {
+              "field": "y",
+              "op": "eq",
+              "value": false
+            }
+          },
+          {
+            "kind": "content",
+            "id": "y_neq_true",
+            "contentType": "paragraph",
+            "text": "y_neq_true",
+            "visibleIf": {
+              "field": "y",
+              "op": "neq",
+              "value": true
+            }
+          },
+          {
+            "kind": "content",
+            "id": "sc_eq_a",
+            "contentType": "paragraph",
+            "text": "sc_eq_a",
+            "visibleIf": {
+              "field": "sc",
+              "op": "eq",
+              "value": "a"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "mc_eq_ab",
+            "contentType": "paragraph",
+            "text": "mc_eq_ab",
+            "visibleIf": {
+              "field": "mc",
+              "op": "eq",
+              "value": [
+                "a",
+                "b"
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "t_eq_nfc",
+            "contentType": "paragraph",
+            "text": "t_eq_nfc",
+            "visibleIf": {
+              "field": "t",
+              "op": "eq",
+              "value": "é"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "d_eq",
+            "contentType": "paragraph",
+            "text": "d_eq",
+            "visibleIf": {
+              "field": "d",
+              "op": "eq",
+              "value": "2026-01-01"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "matching values",
+      "answers": {
+        "t": "5",
+        "n": 5,
+        "y": true,
+        "sc": "a",
+        "mc": [
+          "a",
+          "b"
+        ],
+        "d": "2026-01-01"
+      },
+      "expect": {
+        "visible": [
+          "t_eq_5str",
+          "n_eq_5",
+          "y_eq_true",
+          "sc_eq_a",
+          "mc_eq_ab",
+          "d_eq"
+        ],
+        "hidden": [
+          "n_neq_5",
+          "y_eq_false",
+          "y_neq_true",
+          "t_eq_nfc"
+        ]
+      }
+    },
+    {
+      "name": "no coercion between strings, numbers and booleans",
+      "answers": {
+        "t": 5,
+        "n": "5",
+        "y": 1,
+        "sc": "b",
+        "mc": [
+          "b",
+          "a"
+        ],
+        "d": "2026-1-1"
+      },
+      "expect": {
+        "visible": [
+          "n_neq_5",
+          "y_neq_true"
+        ],
+        "hidden": [
+          "t_eq_5str",
+          "n_eq_5",
+          "y_eq_true",
+          "y_eq_false",
+          "sc_eq_a",
+          "mc_eq_ab",
+          "t_eq_nfc",
+          "d_eq"
+        ]
+      }
+    },
+    {
+      "name": "5.0 equals 5; decomposed e-acute equals composed",
+      "answers": {
+        "n": 5.0,
+        "y": false,
+        "t": "é",
+        "mc": [
+          "a",
+          "b"
+        ]
+      },
+      "expect": {
+        "visible": [
+          "n_eq_5",
+          "y_eq_false",
+          "y_neq_true",
+          "mc_eq_ab",
+          "t_eq_nfc"
+        ],
+        "hidden": [
+          "t_eq_5str",
+          "n_neq_5",
+          "y_eq_true",
+          "sc_eq_a",
+          "d_eq"
+        ]
+      }
+    },
+    {
+      "name": "0 is not false; 5.5 is not 5",
+      "answers": {
+        "y": 0,
+        "n": 5.5,
+        "t": "é",
+        "mc": [
+          "a"
+        ]
+      },
+      "expect": {
+        "visible": [
+          "n_neq_5",
+          "y_neq_true",
+          "t_eq_nfc"
+        ],
+        "hidden": [
+          "t_eq_5str",
+          "n_eq_5",
+          "y_eq_true",
+          "y_eq_false",
+          "sc_eq_a",
+          "mc_eq_ab",
+          "d_eq"
+        ]
+      }
+    },
+    {
+      "name": "nothing answered",
+      "answers": {},
+      "expect": {
+        "visible": [
+          "n_neq_5",
+          "y_neq_true"
+        ],
+        "hidden": [
+          "t_eq_5str",
+          "n_eq_5",
+          "y_eq_true",
+          "y_eq_false",
+          "sc_eq_a",
+          "mc_eq_ab",
+          "t_eq_nfc",
+          "d_eq"
+        ]
+      }
+    },
+    {
+      "name": "negative number, longer array",
+      "answers": {
+        "n": -5,
+        "y": true,
+        "mc": [
+          "a",
+          "b",
+          "c"
+        ]
+      },
+      "expect": {
+        "visible": [
+          "n_neq_5",
+          "y_eq_true"
+        ],
+        "hidden": [
+          "t_eq_5str",
+          "n_eq_5",
+          "y_eq_false",
+          "y_neq_true",
+          "sc_eq_a",
+          "mc_eq_ab",
+          "t_eq_nfc",
+          "d_eq"
+        ]
+      }
+    },
+    {
+      "name": "array order matters",
+      "answers": {
+        "mc": [
+          "a",
+          "b"
+        ],
+        "sc": "a",
+        "y": false
+      },
+      "expect": {
+        "visible": [
+          "n_neq_5",
+          "y_eq_false",
+          "y_neq_true",
+          "sc_eq_a",
+          "mc_eq_ab"
+        ],
+        "hidden": [
+          "t_eq_5str",
+          "n_eq_5",
+          "y_eq_true",
+          "t_eq_nfc",
+          "d_eq"
+        ]
+      }
+    }
+  ]
+}

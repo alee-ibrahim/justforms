@@ -1,0 +1,69 @@
+{
+  "name": "ok_navigation_reads_same_page",
+  "expect": "ok",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Cycle"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "a",
+            "type": "short_text",
+            "label": "a"
+          },
+          {
+            "kind": "field",
+            "id": "b",
+            "type": "short_text",
+            "label": "b",
+            "visibleIf": {
+              "field": "a",
+              "op": "not_empty"
+            }
+          }
+        ],
+        "next": [
+          {
+            "if": {
+              "field": "b",
+              "op": "not_empty"
+            },
+            "goto": "p3"
+          }
+        ]
+      },
+      {
+        "id": "p2",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "c",
+            "type": "short_text",
+            "label": "c"
+          }
+        ]
+      },
+      {
+        "id": "p3",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "d",
+            "type": "short_text",
+            "label": "d",
+            "visibleIf": {
+              "field": "c",
+              "op": "not_empty"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

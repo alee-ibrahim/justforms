@@ -1,0 +1,136 @@
+{
+  "name": "forward_references",
+  "description": "An element may depend on a field on a later page; that field reads missing when its page is skipped",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "content",
+            "id": "notice",
+            "contentType": "paragraph",
+            "text": "notice",
+            "visibleIf": {
+              "field": "later",
+              "op": "not_empty"
+            }
+          },
+          {
+            "kind": "field",
+            "id": "early",
+            "type": "short_text",
+            "label": "early"
+          }
+        ],
+        "next": [
+          {
+            "if": {
+              "field": "early",
+              "op": "eq",
+              "value": "skip"
+            },
+            "goto": "submit"
+          }
+        ]
+      },
+      {
+        "id": "p2",
+        "title": "p2",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "later",
+            "type": "short_text",
+            "label": "later"
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "later answered",
+      "answers": {
+        "later": "x"
+      },
+      "expect": {
+        "visible": [
+          "notice",
+          "early",
+          "later"
+        ],
+        "hidden": [],
+        "path": [
+          "p1",
+          "p2"
+        ]
+      }
+    },
+    {
+      "name": "later page skipped",
+      "answers": {
+        "early": "skip",
+        "later": "x"
+      },
+      "expect": {
+        "visible": [
+          "early"
+        ],
+        "hidden": [
+          "notice",
+          "later"
+        ],
+        "path": [
+          "p1"
+        ],
+        "strippedAnswers": {
+          "early": "skip"
+        }
+      }
+    },
+    {
+      "name": "nothing answered",
+      "answers": {},
+      "expect": {
+        "visible": [
+          "early",
+          "later"
+        ],
+        "hidden": [
+          "notice"
+        ],
+        "path": [
+          "p1",
+          "p2"
+        ]
+      }
+    },
+    {
+      "name": "early not skip",
+      "answers": {
+        "early": "go",
+        "later": ""
+      },
+      "expect": {
+        "visible": [
+          "early",
+          "later"
+        ],
+        "hidden": [
+          "notice"
+        ],
+        "path": [
+          "p1",
+          "p2"
+        ]
+      }
+    }
+  ]
+}

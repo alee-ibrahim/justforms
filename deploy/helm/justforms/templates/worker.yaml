@@ -1,0 +1,70 @@
+{{- $c := .Values.worker -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "justforms.fullname" . }}-worker
+  labels:
+    {{- include "justforms.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  {{- if not $c.autoscaling.enabled }}
+  replicas: {{ $c.replicas }}
+  {{- end }}
+  {{- if include "justforms.storageIsRwo" . }}
+  strategy:
+    type: Recreate
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "justforms.selectorLabels" (list . "worker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "justforms.labels" . | nindent 8 }}
+        app.kubernetes.io/component: worker
+        {{- with $c.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with $c.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "justforms.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with (include "justforms.podCommon" (dict "root" . "c" $c) | trim) }}{{ . | nindent 6 }}{{- end }}
+      {{- if $c.affinity }}
+      affinity:
+        {{- toYaml $c.affinity | nindent 8 }}
+      {{- else if include "justforms.storageIsRwo" . }}
+      # The storage PVC is ReadWriteOnce: run next to a backend pod so both can mount it.
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  {{- include "justforms.selectorLabels" (list . "backend") | nindent 18 }}
+      {{- end }}
+      {{- include "justforms.appVolumes" (dict "root" . "storage" true) | nindent 6 }}
+      containers:
+        - name: worker
+          image: {{ include "justforms.backendImage" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["arq", "app.worker.WorkerSettings"]
+          {{- include "justforms.backendEnv" . | trim | nindent 10 }}
+          {{- include "justforms.appVolumeMounts" (dict "root" . "storage" true) | nindent 10 }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          {{- with $c.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $c.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

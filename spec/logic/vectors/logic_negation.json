@@ -1,0 +1,224 @@
+{
+  "name": "logic_negation",
+  "description": "not around leaves and groups, single-item groups",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "a",
+            "type": "yes_no",
+            "label": "a"
+          },
+          {
+            "kind": "field",
+            "id": "t",
+            "type": "short_text",
+            "label": "t"
+          },
+          {
+            "kind": "content",
+            "id": "dbl_not",
+            "contentType": "paragraph",
+            "text": "dbl_not",
+            "visibleIf": {
+              "not": {
+                "not": {
+                  "field": "a",
+                  "op": "eq",
+                  "value": true
+                }
+              }
+            }
+          },
+          {
+            "kind": "content",
+            "id": "not_empty_t",
+            "contentType": "paragraph",
+            "text": "not_empty_t",
+            "visibleIf": {
+              "not": {
+                "field": "t",
+                "op": "empty"
+              }
+            }
+          },
+          {
+            "kind": "content",
+            "id": "not_all",
+            "contentType": "paragraph",
+            "text": "not_all",
+            "visibleIf": {
+              "not": {
+                "all": [
+                  {
+                    "field": "a",
+                    "op": "eq",
+                    "value": true
+                  },
+                  {
+                    "field": "t",
+                    "op": "eq",
+                    "value": "x"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": "content",
+            "id": "any_not",
+            "contentType": "paragraph",
+            "text": "any_not",
+            "visibleIf": {
+              "any": [
+                {
+                  "not": {
+                    "field": "a",
+                    "op": "eq",
+                    "value": true
+                  }
+                },
+                {
+                  "field": "t",
+                  "op": "eq",
+                  "value": "x"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "all_single",
+            "contentType": "paragraph",
+            "text": "all_single",
+            "visibleIf": {
+              "all": [
+                {
+                  "field": "t",
+                  "op": "not_empty"
+                }
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "any_single",
+            "contentType": "paragraph",
+            "text": "any_single",
+            "visibleIf": {
+              "any": [
+                {
+                  "field": "t",
+                  "op": "empty"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "a, t=x",
+      "answers": {
+        "a": true,
+        "t": "x"
+      },
+      "expect": {
+        "visible": [
+          "dbl_not",
+          "not_empty_t",
+          "any_not",
+          "all_single"
+        ],
+        "hidden": [
+          "not_all",
+          "any_single"
+        ]
+      }
+    },
+    {
+      "name": "a, t=y",
+      "answers": {
+        "a": true,
+        "t": "y"
+      },
+      "expect": {
+        "visible": [
+          "dbl_not",
+          "not_empty_t",
+          "not_all",
+          "all_single"
+        ],
+        "hidden": [
+          "any_not",
+          "any_single"
+        ]
+      }
+    },
+    {
+      "name": "nothing answered",
+      "answers": {},
+      "expect": {
+        "visible": [
+          "not_all",
+          "any_not",
+          "any_single"
+        ],
+        "hidden": [
+          "dbl_not",
+          "not_empty_t",
+          "all_single"
+        ]
+      }
+    },
+    {
+      "name": "a false, t empty",
+      "answers": {
+        "a": false,
+        "t": ""
+      },
+      "expect": {
+        "visible": [
+          "not_all",
+          "any_not",
+          "any_single"
+        ],
+        "hidden": [
+          "dbl_not",
+          "not_empty_t",
+          "all_single"
+        ]
+      }
+    },
+    {
+      "name": "a is a string",
+      "answers": {
+        "a": "true",
+        "t": "x"
+      },
+      "expect": {
+        "visible": [
+          "not_empty_t",
+          "not_all",
+          "any_not",
+          "all_single"
+        ],
+        "hidden": [
+          "dbl_not",
+          "any_single"
+        ]
+      }
+    }
+  ]
+}

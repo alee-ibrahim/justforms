@@ -1,0 +1,381 @@
+{
+  "name": "ops_in",
+  "description": "in/not_in: scalar membership; arrays are never members; not_in is the exact negation",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "t",
+            "type": "short_text",
+            "label": "t"
+          },
+          {
+            "kind": "field",
+            "id": "n",
+            "type": "number",
+            "label": "n"
+          },
+          {
+            "kind": "field",
+            "id": "y",
+            "type": "yes_no",
+            "label": "y"
+          },
+          {
+            "kind": "field",
+            "id": "sc",
+            "type": "single_choice",
+            "label": "sc",
+            "options": [
+              {
+                "value": "a",
+                "label": "a"
+              },
+              {
+                "value": "b",
+                "label": "b"
+              },
+              {
+                "value": "c",
+                "label": "c"
+              }
+            ]
+          },
+          {
+            "kind": "field",
+            "id": "mc",
+            "type": "multi_choice",
+            "label": "mc",
+            "options": [
+              {
+                "value": "a",
+                "label": "a"
+              },
+              {
+                "value": "b",
+                "label": "b"
+              },
+              {
+                "value": "c",
+                "label": "c"
+              }
+            ]
+          },
+          {
+            "kind": "content",
+            "id": "sc_in_ab",
+            "contentType": "paragraph",
+            "text": "sc_in_ab",
+            "visibleIf": {
+              "field": "sc",
+              "op": "in",
+              "value": [
+                "a",
+                "b"
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "sc_not_in_ab",
+            "contentType": "paragraph",
+            "text": "sc_not_in_ab",
+            "visibleIf": {
+              "field": "sc",
+              "op": "not_in",
+              "value": [
+                "a",
+                "b"
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "n_in",
+            "contentType": "paragraph",
+            "text": "n_in",
+            "visibleIf": {
+              "field": "n",
+              "op": "in",
+              "value": [
+                1,
+                2,
+                3
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "n_in_str",
+            "contentType": "paragraph",
+            "text": "n_in_str",
+            "visibleIf": {
+              "field": "n",
+              "op": "in",
+              "value": [
+                "1",
+                "2"
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "t_in",
+            "contentType": "paragraph",
+            "text": "t_in",
+            "visibleIf": {
+              "field": "t",
+              "op": "in",
+              "value": [
+                "Male'",
+                "Hulhumale'"
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "mc_in",
+            "contentType": "paragraph",
+            "text": "mc_in",
+            "visibleIf": {
+              "field": "mc",
+              "op": "in",
+              "value": [
+                "a"
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "mc_not_in",
+            "contentType": "paragraph",
+            "text": "mc_not_in",
+            "visibleIf": {
+              "field": "mc",
+              "op": "not_in",
+              "value": [
+                "a"
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "y_in",
+            "contentType": "paragraph",
+            "text": "y_in",
+            "visibleIf": {
+              "field": "y",
+              "op": "in",
+              "value": [
+                true
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "t_in_nfc",
+            "contentType": "paragraph",
+            "text": "t_in_nfc",
+            "visibleIf": {
+              "field": "t",
+              "op": "in",
+              "value": [
+                "é"
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "sc_in_empty",
+            "contentType": "paragraph",
+            "text": "sc_in_empty",
+            "visibleIf": {
+              "field": "sc",
+              "op": "in",
+              "value": []
+            }
+          },
+          {
+            "kind": "content",
+            "id": "sc_not_in_empty",
+            "contentType": "paragraph",
+            "text": "sc_not_in_empty",
+            "visibleIf": {
+              "field": "sc",
+              "op": "not_in",
+              "value": []
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "members",
+      "answers": {
+        "sc": "a",
+        "n": 2,
+        "t": "Male'",
+        "mc": [
+          "a"
+        ],
+        "y": true
+      },
+      "expect": {
+        "visible": [
+          "sc_in_ab",
+          "n_in",
+          "t_in",
+          "mc_not_in",
+          "y_in",
+          "sc_not_in_empty"
+        ],
+        "hidden": [
+          "sc_not_in_ab",
+          "n_in_str",
+          "mc_in",
+          "t_in_nfc",
+          "sc_in_empty"
+        ]
+      }
+    },
+    {
+      "name": "non-members, case-sensitive",
+      "answers": {
+        "sc": "c",
+        "n": 4,
+        "t": "male'",
+        "mc": [
+          "b"
+        ],
+        "y": false
+      },
+      "expect": {
+        "visible": [
+          "sc_not_in_ab",
+          "mc_not_in",
+          "sc_not_in_empty"
+        ],
+        "hidden": [
+          "sc_in_ab",
+          "n_in",
+          "n_in_str",
+          "t_in",
+          "mc_in",
+          "y_in",
+          "t_in_nfc",
+          "sc_in_empty"
+        ]
+      }
+    },
+    {
+      "name": "nothing answered",
+      "answers": {},
+      "expect": {
+        "visible": [
+          "sc_not_in_ab",
+          "mc_not_in",
+          "sc_not_in_empty"
+        ],
+        "hidden": [
+          "sc_in_ab",
+          "n_in",
+          "n_in_str",
+          "t_in",
+          "mc_in",
+          "y_in",
+          "t_in_nfc",
+          "sc_in_empty"
+        ]
+      }
+    },
+    {
+      "name": "2.0 is 2, NFC, 1 is not true",
+      "answers": {
+        "n": 2.0,
+        "t": "é",
+        "y": 1,
+        "sc": "b"
+      },
+      "expect": {
+        "visible": [
+          "sc_in_ab",
+          "n_in",
+          "mc_not_in",
+          "t_in_nfc",
+          "sc_not_in_empty"
+        ],
+        "hidden": [
+          "sc_not_in_ab",
+          "n_in_str",
+          "t_in",
+          "mc_in",
+          "y_in",
+          "sc_in_empty"
+        ]
+      }
+    },
+    {
+      "name": "string '1' vs number list",
+      "answers": {
+        "n": "1",
+        "t": "Hulhumale'"
+      },
+      "expect": {
+        "visible": [
+          "sc_not_in_ab",
+          "n_in_str",
+          "t_in",
+          "mc_not_in",
+          "sc_not_in_empty"
+        ],
+        "hidden": [
+          "sc_in_ab",
+          "n_in",
+          "mc_in",
+          "y_in",
+          "t_in_nfc",
+          "sc_in_empty"
+        ]
+      }
+    },
+    {
+      "name": "object values are never members",
+      "answers": {
+        "sc": {
+          "value": "a"
+        },
+        "n": [
+          1
+        ]
+      },
+      "expect": {
+        "visible": [
+          "sc_not_in_ab",
+          "mc_not_in",
+          "sc_not_in_empty"
+        ],
+        "hidden": [
+          "sc_in_ab",
+          "n_in",
+          "n_in_str",
+          "t_in",
+          "mc_in",
+          "y_in",
+          "t_in_nfc",
+          "sc_in_empty"
+        ]
+      }
+    }
+  ]
+}

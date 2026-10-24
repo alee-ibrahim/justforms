@@ -1,0 +1,1014 @@
+{
+  "description": "Per-answer validation shared by the renderer (frontend/src/renderer/validation.ts) and the server (backend/app/validation/answers.py). Each case checks one answer of one visible field (kind, id and label are filled in); `required` defaults to false; a missing `value` means unanswered. `today` resolves relative date limits. `expect` is null or {code, params?}.",
+  "today": "2026-10-23",
+  "cases": [
+    {
+      "name": "missing optional is fine",
+      "field": {
+        "type": "short_text"
+      },
+      "expect": null
+    },
+    {
+      "name": "missing required",
+      "field": {
+        "type": "short_text"
+      },
+      "required": true,
+      "expect": {
+        "code": "required"
+      }
+    },
+    {
+      "name": "empty string counts as missing",
+      "field": {
+        "type": "short_text"
+      },
+      "value": "",
+      "required": true,
+      "expect": {
+        "code": "required"
+      }
+    },
+    {
+      "name": "empty list counts as missing",
+      "field": {
+        "type": "multi_choice",
+        "options": [
+          {
+            "value": "a",
+            "label": "A"
+          },
+          {
+            "value": "b",
+            "label": "B"
+          }
+        ],
+        "minSelected": 2
+      },
+      "value": [],
+      "required": true,
+      "expect": {
+        "code": "required",
+        "params": {
+          "n": 2
+        }
+      }
+    },
+    {
+      "name": "required multi choice without minimum asks for one",
+      "field": {
+        "type": "multi_choice",
+        "options": [
+          {
+            "value": "a",
+            "label": "A"
+          }
+        ]
+      },
+      "value": null,
+      "required": true,
+      "expect": {
+        "code": "required",
+        "params": {
+          "n": 1
+        }
+      }
+    },
+    {
+      "name": "required yes/no false is an answer",
+      "field": {
+        "type": "yes_no"
+      },
+      "value": false,
+      "required": true,
+      "expect": null
+    },
+    {
+      "name": "required number zero is an answer",
+      "field": {
+        "type": "number"
+      },
+      "value": 0,
+      "required": true,
+      "expect": null
+    },
+    {
+      "name": "short text ok",
+      "field": {
+        "type": "short_text"
+      },
+      "value": "Aminath",
+      "expect": null
+    },
+    {
+      "name": "short text not a string",
+      "field": {
+        "type": "short_text"
+      },
+      "value": 12,
+      "expect": {
+        "code": "invalid"
+      }
+    },
+    {
+      "name": "short text over maxLength",
+      "field": {
+        "type": "short_text",
+        "maxLength": 3
+      },
+      "value": "abcd",
+      "expect": {
+        "code": "too_long",
+        "params": {
+          "max": 3
+        }
+      }
+    },
+    {
+      "name": "short text at maxLength",
+      "field": {
+        "type": "short_text",
+        "maxLength": 3
+      },
+      "value": "abc",
+      "expect": null
+    },
+    {
+      "name": "short text over the default cap",
+      "field": {
+        "type": "short_text"
+      },
+      "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "expect": {
+        "code": "too_long",
+        "params": {
+          "max": 10000
+        }
+      }
+    },
+    {
+      "name": "pattern matches",
+      "field": {
+        "type": "short_text",
+        "pattern": "^A[0-9]{6}$"
+      },
+      "value": "A123456",
+      "expect": null
+    },
+    {
+      "name": "pattern fails",
+      "field": {
+        "type": "short_text",
+        "pattern": "^A[0-9]{6}$"
+      },
+      "value": "B12",
+      "expect": {
+        "code": "pattern"
+      }
+    },
+    {
+      "name": "pattern is a search, not a full match",
+      "field": {
+        "type": "short_text",
+        "pattern": "[0-9]"
+      },
+      "value": "abc1",
+      "expect": null
+    },
+    {
+      "name": "broken pattern is ignored",
+      "field": {
+        "type": "short_text",
+        "pattern": "(unclosed"
+      },
+      "value": "anything",
+      "expect": null
+    },
+    {
+      "name": "thaana text passes",
+      "field": {
+        "type": "short_text"
+      },
+      "value": "އާއިޝަތު",
+      "expect": null
+    },
+    {
+      "name": "long text ok",
+      "field": {
+        "type": "long_text"
+      },
+      "value": "line 1\nline 2",
+      "expect": null
+    },
+    {
+      "name": "long text over maxLength",
+      "field": {
+        "type": "long_text",
+        "maxLength": 5
+      },
+      "value": "123456",
+      "expect": {
+        "code": "too_long",
+        "params": {
+          "max": 5
+        }
+      }
+    },
+    {
+      "name": "email ok",
+      "field": {
+        "type": "email"
+      },
+      "value": "name@example.org",
+      "expect": null
+    },
+    {
+      "name": "email surrounding spaces are ignored",
+      "field": {
+        "type": "email"
+      },
+      "value": " name@example.org ",
+      "expect": null
+    },
+    {
+      "name": "email without domain dot",
+      "field": {
+        "type": "email"
+      },
+      "value": "name@example",
+      "expect": {
+        "code": "email"
+      }
+    },
+    {
+      "name": "email with space",
+      "field": {
+        "type": "email"
+      },
+      "value": "na me@example.org",
+      "expect": {
+        "code": "email"
+      }
+    },
+    {
+      "name": "email not a string",
+      "field": {
+        "type": "email"
+      },
+      "value": 5,
+      "expect": {
+        "code": "email"
+      }
+    },
+    {
+      "name": "mv phone ok",
+      "field": {
+        "type": "phone"
+      },
+      "value": "+9607771234",
+      "expect": null
+    },
+    {
+      "name": "mv phone short",
+      "field": {
+        "type": "phone"
+      },
+      "value": "+960777123",
+      "expect": {
+        "code": "phone_mv"
+      }
+    },
+    {
+      "name": "mv phone long",
+      "field": {
+        "type": "phone"
+      },
+      "value": "+96077712345",
+      "expect": {
+        "code": "phone_mv"
+      }
+    },
+    {
+      "name": "other country ok",
+      "field": {
+        "type": "phone"
+      },
+      "value": "+447700900123",
+      "expect": null
+    },
+    {
+      "name": "phone without plus",
+      "field": {
+        "type": "phone"
+      },
+      "value": "7771234",
+      "expect": {
+        "code": "phone"
+      }
+    },
+    {
+      "name": "phone with letters",
+      "field": {
+        "type": "phone"
+      },
+      "value": "+44abc",
+      "expect": {
+        "code": "phone"
+      }
+    },
+    {
+      "name": "number ok",
+      "field": {
+        "type": "number"
+      },
+      "value": 3.5,
+      "expect": null
+    },
+    {
+      "name": "number as a string",
+      "field": {
+        "type": "number"
+      },
+      "value": "5",
+      "expect": {
+        "code": "number"
+      }
+    },
+    {
+      "name": "boolean is not a number",
+      "field": {
+        "type": "number"
+      },
+      "value": true,
+      "expect": {
+        "code": "number"
+      }
+    },
+    {
+      "name": "integer required",
+      "field": {
+        "type": "number",
+        "integer": true
+      },
+      "value": 1.5,
+      "expect": {
+        "code": "integer"
+      }
+    },
+    {
+      "name": "integer ok",
+      "field": {
+        "type": "number",
+        "integer": true
+      },
+      "value": 2,
+      "expect": null
+    },
+    {
+      "name": "between",
+      "field": {
+        "type": "number",
+        "min": 15,
+        "max": 35
+      },
+      "value": 40,
+      "expect": {
+        "code": "between",
+        "params": {
+          "min": 15,
+          "max": 35
+        }
+      }
+    },
+    {
+      "name": "at range edge",
+      "field": {
+        "type": "number",
+        "min": 15,
+        "max": 35
+      },
+      "value": 35,
+      "expect": null
+    },
+    {
+      "name": "at least",
+      "field": {
+        "type": "number",
+        "min": 1
+      },
+      "value": 0,
+      "expect": {
+        "code": "at_least",
+        "params": {
+          "min": 1
+        }
+      }
+    },
+    {
+      "name": "at most",
+      "field": {
+        "type": "number",
+        "max": 10
+      },
+      "value": 10.5,
+      "expect": {
+        "code": "at_most",
+        "params": {
+          "max": 10
+        }
+      }
+    },
+    {
+      "name": "number beyond 2^53",
+      "field": {
+        "type": "number"
+      },
+      "value": 1152921504606846976,
+      "expect": {
+        "code": "number"
+      }
+    },
+    {
+      "name": "fractional limits",
+      "field": {
+        "type": "number",
+        "min": 0.5
+      },
+      "value": 0.25,
+      "expect": {
+        "code": "at_least",
+        "params": {
+          "min": 0.5
+        }
+      }
+    },
+    {
+      "name": "date ok",
+      "field": {
+        "type": "date"
+      },
+      "value": "2026-02-28",
+      "expect": null
+    },
+    {
+      "name": "date not a calendar day",
+      "field": {
+        "type": "date"
+      },
+      "value": "2026-02-30",
+      "expect": {
+        "code": "date"
+      }
+    },
+    {
+      "name": "date wrong format",
+      "field": {
+        "type": "date"
+      },
+      "value": "28/02/2026",
+      "expect": {
+        "code": "date"
+      }
+    },
+    {
+      "name": "date before minDate",
+      "field": {
+        "type": "date",
+        "minDate": "2026-01-01"
+      },
+      "value": "2025-12-31",
+      "expect": {
+        "code": "date_from",
+        "params": {
+          "date": "2026-01-01"
+        }
+      }
+    },
+    {
+      "name": "date after maxDate",
+      "field": {
+        "type": "date",
+        "maxDate": "2026-12-31"
+      },
+      "value": "2027-01-01",
+      "expect": {
+        "code": "date_to",
+        "params": {
+          "date": "2026-12-31"
+        }
+      }
+    },
+    {
+      "name": "date relative today ok",
+      "field": {
+        "type": "date",
+        "minDate": "today"
+      },
+      "value": "2026-10-23",
+      "expect": null
+    },
+    {
+      "name": "date relative today before",
+      "field": {
+        "type": "date",
+        "minDate": "today"
+      },
+      "value": "2026-10-22",
+      "expect": {
+        "code": "date_from",
+        "params": {
+          "date": "2026-10-23"
+        }
+      }
+    },
+    {
+      "name": "date relative today+30 after",
+      "field": {
+        "type": "date",
+        "maxDate": "today+30"
+      },
+      "value": "2026-11-23",
+      "expect": {
+        "code": "date_to",
+        "params": {
+          "date": "2026-11-22"
+        }
+      }
+    },
+    {
+      "name": "date relative today-1",
+      "field": {
+        "type": "date",
+        "maxDate": "today-1"
+      },
+      "value": "2026-10-23",
+      "expect": {
+        "code": "date_to",
+        "params": {
+          "date": "2026-10-22"
+        }
+      }
+    },
+    {
+      "name": "time ok",
+      "field": {
+        "type": "time"
+      },
+      "value": "09:30",
+      "expect": null
+    },
+    {
+      "name": "time 24:00 is not a time",
+      "field": {
+        "type": "time"
+      },
+      "value": "24:00",
+      "expect": {
+        "code": "time"
+      }
+    },
+    {
+      "name": "time with seconds",
+      "field": {
+        "type": "time"
+      },
+      "value": "09:30:00",
+      "expect": {
+        "code": "time"
+      }
+    },
+    {
+      "name": "choice in options",
+      "field": {
+        "type": "single_choice",
+        "options": [
+          {
+            "value": "a",
+            "label": "A"
+          }
+        ]
+      },
+      "value": "a",
+      "expect": null
+    },
+    {
+      "name": "choice not in options",
+      "field": {
+        "type": "single_choice",
+        "options": [
+          {
+            "value": "a",
+            "label": "A"
+          }
+        ]
+      },
+      "value": "z",
+      "expect": {
+        "code": "option"
+      }
+    },
+    {
+      "name": "other answer allowed",
+      "field": {
+        "type": "single_choice",
+        "allowOther": true,
+        "options": [
+          {
+            "value": "a",
+            "label": "A"
+          }
+        ]
+      },
+      "value": "Something else",
+      "expect": null
+    },
+    {
+      "name": "other answer too long",
+      "field": {
+        "type": "single_choice",
+        "allowOther": true,
+        "options": [
+          {
+            "value": "a",
+            "label": "A"
+          }
+        ]
+      },
+      "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "expect": {
+        "code": "option"
+      }
+    },
+    {
+      "name": "dropdown never takes other",
+      "field": {
+        "type": "single_choice",
+        "display": "dropdown",
+        "allowOther": true,
+        "options": [
+          {
+            "value": "a",
+            "label": "A"
+          }
+        ]
+      },
+      "value": "z",
+      "expect": {
+        "code": "option"
+      }
+    },
+    {
+      "name": "choice not a string",
+      "field": {
+        "type": "single_choice",
+        "options": [
+          {
+            "value": "1",
+            "label": "One"
+          }
+        ]
+      },
+      "value": 1,
+      "expect": {
+        "code": "option"
+      }
+    },
+    {
+      "name": "multi ok",
+      "field": {
+        "type": "multi_choice",
+        "options": [
+          {
+            "value": "a",
+            "label": "A"
+          },
+          {
+            "value": "b",
+            "label": "B"
+          }
+        ]
+      },
+      "value": [
+        "a",
+        "b"
+      ],
+      "expect": null
+    },
+    {
+      "name": "multi duplicate",
+      "field": {
+        "type": "multi_choice",
+        "options": [
+          {
+            "value": "a",
+            "label": "A"
+          }
+        ]
+      },
+      "value": [
+        "a",
+        "a"
+      ],
+      "expect": {
+        "code": "option"
+      }
+    },
+    {
+      "name": "multi unknown option",
+      "field": {
+        "type": "multi_choice",
+        "options": [
+          {
+            "value": "a",
+            "label": "A"
+          }
+        ]
+      },
+      "value": [
+        "a",
+        "z"
+      ],
+      "expect": {
+        "code": "option"
+      }
+    },
+    {
+      "name": "multi not a list",
+      "field": {
+        "type": "multi_choice",
+        "options": [
+          {
+            "value": "a",
+            "label": "A"
+          }
+        ]
+      },
+      "value": "a",
+      "expect": {
+        "code": "option"
+      }
+    },
+    {
+      "name": "multi below minimum",
+      "field": {
+        "type": "multi_choice",
+        "minSelected": 2,
+        "options": [
+          {
+            "value": "a",
+            "label": "A"
+          },
+          {
+            "value": "b",
+            "label": "B"
+          }
+        ]
+      },
+      "value": [
+        "a"
+      ],
+      "expect": {
+        "code": "choose_at_least",
+        "params": {
+          "n": 2
+        }
+      }
+    },
+    {
+      "name": "multi above maximum",
+      "field": {
+        "type": "multi_choice",
+        "maxSelected": 1,
+        "options": [
+          {
+            "value": "a",
+            "label": "A"
+          },
+          {
+            "value": "b",
+            "label": "B"
+          }
+        ]
+      },
+      "value": [
+        "a",
+        "b"
+      ],
+      "expect": {
+        "code": "choose_at_most",
+        "params": {
+          "n": 1
+        }
+      }
+    },
+    {
+      "name": "yes no ok",
+      "field": {
+        "type": "yes_no"
+      },
+      "value": true,
+      "expect": null
+    },
+    {
+      "name": "yes no as string",
+      "field": {
+        "type": "yes_no"
+      },
+      "value": "yes",
+      "expect": {
+        "code": "option"
+      }
+    },
+    {
+      "name": "rating ok",
+      "field": {
+        "type": "rating",
+        "max": 5
+      },
+      "value": 5,
+      "expect": null
+    },
+    {
+      "name": "rating above max",
+      "field": {
+        "type": "rating",
+        "max": 5
+      },
+      "value": 6,
+      "expect": {
+        "code": "option"
+      }
+    },
+    {
+      "name": "rating zero",
+      "field": {
+        "type": "rating"
+      },
+      "value": 0,
+      "expect": {
+        "code": "option"
+      }
+    },
+    {
+      "name": "rating fractional",
+      "field": {
+        "type": "rating"
+      },
+      "value": 2.5,
+      "expect": {
+        "code": "option"
+      }
+    },
+    {
+      "name": "file refs ok",
+      "field": {
+        "type": "file",
+        "maxFiles": 2
+      },
+      "value": [
+        {
+          "fileId": "f1",
+          "name": "a.pdf",
+          "size": 1,
+          "mime": "application/pdf"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "file too many",
+      "field": {
+        "type": "file",
+        "maxFiles": 1
+      },
+      "value": [
+        {
+          "fileId": "f1"
+        },
+        {
+          "fileId": "f2"
+        }
+      ],
+      "expect": {
+        "code": "too_many_files",
+        "params": {
+          "n": 1
+        }
+      }
+    },
+    {
+      "name": "file malformed",
+      "field": {
+        "type": "file"
+      },
+      "value": [
+        {
+          "name": "a.pdf"
+        }
+      ],
+      "expect": {
+        "code": "file_invalid"
+      }
+    },
+    {
+      "name": "file not a list",
+      "field": {
+        "type": "file"
+      },
+      "value": {
+        "fileId": "f1"
+      },
+      "expect": {
+        "code": "file_invalid"
+      }
+    },
+    {
+      "name": "signature with strokes",
+      "field": {
+        "type": "signature"
+      },
+      "value": {
+        "strokes": [
+          [
+            [
+              0.1,
+              0.1,
+              0,
+              0.5
+            ],
+            [
+              0.5,
+              0.5,
+              10,
+              0.5
+            ]
+          ]
+        ]
+      },
+      "expect": null
+    },
+    {
+      "name": "signature without strokes",
+      "field": {
+        "type": "signature"
+      },
+      "value": {
+        "strokes": []
+      },
+      "required": true,
+      "expect": {
+        "code": "signature_invalid"
+      }
+    },
+    {
+      "name": "signature malformed",
+      "field": {
+        "type": "signature"
+      },
+      "value": "signed",
+      "expect": {
+        "code": "signature_invalid"
+      }
+    },
+    {
+      "name": "required signature missing",
+      "field": {
+        "type": "signature"
+      },
+      "value": null,
+      "required": true,
+      "expect": {
+        "code": "required"
+      }
+    },
+    {
+      "name": "hidden string",
+      "field": {
+        "type": "hidden"
+      },
+      "value": "campaign-7",
+      "expect": null
+    },
+    {
+      "name": "hidden number",
+      "field": {
+        "type": "hidden"
+      },
+      "value": 7,
+      "expect": null
+    },
+    {
+      "name": "hidden object",
+      "field": {
+        "type": "hidden"
+      },
+      "value": {
+        "a": 1
+      },
+      "expect": {
+        "code": "invalid"
+      }
+    }
+  ]
+}

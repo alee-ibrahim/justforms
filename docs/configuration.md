@@ -1,0 +1,182 @@
+# Configuration
+
+The backend reads environment variables with the `JUSTFORMS_` prefix (`backend/app/config.py`
+is the full, authoritative list). Docker Compose takes them from `deploy/compose/.env` (see
+`.env.example`); the Helm chart from values and Secrets (every key is in
+[its README](../deploy/helm/justforms/README.md)).
+
+A name like `JUSTFORMS_S3_ENDPOINT_URL`, `_BUCKET` means `JUSTFORMS_S3_ENDPOINT_URL` and
+`JUSTFORMS_S3_BUCKET`.
+
+- [Core](#core)
+- [Storage](#storage)
+- [Staff sign-in](#staff-sign-in)
+- [Email](#email)
+- [AI assistant](#ai-assistant)
+- [Thaana fonts](#thaana-fonts)
+- [Abuse controls](#abuse-controls)
+- [Signed PDFs, approvals and webhooks](#signed-pdfs-approvals-and-webhooks)
+- [Branding](#branding)
+- [Cloudflare Tunnel](#cloudflare-tunnel)
+
+## Core
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `JUSTFORMS_PUBLIC_URL` | `http://localhost:5173` | The URL people open. Used for links, redirects and Origin checks |
+| `JUSTFORMS_SECRET_KEY` | none (required) | Long random secret. Encrypts the PDF signing key: keep it stable |
+| `JUSTFORMS_DATABASE_URL`, `JUSTFORMS_REDIS_URL` | local defaults | PostgreSQL (asyncpg) and Redis |
+| `JUSTFORMS_COOKIE_SECURE` | auto | Set `true` behind HTTPS |
+| `JUSTFORMS_TIMEZONE` | `UTC` | Dates in exports and PDFs, and "today" in date limits |
+| `JUSTFORMS_TRUSTED_PROXIES` | empty | Proxies (IPs or CIDRs) whose `X-Forwarded-For` is trusted |
+| `JUSTFORMS_SESSION_IDLE_SECONDS`, `_SESSION_ABSOLUTE_SECONDS` | 8 hours, 7 days | Staff session lifetimes |
+| `JUSTFORMS_CORS_ORIGINS` | `http://localhost:5173` | Origins allowed to call the API from a browser (the SPA is normally same-origin) |
+
+## Storage
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `JUSTFORMS_STORAGE_BACKEND` | `local` | `local` (a volume or PVC) or `s3` |
+| `JUSTFORMS_STORAGE_LOCAL_PATH` | `data/storage` | Where `local` keeps files |
+| `JUSTFORMS_S3_ENDPOINT_URL`, `_BUCKET`, `_REGION`, `_ACCESS_KEY_ID`, `_SECRET_ACCESS_KEY`, `_ADDRESSING_STYLE` | | Any S3-compatible service (endpoint empty for AWS) |
+| `JUSTFORMS_MAX_UPLOAD_MB` | `25` | Largest single upload |
+| `JUSTFORMS_UPLOAD_URL_TTL_SECONDS` | `900` | How long a started upload may take before its upload URL or token expires |
+| `JUSTFORMS_PENDING_UPLOAD_TTL_HOURS` | `24` | Uploads never attached to a submission are purged after this many hours |
+
+With S3, add the bucket's origin to `JUSTFORMS_CSP_EXTRA_CONNECT_SRC` (below) so browsers may
+upload to it directly.
+
+## Staff sign-in
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `JUSTFORMS_OIDC_ISSUER`, `_CLIENT_ID`, `_CLIENT_SECRET` | unset | OIDC sign-in. Unset: emailed one-time codes |
+| `JUSTFORMS_OIDC_DISCOVERY_URL` | from the issuer | Override the discovery document URL |
+| `JUSTFORMS_OIDC_SCOPES` | `openid email profile` | Scopes requested |
+| `JUSTFORMS_OIDC_GROUPS_CLAIM` | `groups` | Claim holding the user's groups |
+| `JUSTFORMS_OIDC_ADMIN_GROUPS`, `_CREATOR_GROUPS`, `_MEMBER_GROUPS` | empty | Map IdP groups to roles in the default organisation (see below) |
+| `JUSTFORMS_OIDC_DEFAULT_ROLE` | `creator` | Without group mapping: the role people get the first time they sign in (`creator`, `member`, or `none` to let people in only by invitation) |
+| `JUSTFORMS_INVITE_DAYS` | `14` | How long an invitation to join an organisation stays open (a resend restarts it) |
+| `JUSTFORMS_LOGIN_CODE_TTL_SECONDS`, `_LOGIN_CODE_MAX_ATTEMPTS` | `600`, `5` | Emailed sign-in codes |
+| `JUSTFORMS_DEMO_LOGIN_CODE`, `JUSTFORMS_DEMO_LOGIN_EMAILS` | unset (off) | **Demo instances only.** See below |
+| `JUSTFORMS_DEFAULT_ORG_NAME`, `_DEFAULT_ORG_SLUG` | `JustForms`, `default` | The organisation created on first start |
+
+Respondents who must confirm their email before filling a form get their own codes:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `JUSTFORMS_RESPONDENT_CODE_TTL_SECONDS`, `_RESPONDENT_CODE_MAX_ATTEMPTS` | `600`, `5` | Respondent email codes |
+| `JUSTFORMS_RESPONDENT_TOKEN_SECONDS` | 2 hours | How long a confirmed respondent may fill the form |
+
+**Organisation roles.** Admin (everything, including organisation settings and people),
+form creator (creates forms; sees the ones they created or that are shared with them) and
+member (only the forms shared with them). Admins invite people from Organisation settings ›
+People; an invitation is accepted when that address signs in (with an emailed code, or with
+OIDC when the IdP's email matches). With group mapping the IdP decides roles in the default
+organisation at each sign-in (admin > creator > member) and removes the role of people in no
+mapped group, except people an admin invited. *Upgrading:* `JUSTFORMS_OIDC_MEMBER_GROUPS` used
+to give a role that could create forms; it now gives the member role. Put groups whose people
+build forms in `JUSTFORMS_OIDC_CREATOR_GROUPS` (the backend logs a warning while only member
+groups are set). Existing members became form creators in the upgrade, so nobody lost access.
+
+**Demo login.** `JUSTFORMS_DEMO_LOGIN_CODE` is a fixed 6-digit code accepted, after a code is
+requested, for the addresses in `JUSTFORMS_DEMO_LOGIN_EMAILS` only. The list is required and
+guessable codes are refused. The backend logs a warning and the sign-in page shows "Demo
+instance". Never set it on a real install.
+
+## Email
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `JUSTFORMS_SMTP_HOST`, `_PORT`, `_USERNAME`, `_PASSWORD`, `_SECURITY`, `_FROM` | port `587`, `starttls` | Sign-in codes, notifications, receipts, approvals. `_SECURITY` is `none`, `starttls` or `tls` |
+
+The Compose `dev` profile starts Mailpit (UI on http://localhost:8025) and points SMTP at it.
+
+## AI assistant
+
+Optional. With no provider every AI feature is hidden. See [Features](features.md#ai-assistant).
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `JUSTFORMS_AI_PROVIDER` | `none` | `gemini`, `anthropic` or `openai_compat` (OpenAI, vLLM, Ollama...) |
+| `JUSTFORMS_AI_MODEL`, `JUSTFORMS_AI_API_KEY` | | Model name and a key issued for JustForms only |
+| `JUSTFORMS_AI_BASE_URL` | | Endpoint; required for `openai_compat` (e.g. `http://ollama:11434/v1`) |
+| `JUSTFORMS_AI_VISION_MODEL` | `JUSTFORMS_AI_MODEL` | Model for "Start from a paper form" |
+| `JUSTFORMS_AI_VISION` | on for `gemini`/`anthropic`, off for `openai_compat` | Whether the model reads images |
+| `JUSTFORMS_AI_PROVIDER_LABEL` | | Provider name shown in the paper-form dialog ("The pages are sent to ...") |
+| `JUSTFORMS_AI_DAILY_TOKENS_PER_USER`, `_PER_ORG` | `300000`, `3000000` | Daily token allowances (input + output); `0` turns one off |
+| `JUSTFORMS_AI_MAX_OUTPUT_TOKENS`, `_MAX_TOOL_CALLS`, `_TURN_SECONDS`, `_REQUEST_TIMEOUT_SECONDS`, `_MAX_FORM_CHARS` | `4096`, `40`, `120`, `90`, `80000` | Limits per turn; forms larger than `_MAX_FORM_CHARS` are not sent |
+
+## Thaana fonts
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `JUSTFORMS_THAANA_FONT_CSS_URL` | the public [dvfonts](https://dvfonts.yashau.com) CDN (Faruma) | Stylesheet for Faruma. `/fonts/faruma.css` to self-host, empty to disable |
+| `JUSTFORMS_THAANA_FONTS` | a built-in list (Faruma, MV Faseyha, MV A Waheed, ...) | Thaana fonts form themes can choose; each loads from the font service above when a form uses it |
+| `JUSTFORMS_FONTS_DIR` | `./fonts` | Compose only: directory (relative to `deploy/compose/`) served at `/fonts/` |
+
+The Thaana stack is `Faruma, "MV Faseyha", "Noto Sans Thaana", sans-serif`. Only Noto Sans
+Thaana (SIL OFL) is bundled. Faruma and MV fonts are never shipped in the repository or the
+images because their licence is unclear.
+
+By default Faruma loads from the public dvfonts CDN, which then sees the IP address of everyone
+who opens a Dhivehi form or the studio. To avoid that, self-host: put the font files and a
+`fonts.css` in `deploy/compose/fonts/` (git-ignored; or set `JUSTFORMS_FONTS_DIR`), and set
+`JUSTFORMS_THAANA_FONT_CSS_URL=/fonts/faruma.css`. The app always loads `/fonts/fonts.css` as
+well. For example:
+
+```css
+@font-face {
+  font-family: "Faruma";
+  src: url("/fonts/Faruma.woff2") format("woff2"), url("/fonts/Faruma.ttf") format("truetype");
+  font-display: swap;
+  unicode-range: U+0780-07BF, U+060C, U+061B, U+061F, U+FDF2;
+}
+```
+
+On Kubernetes put the same files in a ConfigMap and set `frontend.fontsConfigMap`. Only use
+fonts you are licensed to embed on the web.
+
+## Abuse controls
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `JUSTFORMS_RATE_LIMIT_ENABLED`, `JUSTFORMS_RATE_LIMITS` | on, built-in limits | e.g. `public_submit=20/60,upload_init=60/60`; invitations: `invite_user` (50 addresses an hour per admin), `invite_org` (200 a day per organisation), `invite_resend` (3 an hour per invitation) |
+| `JUSTFORMS_CAPTCHA_PROVIDER` | `none` | `altcha` (proof of work, no third party), `turnstile` or `hcaptcha` |
+| `JUSTFORMS_CAPTCHA_SITE_KEY`, `_SECRET_KEY`, `_BUSY_THRESHOLD` | | Provider keys; responses per hour that count as "busy" (default `1000`) |
+| `JUSTFORMS_ALTCHA_MAX_NUMBER` | `100000` | ALTCHA proof-of-work difficulty |
+| `JUSTFORMS_CSP_EXTRA_CONNECT_SRC` | empty | Extra origins for the web container's CSP (e.g. your S3 bucket) |
+
+## Signed PDFs, approvals and webhooks
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `JUSTFORMS_PDF_SIGNING_P12`, `_P12_PASSWORD` | unset | Sign with an organisation certificate instead of the install's own key |
+| `JUSTFORMS_PDF_TSA_URL` | unset | RFC 3161 timestamp authority |
+| `JUSTFORMS_PDF_SIGNER_NAME` | `JustForms document signing` | Name on the install's own signing certificate |
+| `JUSTFORMS_APPROVAL_LINK_DAYS` | `14` | How long an approver's link works |
+| `JUSTFORMS_WEBHOOK_ALLOWED_CIDRS` | empty | Private networks webhooks may reach (plain `http` only to these) |
+| `JUSTFORMS_WEBHOOK_TIMEOUT_SECONDS` | `10` | Timeout per webhook delivery |
+
+Signing keys and checking PDFs: [Security](security.md#signed-pdfs-and-the-verify-page).
+
+## Branding
+
+Instance defaults, used by organisations that set no branding of their own. See
+[Features](features.md#branding).
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `JUSTFORMS_BRAND_NAME`, `_PRIMARY_COLOR`, `_SUPPORT_URL` | JustForms' own | Name, `#RRGGBB` colour and help link when an organisation sets none |
+| `JUSTFORMS_BRAND_LOGO_FILE`, `_LOGO_DARK_FILE`, `_ICON_FILE` | unset | Paths to PNG/SVG files the API reads (e.g. a mounted ConfigMap) |
+| `JUSTFORMS_BRAND_POWERED_BY` | `optional` | `always` keeps "Powered by JustForms" on every form |
+
+In the Helm chart these are `branding.*` values.
+
+## Cloudflare Tunnel
+
+Read by Docker Compose, not the backend. See [Deployment](deployment.md#cloudflare-tunnel).
+
+| Variable | Purpose |
+|---|---|
+| `CLOUDFLARE_TUNNEL_TOKEN` | Token of a named tunnel (`tunnel` profile only) |

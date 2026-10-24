@@ -1,0 +1,224 @@
+{
+  "name": "required",
+  "description": "required OR requiredIf, only for visible fields; requiredIf reads effective answers",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "flag",
+            "type": "yes_no",
+            "label": "flag"
+          },
+          {
+            "kind": "field",
+            "id": "always",
+            "type": "short_text",
+            "label": "always",
+            "required": true
+          },
+          {
+            "kind": "field",
+            "id": "cond_req",
+            "type": "short_text",
+            "label": "cond_req",
+            "requiredIf": {
+              "field": "flag",
+              "op": "eq",
+              "value": true
+            }
+          },
+          {
+            "kind": "field",
+            "id": "both",
+            "type": "short_text",
+            "label": "both",
+            "required": true,
+            "requiredIf": {
+              "field": "flag",
+              "op": "eq",
+              "value": false
+            }
+          },
+          {
+            "kind": "field",
+            "id": "hidden_req",
+            "type": "short_text",
+            "label": "hidden_req",
+            "required": true,
+            "visibleIf": {
+              "field": "flag",
+              "op": "eq",
+              "value": true
+            }
+          },
+          {
+            "kind": "field",
+            "id": "opt",
+            "type": "short_text",
+            "label": "opt"
+          },
+          {
+            "kind": "field",
+            "id": "picks",
+            "type": "multi_choice",
+            "label": "picks",
+            "options": [
+              {
+                "value": "a",
+                "label": "a"
+              },
+              {
+                "value": "b",
+                "label": "b"
+              },
+              {
+                "value": "c",
+                "label": "c"
+              }
+            ]
+          },
+          {
+            "kind": "field",
+            "id": "picks_reason",
+            "type": "short_text",
+            "label": "picks_reason",
+            "requiredIf": {
+              "field": "picks",
+              "op": "count_gte",
+              "value": 2
+            }
+          },
+          {
+            "kind": "field",
+            "id": "cond2",
+            "type": "short_text",
+            "label": "cond2",
+            "requiredIf": {
+              "field": "hidden_req",
+              "op": "not_empty"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "flag on, two picks",
+      "answers": {
+        "flag": true,
+        "picks": [
+          "a",
+          "b"
+        ]
+      },
+      "expect": {
+        "required": [
+          "always",
+          "cond_req",
+          "both",
+          "hidden_req",
+          "picks_reason"
+        ],
+        "notRequired": [
+          "opt",
+          "flag",
+          "picks",
+          "cond2"
+        ]
+      }
+    },
+    {
+      "name": "flag off",
+      "answers": {
+        "flag": false
+      },
+      "expect": {
+        "required": [
+          "always",
+          "both"
+        ],
+        "notRequired": [
+          "cond_req",
+          "hidden_req",
+          "opt",
+          "picks_reason",
+          "cond2"
+        ],
+        "hidden": [
+          "hidden_req"
+        ]
+      }
+    },
+    {
+      "name": "nothing answered",
+      "answers": {},
+      "expect": {
+        "required": [
+          "always",
+          "both"
+        ],
+        "notRequired": [
+          "cond_req",
+          "hidden_req",
+          "picks_reason",
+          "cond2"
+        ]
+      }
+    },
+    {
+      "name": "one pick is not enough",
+      "answers": {
+        "picks": [
+          "a"
+        ],
+        "flag": true
+      },
+      "expect": {
+        "required": [
+          "cond_req"
+        ],
+        "notRequired": [
+          "picks_reason"
+        ]
+      }
+    },
+    {
+      "name": "requiredIf on a hidden field reads missing",
+      "answers": {
+        "flag": false,
+        "hidden_req": "x"
+      },
+      "expect": {
+        "notRequired": [
+          "cond2"
+        ],
+        "strippedAnswers": {
+          "flag": false
+        }
+      }
+    },
+    {
+      "name": "requiredIf on a visible answered field",
+      "answers": {
+        "flag": true,
+        "hidden_req": "x"
+      },
+      "expect": {
+        "required": [
+          "cond2",
+          "hidden_req"
+        ]
+      }
+    }
+  ]
+}

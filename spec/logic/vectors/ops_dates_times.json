@@ -1,0 +1,266 @@
+{
+  "name": "ops_dates_times",
+  "description": "Dates (YYYY-MM-DD) and times (HH:MM) compare lexicographically; other shapes never compare",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "d",
+            "type": "date",
+            "label": "d"
+          },
+          {
+            "kind": "field",
+            "id": "tm",
+            "type": "time",
+            "label": "tm"
+          },
+          {
+            "kind": "content",
+            "id": "d_after_leap",
+            "contentType": "paragraph",
+            "text": "d_after_leap",
+            "visibleIf": {
+              "field": "d",
+              "op": "gt",
+              "value": "2024-02-28"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "d_before_y2k",
+            "contentType": "paragraph",
+            "text": "d_before_y2k",
+            "visibleIf": {
+              "field": "d",
+              "op": "lt",
+              "value": "2000-01-01"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "d_eq_leap",
+            "contentType": "paragraph",
+            "text": "d_eq_leap",
+            "visibleIf": {
+              "field": "d",
+              "op": "eq",
+              "value": "2024-02-29"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "d_in",
+            "contentType": "paragraph",
+            "text": "d_in",
+            "visibleIf": {
+              "field": "d",
+              "op": "in",
+              "value": [
+                "2026-12-25",
+                "2026-01-01"
+              ]
+            }
+          },
+          {
+            "kind": "content",
+            "id": "tm_lte_noon",
+            "contentType": "paragraph",
+            "text": "tm_lte_noon",
+            "visibleIf": {
+              "field": "tm",
+              "op": "lte",
+              "value": "12:00"
+            }
+          },
+          {
+            "kind": "content",
+            "id": "tm_gt_morning",
+            "contentType": "paragraph",
+            "text": "tm_gt_morning",
+            "visibleIf": {
+              "field": "tm",
+              "op": "gt",
+              "value": "08:30"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "leap day, 08:30",
+      "answers": {
+        "d": "2024-02-29",
+        "tm": "08:30"
+      },
+      "expect": {
+        "visible": [
+          "d_after_leap",
+          "d_eq_leap",
+          "tm_lte_noon"
+        ],
+        "hidden": [
+          "d_before_y2k",
+          "d_in",
+          "tm_gt_morning"
+        ]
+      }
+    },
+    {
+      "name": "1999, noon",
+      "answers": {
+        "d": "1999-12-31",
+        "tm": "12:00"
+      },
+      "expect": {
+        "visible": [
+          "d_before_y2k",
+          "tm_lte_noon",
+          "tm_gt_morning"
+        ],
+        "hidden": [
+          "d_after_leap",
+          "d_eq_leap",
+          "d_in"
+        ]
+      }
+    },
+    {
+      "name": "christmas, 23:00",
+      "answers": {
+        "d": "2026-12-25",
+        "tm": "23:00"
+      },
+      "expect": {
+        "visible": [
+          "d_after_leap",
+          "d_in",
+          "tm_gt_morning"
+        ],
+        "hidden": [
+          "d_before_y2k",
+          "d_eq_leap",
+          "tm_lte_noon"
+        ]
+      }
+    },
+    {
+      "name": "unpadded values",
+      "answers": {
+        "d": "2024-2-29",
+        "tm": "8:45"
+      },
+      "expect": {
+        "visible": [],
+        "hidden": [
+          "d_after_leap",
+          "d_before_y2k",
+          "d_eq_leap",
+          "d_in",
+          "tm_lte_noon",
+          "tm_gt_morning"
+        ]
+      }
+    },
+    {
+      "name": "nothing answered",
+      "answers": {},
+      "expect": {
+        "visible": [],
+        "hidden": [
+          "d_after_leap",
+          "d_before_y2k",
+          "d_eq_leap",
+          "d_in",
+          "tm_lte_noon",
+          "tm_gt_morning"
+        ]
+      }
+    },
+    {
+      "name": "y2k midnight",
+      "answers": {
+        "d": "2000-01-01",
+        "tm": "00:00"
+      },
+      "expect": {
+        "visible": [
+          "tm_lte_noon"
+        ],
+        "hidden": [
+          "d_after_leap",
+          "d_before_y2k",
+          "d_eq_leap",
+          "d_in",
+          "tm_gt_morning"
+        ]
+      }
+    },
+    {
+      "name": "new year, 12:01",
+      "answers": {
+        "d": "2026-01-01",
+        "tm": "12:01"
+      },
+      "expect": {
+        "visible": [
+          "d_after_leap",
+          "d_in",
+          "tm_gt_morning"
+        ],
+        "hidden": [
+          "d_before_y2k",
+          "d_eq_leap",
+          "tm_lte_noon"
+        ]
+      }
+    },
+    {
+      "name": "trailing newline is not a date",
+      "answers": {
+        "d": "2026-01-01\n",
+        "tm": "12:01\n"
+      },
+      "expect": {
+        "visible": [],
+        "hidden": [
+          "d_after_leap",
+          "d_before_y2k",
+          "d_eq_leap",
+          "d_in",
+          "tm_lte_noon",
+          "tm_gt_morning"
+        ]
+      }
+    },
+    {
+      "name": "non-ASCII digits are not a date",
+      "answers": {
+        "d": "٢٠٢٦-٠١-٠١",
+        "tm": "١٢:٠٠"
+      },
+      "expect": {
+        "visible": [],
+        "hidden": [
+          "d_after_leap",
+          "d_before_y2k",
+          "d_eq_leap",
+          "d_in",
+          "tm_lte_noon",
+          "tm_gt_morning"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,2912 @@
+{
+  "$defs": {
+    "AllCondition": {
+      "additionalProperties": false,
+      "description": "AND. An empty list is true.",
+      "properties": {
+        "all": {
+          "items": {
+            "$ref": "#/$defs/Condition"
+          },
+          "title": "All",
+          "type": "array"
+        }
+      },
+      "required": [
+        "all"
+      ],
+      "title": "AllCondition",
+      "type": "object"
+    },
+    "AnyCondition": {
+      "additionalProperties": false,
+      "description": "OR. An empty list is false.",
+      "properties": {
+        "any": {
+          "items": {
+            "$ref": "#/$defs/Condition"
+          },
+          "title": "Any",
+          "type": "array"
+        }
+      },
+      "required": [
+        "any"
+      ],
+      "title": "AnyCondition",
+      "type": "object"
+    },
+    "Condition": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AllCondition"
+        },
+        {
+          "$ref": "#/$defs/AnyCondition"
+        },
+        {
+          "$ref": "#/$defs/NotCondition"
+        },
+        {
+          "$ref": "#/$defs/FieldCondition"
+        }
+      ],
+      "title": "Condition"
+    },
+    "ContentElement": {
+      "additionalProperties": false,
+      "properties": {
+        "contentType": {
+          "enum": [
+            "heading",
+            "paragraph",
+            "divider",
+            "image"
+          ],
+          "title": "Contenttype",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "imageFileId": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Imagefileid"
+        },
+        "kind": {
+          "const": "content",
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text"
+        },
+        "visibleIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "contentType"
+      ],
+      "title": "ContentElement",
+      "type": "object"
+    },
+    "DateField": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "field",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 10000,
+          "title": "Label",
+          "type": "string"
+        },
+        "maxDate": {
+          "anyOf": [
+            {
+              "pattern": "^(\\d{4}-\\d{2}-\\d{2}|today([+-]\\d{1,4})?)$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxdate"
+        },
+        "minDate": {
+          "anyOf": [
+            {
+              "pattern": "^(\\d{4}-\\d{2}-\\d{2}|today([+-]\\d{1,4})?)$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mindate"
+        },
+        "placeholder": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Placeholder"
+        },
+        "prefillParam": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefillparam"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "requiredIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "date",
+          "title": "Type",
+          "type": "string"
+        },
+        "visibleIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "default": "full",
+          "enum": [
+            "full",
+            "half"
+          ],
+          "title": "Width",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "type"
+      ],
+      "title": "DateField",
+      "type": "object"
+    },
+    "EmailField": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "field",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 10000,
+          "title": "Label",
+          "type": "string"
+        },
+        "placeholder": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Placeholder"
+        },
+        "prefillParam": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefillparam"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "requiredIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "email",
+          "title": "Type",
+          "type": "string"
+        },
+        "visibleIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "default": "full",
+          "enum": [
+            "full",
+            "half"
+          ],
+          "title": "Width",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "type"
+      ],
+      "title": "EmailField",
+      "type": "object"
+    },
+    "FieldCondition": {
+      "additionalProperties": false,
+      "description": "Leaf condition: compare one value-producing field with ``value``.",
+      "properties": {
+        "field": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Field",
+          "type": "string"
+        },
+        "op": {
+          "$ref": "#/$defs/Op"
+        },
+        "value": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
+        }
+      },
+      "required": [
+        "field",
+        "op"
+      ],
+      "title": "FieldCondition",
+      "type": "object"
+    },
+    "FileField": {
+      "additionalProperties": false,
+      "properties": {
+        "accept": {
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Accept",
+          "type": "array"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "field",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 10000,
+          "title": "Label",
+          "type": "string"
+        },
+        "maxFiles": {
+          "default": 1,
+          "maximum": 50,
+          "minimum": 1,
+          "title": "Maxfiles",
+          "type": "integer"
+        },
+        "maxSizeMb": {
+          "anyOf": [
+            {
+              "maximum": 10000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxsizemb"
+        },
+        "placeholder": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Placeholder"
+        },
+        "prefillParam": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefillparam"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "requiredIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "file",
+          "title": "Type",
+          "type": "string"
+        },
+        "visibleIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "default": "full",
+          "enum": [
+            "full",
+            "half"
+          ],
+          "title": "Width",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "type"
+      ],
+      "title": "FileField",
+      "type": "object"
+    },
+    "HiddenField": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "field",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 10000,
+          "title": "Label",
+          "type": "string"
+        },
+        "placeholder": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Placeholder"
+        },
+        "prefillParam": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefillparam"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "requiredIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "hidden",
+          "title": "Type",
+          "type": "string"
+        },
+        "visibleIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "default": "full",
+          "enum": [
+            "full",
+            "half"
+          ],
+          "title": "Width",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "type"
+      ],
+      "title": "HiddenField",
+      "type": "object"
+    },
+    "InputScript": {
+      "enum": [
+        "auto",
+        "latin",
+        "thaana"
+      ],
+      "title": "InputScript",
+      "type": "string"
+    },
+    "JsonValue": {},
+    "LongTextField": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "inputScript": {
+          "$ref": "#/$defs/InputScript",
+          "default": "auto"
+        },
+        "kind": {
+          "const": "field",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 10000,
+          "title": "Label",
+          "type": "string"
+        },
+        "maxLength": {
+          "anyOf": [
+            {
+              "maximum": 100000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxlength"
+        },
+        "placeholder": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Placeholder"
+        },
+        "prefillParam": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefillparam"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "requiredIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rows": {
+          "anyOf": [
+            {
+              "maximum": 30,
+              "minimum": 2,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rows"
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "long_text",
+          "title": "Type",
+          "type": "string"
+        },
+        "visibleIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "default": "full",
+          "enum": [
+            "full",
+            "half"
+          ],
+          "title": "Width",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "type"
+      ],
+      "title": "LongTextField",
+      "type": "object"
+    },
+    "MultiChoiceField": {
+      "additionalProperties": false,
+      "properties": {
+        "allowOther": {
+          "default": false,
+          "title": "Allowother",
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "field",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 10000,
+          "title": "Label",
+          "type": "string"
+        },
+        "maxSelected": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxselected"
+        },
+        "minSelected": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minselected"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/Option"
+          },
+          "maxItems": 1000,
+          "minItems": 1,
+          "title": "Options",
+          "type": "array"
+        },
+        "placeholder": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Placeholder"
+        },
+        "prefillParam": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefillparam"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "requiredIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "multi_choice",
+          "title": "Type",
+          "type": "string"
+        },
+        "visibleIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "default": "full",
+          "enum": [
+            "full",
+            "half"
+          ],
+          "title": "Width",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "options",
+        "type"
+      ],
+      "title": "MultiChoiceField",
+      "type": "object"
+    },
+    "NavigationRule": {
+      "additionalProperties": false,
+      "description": "``{\"if\": Condition, \"goto\": PageId | \"submit\"}``. ``goto`` may only jump forward.",
+      "properties": {
+        "goto": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Goto",
+          "type": "string"
+        },
+        "if": {
+          "$ref": "#/$defs/Condition"
+        }
+      },
+      "required": [
+        "if",
+        "goto"
+      ],
+      "title": "NavigationRule",
+      "type": "object"
+    },
+    "NotCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "not": {
+          "$ref": "#/$defs/Condition"
+        }
+      },
+      "required": [
+        "not"
+      ],
+      "title": "NotCondition",
+      "type": "object"
+    },
+    "NumberField": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "integer": {
+          "default": false,
+          "title": "Integer",
+          "type": "boolean"
+        },
+        "kind": {
+          "const": "field",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 10000,
+          "title": "Label",
+          "type": "string"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min"
+        },
+        "placeholder": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Placeholder"
+        },
+        "prefillParam": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefillparam"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "requiredIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        },
+        "step": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step"
+        },
+        "type": {
+          "const": "number",
+          "title": "Type",
+          "type": "string"
+        },
+        "visibleIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "default": "full",
+          "enum": [
+            "full",
+            "half"
+          ],
+          "title": "Width",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "type"
+      ],
+      "title": "NumberField",
+      "type": "object"
+    },
+    "Op": {
+      "enum": [
+        "eq",
+        "neq",
+        "gt",
+        "gte",
+        "lt",
+        "lte",
+        "in",
+        "not_in",
+        "contains",
+        "not_contains",
+        "empty",
+        "not_empty",
+        "count_eq",
+        "count_gte",
+        "count_lte"
+      ],
+      "title": "Op",
+      "type": "string"
+    },
+    "Option": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "maxLength": 10000,
+          "title": "Label",
+          "type": "string"
+        },
+        "value": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value",
+        "label"
+      ],
+      "title": "Option",
+      "type": "object"
+    },
+    "Page": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "elements": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "content": "#/$defs/ContentElement",
+                "field": {
+                  "discriminator": {
+                    "mapping": {
+                      "date": "#/$defs/DateField",
+                      "email": "#/$defs/EmailField",
+                      "file": "#/$defs/FileField",
+                      "hidden": "#/$defs/HiddenField",
+                      "long_text": "#/$defs/LongTextField",
+                      "multi_choice": "#/$defs/MultiChoiceField",
+                      "number": "#/$defs/NumberField",
+                      "phone": "#/$defs/PhoneField",
+                      "rating": "#/$defs/RatingField",
+                      "short_text": "#/$defs/ShortTextField",
+                      "signature": "#/$defs/SignatureField",
+                      "single_choice": "#/$defs/SingleChoiceField",
+                      "time": "#/$defs/TimeField",
+                      "yes_no": "#/$defs/YesNoField"
+                    },
+                    "propertyName": "type"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/ShortTextField"
+                    },
+                    {
+                      "$ref": "#/$defs/LongTextField"
+                    },
+                    {
+                      "$ref": "#/$defs/EmailField"
+                    },
+                    {
+                      "$ref": "#/$defs/PhoneField"
+                    },
+                    {
+                      "$ref": "#/$defs/NumberField"
+                    },
+                    {
+                      "$ref": "#/$defs/DateField"
+                    },
+                    {
+                      "$ref": "#/$defs/TimeField"
+                    },
+                    {
+                      "$ref": "#/$defs/SingleChoiceField"
+                    },
+                    {
+                      "$ref": "#/$defs/MultiChoiceField"
+                    },
+                    {
+                      "$ref": "#/$defs/YesNoField"
+                    },
+                    {
+                      "$ref": "#/$defs/RatingField"
+                    },
+                    {
+                      "$ref": "#/$defs/FileField"
+                    },
+                    {
+                      "$ref": "#/$defs/SignatureField"
+                    },
+                    {
+                      "$ref": "#/$defs/HiddenField"
+                    }
+                  ]
+                },
+                "repeater": "#/$defs/RepeaterElement",
+                "section": "#/$defs/SectionElement"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "date": "#/$defs/DateField",
+                    "email": "#/$defs/EmailField",
+                    "file": "#/$defs/FileField",
+                    "hidden": "#/$defs/HiddenField",
+                    "long_text": "#/$defs/LongTextField",
+                    "multi_choice": "#/$defs/MultiChoiceField",
+                    "number": "#/$defs/NumberField",
+                    "phone": "#/$defs/PhoneField",
+                    "rating": "#/$defs/RatingField",
+                    "short_text": "#/$defs/ShortTextField",
+                    "signature": "#/$defs/SignatureField",
+                    "single_choice": "#/$defs/SingleChoiceField",
+                    "time": "#/$defs/TimeField",
+                    "yes_no": "#/$defs/YesNoField"
+                  },
+                  "propertyName": "type"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/ShortTextField"
+                  },
+                  {
+                    "$ref": "#/$defs/LongTextField"
+                  },
+                  {
+                    "$ref": "#/$defs/EmailField"
+                  },
+                  {
+                    "$ref": "#/$defs/PhoneField"
+                  },
+                  {
+                    "$ref": "#/$defs/NumberField"
+                  },
+                  {
+                    "$ref": "#/$defs/DateField"
+                  },
+                  {
+                    "$ref": "#/$defs/TimeField"
+                  },
+                  {
+                    "$ref": "#/$defs/SingleChoiceField"
+                  },
+                  {
+                    "$ref": "#/$defs/MultiChoiceField"
+                  },
+                  {
+                    "$ref": "#/$defs/YesNoField"
+                  },
+                  {
+                    "$ref": "#/$defs/RatingField"
+                  },
+                  {
+                    "$ref": "#/$defs/FileField"
+                  },
+                  {
+                    "$ref": "#/$defs/SignatureField"
+                  },
+                  {
+                    "$ref": "#/$defs/HiddenField"
+                  }
+                ]
+              },
+              {
+                "$ref": "#/$defs/ContentElement"
+              },
+              {
+                "$ref": "#/$defs/SectionElement"
+              },
+              {
+                "$ref": "#/$defs/RepeaterElement"
+              }
+            ]
+          },
+          "title": "Elements",
+          "type": "array"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "next": {
+          "items": {
+            "$ref": "#/$defs/NavigationRule"
+          },
+          "title": "Next",
+          "type": "array"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "visibleIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Page",
+      "type": "object"
+    },
+    "PhoneField": {
+      "additionalProperties": false,
+      "properties": {
+        "defaultCountry": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Defaultcountry"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "field",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 10000,
+          "title": "Label",
+          "type": "string"
+        },
+        "placeholder": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Placeholder"
+        },
+        "prefillParam": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefillparam"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "requiredIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "phone",
+          "title": "Type",
+          "type": "string"
+        },
+        "visibleIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "default": "full",
+          "enum": [
+            "full",
+            "half"
+          ],
+          "title": "Width",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "type"
+      ],
+      "title": "PhoneField",
+      "type": "object"
+    },
+    "RatingField": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "field",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 10000,
+          "title": "Label",
+          "type": "string"
+        },
+        "max": {
+          "default": 5,
+          "maximum": 10,
+          "minimum": 3,
+          "title": "Max",
+          "type": "integer"
+        },
+        "placeholder": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Placeholder"
+        },
+        "prefillParam": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefillparam"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "requiredIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "rating",
+          "title": "Type",
+          "type": "string"
+        },
+        "visibleIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "default": "full",
+          "enum": [
+            "full",
+            "half"
+          ],
+          "title": "Width",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "type"
+      ],
+      "title": "RatingField",
+      "type": "object"
+    },
+    "RepeaterElement": {
+      "additionalProperties": false,
+      "properties": {
+        "addLabel": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Addlabel"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "elements": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "content": "#/$defs/ContentElement",
+                "field": {
+                  "discriminator": {
+                    "mapping": {
+                      "date": "#/$defs/DateField",
+                      "email": "#/$defs/EmailField",
+                      "file": "#/$defs/FileField",
+                      "hidden": "#/$defs/HiddenField",
+                      "long_text": "#/$defs/LongTextField",
+                      "multi_choice": "#/$defs/MultiChoiceField",
+                      "number": "#/$defs/NumberField",
+                      "phone": "#/$defs/PhoneField",
+                      "rating": "#/$defs/RatingField",
+                      "short_text": "#/$defs/ShortTextField",
+                      "signature": "#/$defs/SignatureField",
+                      "single_choice": "#/$defs/SingleChoiceField",
+                      "time": "#/$defs/TimeField",
+                      "yes_no": "#/$defs/YesNoField"
+                    },
+                    "propertyName": "type"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/ShortTextField"
+                    },
+                    {
+                      "$ref": "#/$defs/LongTextField"
+                    },
+                    {
+                      "$ref": "#/$defs/EmailField"
+                    },
+                    {
+                      "$ref": "#/$defs/PhoneField"
+                    },
+                    {
+                      "$ref": "#/$defs/NumberField"
+                    },
+                    {
+                      "$ref": "#/$defs/DateField"
+                    },
+                    {
+                      "$ref": "#/$defs/TimeField"
+                    },
+                    {
+                      "$ref": "#/$defs/SingleChoiceField"
+                    },
+                    {
+                      "$ref": "#/$defs/MultiChoiceField"
+                    },
+                    {
+                      "$ref": "#/$defs/YesNoField"
+                    },
+                    {
+                      "$ref": "#/$defs/RatingField"
+                    },
+                    {
+                      "$ref": "#/$defs/FileField"
+                    },
+                    {
+                      "$ref": "#/$defs/SignatureField"
+                    },
+                    {
+                      "$ref": "#/$defs/HiddenField"
+                    }
+                  ]
+                },
+                "repeater": "#/$defs/RepeaterElement",
+                "section": "#/$defs/SectionElement"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "date": "#/$defs/DateField",
+                    "email": "#/$defs/EmailField",
+                    "file": "#/$defs/FileField",
+                    "hidden": "#/$defs/HiddenField",
+                    "long_text": "#/$defs/LongTextField",
+                    "multi_choice": "#/$defs/MultiChoiceField",
+                    "number": "#/$defs/NumberField",
+                    "phone": "#/$defs/PhoneField",
+                    "rating": "#/$defs/RatingField",
+                    "short_text": "#/$defs/ShortTextField",
+                    "signature": "#/$defs/SignatureField",
+                    "single_choice": "#/$defs/SingleChoiceField",
+                    "time": "#/$defs/TimeField",
+                    "yes_no": "#/$defs/YesNoField"
+                  },
+                  "propertyName": "type"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/ShortTextField"
+                  },
+                  {
+                    "$ref": "#/$defs/LongTextField"
+                  },
+                  {
+                    "$ref": "#/$defs/EmailField"
+                  },
+                  {
+                    "$ref": "#/$defs/PhoneField"
+                  },
+                  {
+                    "$ref": "#/$defs/NumberField"
+                  },
+                  {
+                    "$ref": "#/$defs/DateField"
+                  },
+                  {
+                    "$ref": "#/$defs/TimeField"
+                  },
+                  {
+                    "$ref": "#/$defs/SingleChoiceField"
+                  },
+                  {
+                    "$ref": "#/$defs/MultiChoiceField"
+                  },
+                  {
+                    "$ref": "#/$defs/YesNoField"
+                  },
+                  {
+                    "$ref": "#/$defs/RatingField"
+                  },
+                  {
+                    "$ref": "#/$defs/FileField"
+                  },
+                  {
+                    "$ref": "#/$defs/SignatureField"
+                  },
+                  {
+                    "$ref": "#/$defs/HiddenField"
+                  }
+                ]
+              },
+              {
+                "$ref": "#/$defs/ContentElement"
+              },
+              {
+                "$ref": "#/$defs/SectionElement"
+              },
+              {
+                "$ref": "#/$defs/RepeaterElement"
+              }
+            ]
+          },
+          "title": "Elements",
+          "type": "array"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "repeater",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 10000,
+          "title": "Label",
+          "type": "string"
+        },
+        "maxRows": {
+          "anyOf": [
+            {
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxrows"
+        },
+        "minRows": {
+          "default": 0,
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Minrows",
+          "type": "integer"
+        },
+        "visibleIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label"
+      ],
+      "title": "RepeaterElement",
+      "type": "object"
+    },
+    "SectionElement": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "elements": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "content": "#/$defs/ContentElement",
+                "field": {
+                  "discriminator": {
+                    "mapping": {
+                      "date": "#/$defs/DateField",
+                      "email": "#/$defs/EmailField",
+                      "file": "#/$defs/FileField",
+                      "hidden": "#/$defs/HiddenField",
+                      "long_text": "#/$defs/LongTextField",
+                      "multi_choice": "#/$defs/MultiChoiceField",
+                      "number": "#/$defs/NumberField",
+                      "phone": "#/$defs/PhoneField",
+                      "rating": "#/$defs/RatingField",
+                      "short_text": "#/$defs/ShortTextField",
+                      "signature": "#/$defs/SignatureField",
+                      "single_choice": "#/$defs/SingleChoiceField",
+                      "time": "#/$defs/TimeField",
+                      "yes_no": "#/$defs/YesNoField"
+                    },
+                    "propertyName": "type"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/ShortTextField"
+                    },
+                    {
+                      "$ref": "#/$defs/LongTextField"
+                    },
+                    {
+                      "$ref": "#/$defs/EmailField"
+                    },
+                    {
+                      "$ref": "#/$defs/PhoneField"
+                    },
+                    {
+                      "$ref": "#/$defs/NumberField"
+                    },
+                    {
+                      "$ref": "#/$defs/DateField"
+                    },
+                    {
+                      "$ref": "#/$defs/TimeField"
+                    },
+                    {
+                      "$ref": "#/$defs/SingleChoiceField"
+                    },
+                    {
+                      "$ref": "#/$defs/MultiChoiceField"
+                    },
+                    {
+                      "$ref": "#/$defs/YesNoField"
+                    },
+                    {
+                      "$ref": "#/$defs/RatingField"
+                    },
+                    {
+                      "$ref": "#/$defs/FileField"
+                    },
+                    {
+                      "$ref": "#/$defs/SignatureField"
+                    },
+                    {
+                      "$ref": "#/$defs/HiddenField"
+                    }
+                  ]
+                },
+                "repeater": "#/$defs/RepeaterElement",
+                "section": "#/$defs/SectionElement"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "date": "#/$defs/DateField",
+                    "email": "#/$defs/EmailField",
+                    "file": "#/$defs/FileField",
+                    "hidden": "#/$defs/HiddenField",
+                    "long_text": "#/$defs/LongTextField",
+                    "multi_choice": "#/$defs/MultiChoiceField",
+                    "number": "#/$defs/NumberField",
+                    "phone": "#/$defs/PhoneField",
+                    "rating": "#/$defs/RatingField",
+                    "short_text": "#/$defs/ShortTextField",
+                    "signature": "#/$defs/SignatureField",
+                    "single_choice": "#/$defs/SingleChoiceField",
+                    "time": "#/$defs/TimeField",
+                    "yes_no": "#/$defs/YesNoField"
+                  },
+                  "propertyName": "type"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/ShortTextField"
+                  },
+                  {
+                    "$ref": "#/$defs/LongTextField"
+                  },
+                  {
+                    "$ref": "#/$defs/EmailField"
+                  },
+                  {
+                    "$ref": "#/$defs/PhoneField"
+                  },
+                  {
+                    "$ref": "#/$defs/NumberField"
+                  },
+                  {
+                    "$ref": "#/$defs/DateField"
+                  },
+                  {
+                    "$ref": "#/$defs/TimeField"
+                  },
+                  {
+                    "$ref": "#/$defs/SingleChoiceField"
+                  },
+                  {
+                    "$ref": "#/$defs/MultiChoiceField"
+                  },
+                  {
+                    "$ref": "#/$defs/YesNoField"
+                  },
+                  {
+                    "$ref": "#/$defs/RatingField"
+                  },
+                  {
+                    "$ref": "#/$defs/FileField"
+                  },
+                  {
+                    "$ref": "#/$defs/SignatureField"
+                  },
+                  {
+                    "$ref": "#/$defs/HiddenField"
+                  }
+                ]
+              },
+              {
+                "$ref": "#/$defs/ContentElement"
+              },
+              {
+                "$ref": "#/$defs/SectionElement"
+              },
+              {
+                "$ref": "#/$defs/RepeaterElement"
+              }
+            ]
+          },
+          "title": "Elements",
+          "type": "array"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "section",
+          "title": "Kind",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "visibleIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "title": "SectionElement",
+      "type": "object"
+    },
+    "Settings": {
+      "additionalProperties": false,
+      "properties": {
+        "backLabel": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Backlabel"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "language": {
+          "default": "en",
+          "enum": [
+            "en",
+            "dv"
+          ],
+          "title": "Language",
+          "type": "string"
+        },
+        "nextLabel": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nextlabel"
+        },
+        "submitLabel": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Submitlabel"
+        },
+        "successMessage": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Successmessage"
+        },
+        "theme": {
+          "$ref": "#/$defs/Theme"
+        },
+        "title": {
+          "maxLength": 10000,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "title": "Settings",
+      "type": "object"
+    },
+    "ShortTextField": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "inputScript": {
+          "$ref": "#/$defs/InputScript",
+          "default": "auto"
+        },
+        "kind": {
+          "const": "field",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 10000,
+          "title": "Label",
+          "type": "string"
+        },
+        "maxLength": {
+          "anyOf": [
+            {
+              "maximum": 10000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxlength"
+        },
+        "pattern": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pattern"
+        },
+        "patternMessage": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Patternmessage"
+        },
+        "placeholder": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Placeholder"
+        },
+        "prefillParam": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefillparam"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "requiredIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "short_text",
+          "title": "Type",
+          "type": "string"
+        },
+        "visibleIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "default": "full",
+          "enum": [
+            "full",
+            "half"
+          ],
+          "title": "Width",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "type"
+      ],
+      "title": "ShortTextField",
+      "type": "object"
+    },
+    "SignatureField": {
+      "additionalProperties": false,
+      "properties": {
+        "attestation": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attestation"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "field",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 10000,
+          "title": "Label",
+          "type": "string"
+        },
+        "placeholder": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Placeholder"
+        },
+        "prefillParam": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefillparam"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "requiredIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "signature",
+          "title": "Type",
+          "type": "string"
+        },
+        "visibleIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "default": "full",
+          "enum": [
+            "full",
+            "half"
+          ],
+          "title": "Width",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "type"
+      ],
+      "title": "SignatureField",
+      "type": "object"
+    },
+    "SingleChoiceField": {
+      "additionalProperties": false,
+      "properties": {
+        "allowOther": {
+          "default": false,
+          "title": "Allowother",
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "display": {
+          "default": "radio",
+          "enum": [
+            "radio",
+            "dropdown"
+          ],
+          "title": "Display",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "field",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 10000,
+          "title": "Label",
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/Option"
+          },
+          "maxItems": 1000,
+          "minItems": 1,
+          "title": "Options",
+          "type": "array"
+        },
+        "placeholder": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Placeholder"
+        },
+        "prefillParam": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefillparam"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "requiredIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "single_choice",
+          "title": "Type",
+          "type": "string"
+        },
+        "visibleIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "default": "full",
+          "enum": [
+            "full",
+            "half"
+          ],
+          "title": "Width",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "options",
+        "type"
+      ],
+      "title": "SingleChoiceField",
+      "type": "object"
+    },
+    "Theme": {
+      "additionalProperties": false,
+      "properties": {
+        "accent": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Accent"
+        },
+        "logoFileId": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Logofileid"
+        }
+      },
+      "title": "Theme",
+      "type": "object"
+    },
+    "TimeField": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "field",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 10000,
+          "title": "Label",
+          "type": "string"
+        },
+        "placeholder": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Placeholder"
+        },
+        "prefillParam": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefillparam"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "requiredIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "time",
+          "title": "Type",
+          "type": "string"
+        },
+        "visibleIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "default": "full",
+          "enum": [
+            "full",
+            "half"
+          ],
+          "title": "Width",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "type"
+      ],
+      "title": "TimeField",
+      "type": "object"
+    },
+    "YesNoField": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "id": {
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "field",
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 10000,
+          "title": "Label",
+          "type": "string"
+        },
+        "placeholder": {
+          "anyOf": [
+            {
+              "maxLength": 10000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Placeholder"
+        },
+        "prefillParam": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prefillparam"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "requiredIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "yes_no",
+          "title": "Type",
+          "type": "string"
+        },
+        "visibleIf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "default": "full",
+          "enum": [
+            "full",
+            "half"
+          ],
+          "title": "Width",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "type"
+      ],
+      "title": "YesNoField",
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/alee-ibrahim/justforms/blob/main/spec/form-schema.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "JustForms form document, schemaVersion 1. GENERATED from backend/app/schemas/form.py; do not edit by hand. Cross-element rules (unique ids, logic references, cycles) are enforced by the backend and are not expressible here.",
+  "properties": {
+    "pages": {
+      "items": {
+        "$ref": "#/$defs/Page"
+      },
+      "maxItems": 200,
+      "minItems": 1,
+      "title": "Pages",
+      "type": "array"
+    },
+    "schemaVersion": {
+      "const": "1",
+      "default": "1",
+      "title": "Schemaversion",
+      "type": "string"
+    },
+    "settings": {
+      "$ref": "#/$defs/Settings"
+    }
+  },
+  "required": [
+    "settings",
+    "pages"
+  ],
+  "title": "JustFormsForm",
+  "type": "object"
+}

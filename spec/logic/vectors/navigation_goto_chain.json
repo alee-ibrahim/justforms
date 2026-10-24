@@ -1,0 +1,278 @@
+{
+  "name": "navigation_goto_chain",
+  "description": "Several goto rules in sequence, including an unconditional goto and rules reading earlier pages",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "title": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "x",
+            "type": "yes_no",
+            "label": "x"
+          }
+        ],
+        "next": [
+          {
+            "if": {
+              "field": "x",
+              "op": "eq",
+              "value": true
+            },
+            "goto": "p4"
+          }
+        ]
+      },
+      {
+        "id": "p2",
+        "title": "p2",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "y",
+            "type": "yes_no",
+            "label": "y"
+          }
+        ],
+        "next": [
+          {
+            "if": {
+              "field": "y",
+              "op": "eq",
+              "value": true
+            },
+            "goto": "submit"
+          }
+        ]
+      },
+      {
+        "id": "p3",
+        "title": "p3",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "z",
+            "type": "yes_no",
+            "label": "z"
+          }
+        ],
+        "next": [
+          {
+            "if": {
+              "field": "x",
+              "op": "eq",
+              "value": false
+            },
+            "goto": "p5"
+          }
+        ]
+      },
+      {
+        "id": "p4",
+        "title": "p4",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "w",
+            "type": "yes_no",
+            "label": "w"
+          }
+        ],
+        "next": [
+          {
+            "if": {
+              "all": []
+            },
+            "goto": "p6"
+          }
+        ]
+      },
+      {
+        "id": "p5",
+        "title": "p5",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "v",
+            "type": "yes_no",
+            "label": "v"
+          }
+        ]
+      },
+      {
+        "id": "p6",
+        "title": "p6",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "u",
+            "type": "yes_no",
+            "label": "u"
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "x true jumps to p4 then p6",
+      "answers": {
+        "x": true
+      },
+      "expect": {
+        "visible": [
+          "x",
+          "w",
+          "u"
+        ],
+        "hidden": [
+          "y",
+          "z",
+          "v"
+        ],
+        "path": [
+          "p1",
+          "p4",
+          "p6"
+        ]
+      }
+    },
+    {
+      "name": "y true submits from p2",
+      "answers": {
+        "x": false,
+        "y": true
+      },
+      "expect": {
+        "visible": [
+          "x",
+          "y"
+        ],
+        "hidden": [
+          "z",
+          "w",
+          "v",
+          "u"
+        ],
+        "path": [
+          "p1",
+          "p2"
+        ]
+      }
+    },
+    {
+      "name": "x false: p3 jumps to p5",
+      "answers": {
+        "x": false
+      },
+      "expect": {
+        "visible": [
+          "x",
+          "y",
+          "z",
+          "v",
+          "u"
+        ],
+        "hidden": [
+          "w"
+        ],
+        "path": [
+          "p1",
+          "p2",
+          "p3",
+          "p5",
+          "p6"
+        ]
+      }
+    },
+    {
+      "name": "x missing: no jump from p3",
+      "answers": {},
+      "expect": {
+        "visible": [
+          "x",
+          "y",
+          "z",
+          "w",
+          "u"
+        ],
+        "hidden": [
+          "v"
+        ],
+        "path": [
+          "p1",
+          "p2",
+          "p3",
+          "p4",
+          "p6"
+        ]
+      }
+    },
+    {
+      "name": "answers off the path are stripped",
+      "answers": {
+        "x": true,
+        "y": true,
+        "z": true,
+        "w": false,
+        "v": true,
+        "u": true
+      },
+      "expect": {
+        "visible": [
+          "x",
+          "w",
+          "u"
+        ],
+        "hidden": [
+          "y",
+          "z",
+          "v"
+        ],
+        "path": [
+          "p1",
+          "p4",
+          "p6"
+        ],
+        "strippedAnswers": {
+          "x": true,
+          "w": false,
+          "u": true
+        }
+      }
+    },
+    {
+      "name": "x is a string",
+      "answers": {
+        "x": "true",
+        "y": false
+      },
+      "expect": {
+        "visible": [
+          "x",
+          "y",
+          "z",
+          "w",
+          "u"
+        ],
+        "hidden": [
+          "v"
+        ],
+        "path": [
+          "p1",
+          "p2",
+          "p3",
+          "p4",
+          "p6"
+        ]
+      }
+    }
+  ]
+}

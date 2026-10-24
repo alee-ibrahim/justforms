@@ -1,0 +1,56 @@
+{
+  "name": "navigation_no_visible_pages",
+  "description": "If no page is visible the path is empty and nothing is kept",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Vector"
+    },
+    "pages": [
+      {
+        "id": "only",
+        "title": "only",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "a",
+            "type": "short_text",
+            "label": "a"
+          }
+        ],
+        "visibleIf": {
+          "any": []
+        }
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "empty",
+      "answers": {},
+      "expect": {
+        "visible": [],
+        "hidden": [
+          "a"
+        ],
+        "path": [],
+        "strippedAnswers": {}
+      }
+    },
+    {
+      "name": "answer dropped",
+      "answers": {
+        "a": "x"
+      },
+      "expect": {
+        "visible": [],
+        "hidden": [
+          "a"
+        ],
+        "path": [],
+        "strippedAnswers": {}
+      }
+    }
+  ]
+}

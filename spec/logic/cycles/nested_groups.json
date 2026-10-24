@@ -1,0 +1,57 @@
+{
+  "name": "nested_groups",
+  "expect": "cycle",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Cycle"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "elements": [
+          {
+            "kind": "field",
+            "id": "a",
+            "type": "short_text",
+            "label": "a",
+            "visibleIf": {
+              "any": [
+                {
+                  "not": {
+                    "field": "b",
+                    "op": "empty"
+                  }
+                },
+                {
+                  "all": []
+                }
+              ]
+            }
+          },
+          {
+            "kind": "field",
+            "id": "b",
+            "type": "short_text",
+            "label": "b",
+            "visibleIf": {
+              "all": [
+                {
+                  "field": "a",
+                  "op": "eq",
+                  "value": "x"
+                },
+                {
+                  "not": {
+                    "any": []
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

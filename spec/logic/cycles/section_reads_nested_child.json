@@ -1,0 +1,40 @@
+{
+  "name": "section_reads_nested_child",
+  "expect": "cycle",
+  "schema": {
+    "schemaVersion": "1",
+    "settings": {
+      "language": "en",
+      "title": "Cycle"
+    },
+    "pages": [
+      {
+        "id": "p1",
+        "elements": [
+          {
+            "kind": "section",
+            "id": "s1",
+            "elements": [
+              {
+                "kind": "section",
+                "id": "s2",
+                "elements": [
+                  {
+                    "kind": "field",
+                    "id": "x",
+                    "type": "short_text",
+                    "label": "x"
+                  }
+                ]
+              }
+            ],
+            "visibleIf": {
+              "field": "x",
+              "op": "not_empty"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
