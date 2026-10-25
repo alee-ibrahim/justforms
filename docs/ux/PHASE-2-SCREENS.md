@@ -916,6 +916,9 @@ Route `/forms/$id/submissions`. Staff triage: find, open, decide, export.
 
 ### 5.3 Detail (Sheet)
 
+Superseded by [SUBMISSIONS-VIEWER-SCREENS.md](SUBMISSIONS-VIEWER-SCREENS.md): a submission opens on its own
+page laid out as the filled form. The status, reject, activity and file rules below still apply.
+
 ```
 ┌──────────────────────── Sheet (end edge, 40rem) ────────────────────────┐
 │ #47   ◐ In review                      [‹ Prev] [Next ›]  [✕]            │

@@ -62,7 +62,7 @@ function title(ev: SubmissionEvent): React.ReactNode {
   const who = ev.actorName ?? 'Someone'
   switch (ev.type) {
     case 'created':
-      return 'Submitted'
+      return ev.payload.imported ? 'Imported from Jotform' : 'Submitted'
     case 'status_changed':
       if (ev.payload.via === 'approval')
         return `Approval set the status to ${STATUS_LABELS[ev.payload.to as SubmissionStatus] ?? String(ev.payload.to)}`

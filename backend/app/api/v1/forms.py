@@ -77,6 +77,8 @@ class FormOut(ApiModel):
     # Respondents' answers are kept in their browser while they fill in the form.
     save_progress: bool = True
     save_progress_days: int = DEFAULT_SAVE_PROGRESS_DAYS
+    # Questions shown on submission cards (None: chosen automatically).
+    card_fields: list[str] | None = None
     submission_count: int = 0
     new_count: int = 0
     created_at: datetime
@@ -134,6 +136,9 @@ Domain = Annotated[
     ),
 ]
 
+MAX_CARD_FIELDS = 6
+FieldKey = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,62}$")]
+
 Origin = Annotated[
     str,
     StringConstraints(strip_whitespace=True, pattern=r"^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$"),
@@ -152,6 +157,8 @@ class FormPatch(ApiModel):
     captcha: CaptchaMode | None = None
     save_progress: bool | None = None
     save_progress_days: Annotated[int, Field(ge=1, le=MAX_SAVE_PROGRESS_DAYS)] | None = None
+    # Questions shown on submission cards; an empty list goes back to the automatic choice.
+    card_fields: list[FieldKey] | None = Field(default=None, max_length=MAX_CARD_FIELDS)
 
 
 class DraftOut(ApiModel):
@@ -233,6 +240,7 @@ async def form_out(
         otp_one_response=bool((form.settings or {}).get("otpOneResponse", False)),
         captcha=form_mode(form.settings),
         **progress_out(form.settings),
+        card_fields=(form.settings or {}).get("cardFields") or None,
         submission_count=counts[0],
         new_count=counts[1],
         created_at=form.created_at,
@@ -492,6 +500,10 @@ async def patch_form(
         extra["saveProgressDays"] = body.save_progress_days
     if extra:
         form.settings = {**(form.settings or {}), **extra}
+    if body.card_fields is not None:
+        rest = {k: v for k, v in (form.settings or {}).items() if k != "cardFields"}
+        cards = list(dict.fromkeys(body.card_fields))
+        form.settings = {**rest, **({"cardFields": cards} if cards else {})}
     if body.retention_days is not None:
         rest = {k: v for k, v in (form.settings or {}).items() if k != "retentionDays"}
         form.settings = {

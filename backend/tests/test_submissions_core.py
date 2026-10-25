@@ -193,6 +193,59 @@ async def test_masking_reveal_comments(
     assert sub is not None and (await verify_submission(db, sub)).ok
 
 
+async def test_detail_by_reference(
+    client: AsyncClient, db: AsyncSession, settings: Settings, queue: RecordingQueue
+) -> None:
+    me = await admin_client(client, db, settings, queue)
+    pub = await _seed(client, me)
+    page = await _list(client, pub)
+    row = next(i for i in page["items"] if i["data"]["name"] == "Ibrahim Naseer")
+    res = await client.get(f"/api/v1/forms/{pub.id}/submissions/seq/{row['seq']}")
+    assert res.status_code == 200, res.text
+    detail = res.json()
+    assert detail["id"] == row["id"] and detail["seq"] == row["seq"]
+    assert detail["data"]["national_id"] == "••••903" and detail["schema"]["pages"]
+    assert (await client.get(f"/api/v1/forms/{pub.id}/submissions/seq/99")).status_code == 404
+    assert (await client.get(f"/api/v1/forms/{pub.id}/submissions/seq/0")).status_code == 422
+    # Deleted submissions are gone by reference too; other forms' references don't leak.
+    assert (await client.delete(f"/api/v1/submissions/{row['id']}")).status_code == 204
+    res = await client.get(f"/api/v1/forms/{pub.id}/submissions/seq/{row['seq']}")
+    assert res.status_code == 404
+    other = await publish(client, me, ELEMENTS[:1], title="Other")
+    assert (await client.get(f"/api/v1/forms/{other.id}/submissions/seq/1")).status_code == 404
+
+
+async def test_card_fields(
+    app: Any, client: AsyncClient, db: AsyncSession, settings: Settings, queue: RecordingQueue
+) -> None:
+    me = await admin_client(client, db, settings, queue)
+    pub = await publish(client, me, ELEMENTS[:4], title="Cards")
+    url = f"/api/v1/forms/{pub.id}"
+    assert (await client.get(url)).json()["cardFields"] is None
+    res = await client.patch(url, json={"cardFields": ["track", "name", "track"]})
+    assert res.status_code == 200 and res.json()["cardFields"] == ["track", "name"]
+    # Other settings stay; an empty list goes back to the automatic choice.
+    res = await client.patch(url, json={"retentionDays": 30})
+    assert res.json()["cardFields"] == ["track", "name"]
+    res = await client.patch(url, json={"cardFields": []})
+    assert res.json()["cardFields"] is None and res.json()["retentionDays"] == 30
+    assert (await client.patch(url, json={"cardFields": ["Bad key"]})).status_code == 422
+    too_many = [f"q{i}" for i in range(7)]
+    assert (await client.patch(url, json={"cardFields": too_many})).status_code == 422
+
+    # Editors choose the card fields; viewers can't.
+    for role, expected in (("editor", 200), ("viewer", 403)):
+        user = User(email=f"cards-{role}@example.org")
+        db.add(user)
+        await db.flush()
+        db.add(FormPermission(form_id=pub.id, user_id=user.id, role=FormRole(role)))
+        await db.commit()
+        async with make_client(app) as other:
+            await login(other, queue, user.email)
+            res = await other.patch(url, json={"cardFields": ["age"]})
+        assert res.status_code == expected, (role, res.text)
+
+
 async def test_bulk_and_delete(
     client: AsyncClient,
     db: AsyncSession,
@@ -480,6 +533,7 @@ MATRIX: dict[str, tuple[str, str, Any, str]] = {
     "list": ("GET", "/api/v1/forms/{form}/submissions", None, "viewer"),
     "stats": ("GET", "/api/v1/forms/{form}/submissions/stats", None, "viewer"),
     "detail": ("GET", "/api/v1/submissions/{sub}", None, "viewer"),
+    "by_reference": ("GET", "/api/v1/forms/{form}/submissions/seq/1", None, "viewer"),
     "verify": ("GET", "/api/v1/submissions/{sub}/verify", None, "viewer"),
     "comment": ("POST", "/api/v1/submissions/{sub}/comments", {"text": "hi"}, "viewer"),
     "request_pdf": ("POST", "/api/v1/submissions/{sub}/pdf", None, "viewer"),

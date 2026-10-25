@@ -166,7 +166,7 @@ export function AppShell() {
   return (
     <TooltipProvider>
       <div className="flex min-h-svh flex-col">
-        <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b bg-card px-4">
+        <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b bg-card px-4 print:hidden">
           <Link
             to="/forms"
             aria-label={brand.data?.custom ? brand.data.name : 'JustForms'}

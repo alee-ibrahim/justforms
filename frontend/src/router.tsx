@@ -31,6 +31,7 @@ import {
 } from '@/routes/org-settings'
 import { validateSettingsSearch } from '@/lib/settings-org'
 import { SubmissionsImportPage } from '@/routes/submissions-import'
+import { SubmissionViewPage } from '@/routes/submission-view'
 
 interface RouterContext {
   queryClient: QueryClient
@@ -174,6 +175,14 @@ const submissionsImportRoute = createRoute({
   component: SubmissionsImportPage,
 })
 
+/** One submission as the filled form (SUBMISSIONS-VIEWER-SCREENS 1); `$ref` is the reference number. */
+const submissionViewRoute = createRoute({
+  getParentRoute: () => formRoute,
+  path: '/submissions/$ref',
+  validateSearch: validateSubmissionsSearch,
+  component: SubmissionViewPage,
+})
+
 const formSettingsRoute = createRoute({
   getParentRoute: () => formRoute,
   path: '/settings',
@@ -195,6 +204,7 @@ const routeTree = rootRoute.addChildren([
       formShareRoute,
       formSubmissionsRoute,
       submissionsImportRoute,
+      submissionViewRoute,
       formSettingsRoute,
     ]),
   ]),

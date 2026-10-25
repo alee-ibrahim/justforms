@@ -388,3 +388,14 @@
     scroll-padding-bottom: calc(var(--df-bar-h, 4.75rem) + 1rem);
   }
 }
+
+/* Printing a submission (SUBMISSIONS-VIEWER-SCREENS 1.7): the studio header and form bar are
+   print:hidden; the page prints on white. */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  body:has([data-print-root]) {
+    background: white;
+  }
+}

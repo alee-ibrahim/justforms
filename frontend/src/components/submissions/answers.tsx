@@ -1,76 +1,74 @@
 /**
- * A submission's answers, rendered with the submission's own schema version and language
- * (PHASE-2-SCREENS 5.3): labels and values in a two-column list, repeaters as tables.
+ * A submission laid out as the filled form (docs/ux/SUBMISSIONS-VIEWER-SCREENS.md 1): the
+ * submission's own schema version and language, pages stacked, sections and half-width pairs as
+ * on the public form, read-only answers on ruled lines.
  */
-import { DownloadIcon, FileIcon, FileTextIcon, LockIcon } from 'lucide-react'
-import { createContext, useContext, useMemo, useState } from 'react'
+import { CheckIcon, LockIcon, StarIcon, XIcon } from 'lucide-react'
+import { createContext, Fragment, useContext, useMemo, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { evaluate } from '@/logic/engine'
-import type { Element, FieldElement, Form } from '@/schema'
-import { contentProps, formLanguage } from '@/schema/language'
-import { formatSize } from '@/renderer/util'
+import type { ImportedFile, SignatureInfo } from '@/lib/api'
+import { cn } from '@/lib/utils'
+import { QuestionGrid } from '@/renderer/elements'
+import { Markdown } from '@/renderer/markdown'
+import { En } from '@/renderer/msg'
+import { rowTitle, widthClass } from '@/renderer/util'
 import type { FileRef } from '@/renderer/validation'
+import type { Element, FieldElement, Form, FormLanguage } from '@/schema'
+import { formLanguage } from '@/schema/language'
 import { displayText } from '@/thaana/display'
 
-import type { SignatureInfo } from '@/lib/api'
-
-import { answerText } from './format'
+import { hasAnswers, isEmptyAnswer, useLogic } from './answer-logic'
+import { FileCards, type FileCardEntry } from './file-cards'
+import { answerText, chosenOptions, formatAnswerDate, formatPhone } from './format'
 import { SignatureBlock } from './signature-block'
 
+type Data = Record<string, unknown>
+type Scope = { repeater: string; row: number }
+
 interface AnswerContextValue {
+  language: FormLanguage
   signatures: SignatureInfo[]
+  /** Copies of files and signatures imported from Jotform, by question. */
+  imported: ReadonlyMap<string, FileCardEntry[]>
   /** Set when the viewer may unmask sensitive answers (editors and owners). */
   reveal?: (fieldId: string, row?: number) => Promise<string>
-  /** Questions the form's logic hid from this respondent. */
-  skipped?: ReadonlySet<string>
+  /** Show questions the form's logic hid from this respondent. */
+  showSkipped: boolean
+  isVisible: (id: string, scope?: Scope) => boolean
 }
 
-const AnswerContext = createContext<AnswerContextValue>({ signatures: [] })
+const AnswerContext = createContext<AnswerContextValue>({
+  language: 'en',
+  signatures: [],
+  imported: new Map(),
+  showSkipped: false,
+  isVisible: () => true,
+})
 
-const isEmpty = (value: unknown) =>
-  value === undefined || value === null || value === '' || (Array.isArray(value) && !value.length)
-
-/** An empty answer: "No answer", or why there is none when logic hid the question (REVIEW P3-9). */
-function NoAnswer({ id }: { id: string }) {
-  const { skipped } = useContext(AnswerContext)
+function NoAnswer({ skipped }: { skipped?: boolean }) {
   return (
-    <span className="text-muted-foreground" lang="en" dir="ltr">
-      {skipped?.has(id) ? 'Skipped (not shown to the respondent)' : 'No answer'}
+    <span className="text-muted-foreground">
+      <En>{skipped ? 'Skipped (not shown to the respondent)' : 'No answer'}</En>
     </span>
   )
 }
 
-/** What the form's logic hid for these answers: questions, and pages the respondent never saw. */
-function useSkipped(form: Form, data: Record<string, unknown>) {
-  return useMemo(() => {
-    try {
-      const ev = evaluate(form, data)
-      return { elements: new Set(ev.hidden), pages: new Set(form.pages.map((p) => p.id).filter((id) => !ev.path.includes(id))) }
-    } catch {
-      // A rule loop in an old version: show every question as before.
-      return { elements: new Set<string>(), pages: new Set<string>() }
-    }
-  }, [form, data])
-}
-
-/** True when any field on the page (or nested in it) has an answer. */
-function hasAnswers(elements: Element[], data: Record<string, unknown>): boolean {
-  return elements.some((el) =>
-    el.kind === 'section' ? hasAnswers(el.elements ?? [], data) : el.kind !== 'content' && !isEmpty(data[el.id]),
-  )
-}
-
 /** A masked sensitive answer; "Show" asks the server for it (and is logged). */
-function Sensitive({ masked, fieldId, row }: { masked: string; fieldId: string; row?: number }) {
+export function Sensitive({ masked, fieldId, row }: { masked: string; fieldId: string; row?: number }) {
   const { reveal } = useContext(AnswerContext)
   const [shown, setShown] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  if (shown !== null) return <bdi dir="auto">{shown}</bdi>
+  if (shown !== null)
+    return (
+      <bdi dir="auto" className="whitespace-pre-wrap">
+        {shown}
+      </bdi>
+    )
   return (
     <span className="inline-flex items-center gap-2" lang="en" dir="ltr">
       <LockIcon className="size-3.5 text-muted-foreground" aria-hidden />
@@ -81,7 +79,7 @@ function Sensitive({ masked, fieldId, row }: { masked: string; fieldId: string; 
             <Button
               variant="link"
               size="sm"
-              className="h-auto p-0"
+              className="h-auto p-0 print:hidden"
               disabled={busy}
               onClick={() => {
                 setBusy(true)
@@ -103,125 +101,253 @@ function Sensitive({ masked, fieldId, row }: { masked: string; fieldId: string; 
   )
 }
 
-const PREVIEW = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
+const NO_FILES: ImportedFile[] = []
 
-/** Uploaded files: thumbnail or type icon, name, size and a download link (DESIGN 10). */
-function Files({ files }: { files: FileRef[] }) {
-  return (
-    <ItemGroup className="gap-2" lang="en" dir="ltr">
-      {files.map((f) => {
-        const url = `/api/v1/files/${f.fileId}`
-        return (
-          <Item key={f.fileId} variant="outline" size="sm" className="flex-nowrap">
-            <ItemMedia variant={PREVIEW.has(f.mime) ? 'image' : 'icon'}>
-              {PREVIEW.has(f.mime) ? (
-                <img src={`${url}?preview=1`} alt="" loading="lazy" />
-              ) : f.mime === 'application/pdf' ? (
-                <FileTextIcon />
-              ) : (
-                <FileIcon />
-              )}
-            </ItemMedia>
-            <ItemContent className="min-w-0">
-              <ItemTitle className="max-w-full">
-                <bdi dir="auto" className="truncate">
-                  {f.name}
-                </bdi>
-              </ItemTitle>
-              <ItemDescription className="tabular-nums">{formatSize(f.size)}</ItemDescription>
-            </ItemContent>
-            <ItemActions>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" asChild>
-                    <a href={url} download={f.name} aria-label={`Download ${f.name}`}>
-                      <DownloadIcon />
-                    </a>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Download</TooltipContent>
-              </Tooltip>
-            </ItemActions>
-          </Item>
-        )
-      })}
-    </ItemGroup>
-  )
-}
-
-function Value({ field, value, form, row }: { field: FieldElement; value: unknown; form: Form; row?: number }) {
-  const { signatures } = useContext(AnswerContext)
-  const language = formLanguage(form)
-  if (isEmpty(value)) return <NoAnswer id={field.id} />
-  if (field.type === 'file' && Array.isArray(value)) return <Files files={value as FileRef[]} />
-  if (field.type === 'signature') {
-    const sig = signatures.find((s) => s.fieldId === field.id)
-    if (sig) return <SignatureBlock sig={sig} language={language} />
+function importedByField(files: ImportedFile[]): Map<string, FileCardEntry[]> {
+  const out = new Map<string, FileCardEntry[]>()
+  for (const f of files) {
+    const entry: FileCardEntry = {
+      key: `${f.fieldId}-${f.index}`,
+      url: f.url,
+      name: f.name,
+      mime: f.mime,
+      size: f.size,
+      importedSignature: f.kind === 'signature',
+    }
+    out.set(f.fieldId, [...(out.get(f.fieldId) ?? []), entry])
   }
-  const text = answerText(field, value, language)
-  if (field.sensitive) return <Sensitive masked={text} fieldId={field.id} row={row} />
-  const latin = ['email', 'phone', 'number', 'date', 'time', 'yes_no'].includes(field.type)
-  return latin ? <bdi dir="ltr">{text}</bdi> : <span className="whitespace-pre-wrap">{displayText(text, language)}</span>
+  return out
 }
 
-function Rows({ elements, data, form }: { elements: Element[]; data: Record<string, unknown>; form: Form }) {
+/** A chosen option, yes/no or "Other" answer. */
+function Chip({ icon, children }: { icon?: 'check' | 'x'; children: ReactNode }) {
+  const Icon = icon === 'x' ? XIcon : CheckIcon
   return (
-    <>
-      {elements.map((el) => {
-        if (el.kind === 'content') return null
-        if (el.kind === 'section')
-          return <Rows key={el.id} elements={el.elements ?? []} data={data} form={form} />
-        if (el.kind === 'repeater') {
-          const rows = Array.isArray(data[el.id]) ? (data[el.id] as Record<string, unknown>[]) : []
-          const cols = (el.elements ?? []).filter((c): c is FieldElement => c.kind === 'field')
-          return (
-            <div key={el.id} className="contents">
-              <dt className="text-muted-foreground">{el.label}</dt>
-              <dd className="min-w-0">
-                {rows.length ? (
-                  <div className="overflow-x-auto rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-8">#</TableHead>
-                          {cols.map((c) => (
-                            <TableHead key={c.id}>{c.label}</TableHead>
-                          ))}
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {rows.map((row, i) => (
-                          <TableRow key={i}>
-                            <TableCell className="tabular-nums">{i + 1}</TableCell>
-                            {cols.map((c) => (
-                              <TableCell key={c.id}>
-                                <Value field={c} value={row[c.id]} form={form} row={i} />
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ) : (
-                  <NoAnswer id={el.id} />
-                )}
-              </dd>
-            </div>
-          )
-        }
-        if (el.type === 'hidden' && data[el.id] === undefined) return null
-        return (
-          <div key={el.id} className="contents">
-            <dt className="text-muted-foreground">{el.label}</dt>
-            <dd className="min-w-0 break-words">
-              <Value field={el} value={data[el.id]} form={form} />
-            </dd>
-          </div>
-        )
-      })}
-    </>
+    <Badge variant="secondary" className="h-auto min-h-6 max-w-full justify-start py-0.5 text-start whitespace-normal">
+      <Icon data-icon="inline-start" aria-hidden />
+      <span className="min-w-0 break-words">{children}</span>
+    </Badge>
   )
+}
+
+/** On a ruled answer line, like ink on a paper form. */
+function Line({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cn('min-h-8 border-b border-border pb-1.5 text-base break-words', className)}>{children}</div>
+}
+
+const LATIN = new Set(['email', 'phone', 'number', 'date', 'time'])
+
+/** One answer, by question type (SUBMISSIONS-VIEWER-SCREENS 1.3). */
+export function AnswerValue({ field, value, row }: { field: FieldElement; value: unknown; row?: number }) {
+  const { signatures, language, imported } = useContext(AnswerContext)
+  const copies = row === undefined ? imported.get(field.id) : undefined
+  if (isEmptyAnswer(value) && copies?.length) return <FileCards files={copies} />
+  if (isEmptyAnswer(value))
+    return (
+      <Line>
+        <NoAnswer />
+      </Line>
+    )
+  if (field.sensitive)
+    return (
+      <Line>
+        <Sensitive masked={answerText(field, value, language)} fieldId={field.id} row={row} />
+      </Line>
+    )
+  switch (field.type) {
+    case 'file':
+      return Array.isArray(value) ? (
+        <FileCards
+          files={(value as FileRef[]).map((f) => ({ key: f.fileId, url: `/api/v1/files/${f.fileId}`, name: f.name, mime: f.mime, size: f.size }))}
+        />
+      ) : null
+    case 'signature': {
+      const sig = signatures.find((s) => s.fieldId === field.id)
+      return sig ? (
+        <div className="break-inside-avoid">
+          <SignatureBlock sig={sig} language={language} />
+        </div>
+      ) : (
+        <Line>
+          <En>Signed</En>
+        </Line>
+      )
+    }
+    case 'single_choice':
+    case 'multi_choice': {
+      const { chosen, other } = chosenOptions(field, value)
+      return (
+        <div className="flex flex-wrap gap-1.5 pt-0.5">
+          {chosen.map((o) => (
+            <Chip key={o.value}>{displayText(o.label, language)}</Chip>
+          ))}
+          {other.map((text, i) => (
+            <Chip key={`other-${i}`}>
+              <En>Other:</En> <bdi dir="auto">{text}</bdi>
+            </Chip>
+          ))}
+        </div>
+      )
+    }
+    case 'yes_no':
+      return (
+        <div className="pt-0.5">
+          <Chip icon={value === true ? 'check' : 'x'}>
+            <En>{value === true ? 'Yes' : 'No'}</En>
+          </Chip>
+        </div>
+      )
+    case 'rating': {
+      const max = field.max ?? 5
+      const n = Number(value)
+      const label = `${n} out of ${max}`
+      return (
+        <Line>
+          <span className="inline-flex items-center gap-2" lang="en" dir="ltr">
+            <span className="inline-flex gap-0.5" role="img" aria-label={label}>
+              {Array.from({ length: max }, (_, i) => (
+                <StarIcon key={i} aria-hidden className={cn('size-4', i < n ? 'fill-current' : 'text-muted-foreground')} />
+              ))}
+            </span>
+            <span className="tabular-nums" aria-hidden>
+              {label}
+            </span>
+          </span>
+        </Line>
+      )
+    }
+    case 'email':
+      return (
+        <Line>
+          <a href={`mailto:${String(value)}`} className="-my-3 inline-block max-w-full py-3 break-all text-primary underline-offset-4 hover:underline">
+            <bdi dir="ltr">{String(value)}</bdi>
+          </a>
+        </Line>
+      )
+    case 'phone':
+      return (
+        <Line>
+          <a href={`tel:${String(value)}`} className="-my-3 inline-block py-3 text-primary tabular-nums underline-offset-4 hover:underline">
+            <bdi dir="ltr">{formatPhone(String(value))}</bdi>
+          </a>
+        </Line>
+      )
+    case 'date':
+      return (
+        <Line className="tabular-nums">
+          <bdi dir="ltr">{formatAnswerDate(String(value))}</bdi>
+        </Line>
+      )
+    default: {
+      const text = answerText(field, value, language)
+      if (LATIN.has(field.type))
+        return (
+          <Line className="tabular-nums">
+            <bdi dir="ltr">{text}</bdi>
+          </Line>
+        )
+      return (
+        <Line className={cn('whitespace-pre-wrap', field.type === 'long_text' && 'max-w-xl')}>
+          <bdi dir="auto">{displayText(text, language)}</bdi>
+        </Line>
+      )
+    }
+  }
+}
+
+/** One question: the printed label and the written answer (a one-item description list). */
+function Question({ field, data, scope }: { field: FieldElement; data: Data; scope?: Scope }) {
+  const { language, showSkipped, isVisible } = useContext(AnswerContext)
+  const skipped = !isVisible(field.id, scope)
+  return (
+    <dl className="flex h-full flex-col gap-1.5" data-question={field.id}>
+      <dt className={cn('text-sm text-muted-foreground', language === 'dv' ? 'font-normal' : 'font-medium')}>
+        {field.label.trim() ? displayText(field.label, language) : <En>Untitled question</En>}
+      </dt>
+      <dd className={cn('min-w-0', field.width === 'half' && 'mt-auto')}>
+        {skipped && showSkipped && isEmptyAnswer(data[field.id]) ? (
+          <Line>
+            <NoAnswer skipped />
+          </Line>
+        ) : (
+          <AnswerValue field={field} value={data[field.id]} row={scope?.row} />
+        )}
+      </dd>
+    </dl>
+  )
+}
+
+/** The elements of a page, section or repeater row on the form's own grid. */
+function ReadElements({ elements, data, scope }: { elements: Element[]; data: Data; scope?: Scope }) {
+  const { showSkipped, isVisible, imported } = useContext(AnswerContext)
+  const shown = elements.filter((el) => {
+    if (el.kind === 'field' && el.type === 'hidden') return false
+    if (el.kind === 'content') return el.contentType !== 'image' && isVisible(el.id, scope)
+    // A hidden question that holds an answer (imports) still shows.
+    const answered = el.kind !== 'section' && (!isEmptyAnswer(data[el.id]) || (!scope && imported.has(el.id)))
+    return showSkipped || isVisible(el.id, scope) || answered
+  })
+  if (!shown.length) return null
+  return (
+    <QuestionGrid className="gap-y-6">
+      {shown.map((el) => (
+        <div key={el.id} className={cn('min-w-0', widthClass(el))}>
+          <ReadElement el={el} data={data} scope={scope} />
+        </div>
+      ))}
+    </QuestionGrid>
+  )
+}
+
+function ReadElement({ el, data, scope }: { el: Element; data: Data; scope?: Scope }) {
+  const { language } = useContext(AnswerContext)
+  switch (el.kind) {
+    case 'field':
+      return <Question field={el} data={data} scope={scope} />
+    case 'content':
+      if (el.contentType === 'divider') return <Separator className="my-2" />
+      if (!el.text) return null
+      return el.contentType === 'heading' ? (
+        <h3 className="text-xl font-semibold tracking-tight">{displayText(el.text, language)}</h3>
+      ) : (
+        <Markdown text={el.text} className="max-w-xl text-base text-muted-foreground" rtl={language === 'dv'} />
+      )
+    case 'section':
+      return (
+        <section className="flex flex-col gap-4">
+          {el.title && (
+            <h3 className={cn('text-lg', language === 'dv' ? 'font-normal' : 'font-semibold')}>
+              {displayText(el.title, language)}
+            </h3>
+          )}
+          <div className="@min-[32rem]:border-s @min-[32rem]:ps-4">
+            <ReadElements elements={el.elements ?? []} data={data} scope={scope} />
+          </div>
+        </section>
+      )
+    case 'repeater': {
+      const rows = Array.isArray(data[el.id]) ? (data[el.id] as Data[]) : []
+      return (
+        <section className="flex flex-col gap-3" data-question={el.id}>
+          <h3 className={cn('text-sm text-muted-foreground', language === 'dv' ? 'font-normal' : 'font-medium')}>
+            {displayText(el.label, language)}
+          </h3>
+          {rows.length ? (
+            rows.map((row, i) => (
+              <div key={i} className="flex break-inside-avoid flex-col gap-4 rounded-md border p-4">
+                <h4 className="text-sm font-medium">{rowTitle(el, i + 1) ?? <En>Entry {i + 1}</En>}</h4>
+                <ReadElements elements={el.elements ?? []} data={row ?? {}} scope={{ repeater: el.id, row: i }} />
+              </div>
+            ))
+          ) : (
+            <Line>
+              <En>No entries</En>
+            </Line>
+          )}
+        </section>
+      )
+    }
+  }
 }
 
 export function Answers({
@@ -229,28 +355,45 @@ export function Answers({
   data,
   signatures = [],
   reveal,
+  showSkipped = false,
+  importedFiles = NO_FILES,
 }: {
   form: Form
-  data: Record<string, unknown>
+  data: Data
   signatures?: SignatureInfo[]
+  importedFiles?: ImportedFile[]
   reveal?: AnswerContextValue['reveal']
+  showSkipped?: boolean
 }) {
-  const content = contentProps(formLanguage(form))
-  const skipped = useSkipped(form, data)
+  const language = formLanguage(form)
+  const logic = useLogic(form, data)
+  const imported = useMemo(() => importedByField(importedFiles), [importedFiles])
+  // A page the respondent never reached is left out, unless it holds answers (imports).
+  const pages = form.pages
+    .map((page, i) => ({ page, i }))
+    .filter(({ page }) => !logic.skippedPages.has(page.id) || hasAnswers(page.elements ?? [], data))
   return (
-    <AnswerContext value={{ signatures, reveal, skipped: skipped.elements }}>
-      <div {...content} className="flex flex-col gap-6">
-        {form.pages.map((page, i) =>
-          // A page the respondent never reached is left out, unless it holds answers (imports).
-          skipped.pages.has(page.id) && !hasAnswers(page.elements ?? [], data) ? null : (
-          <section key={page.id} className="flex flex-col gap-3">
-            <h3 className="text-sm font-medium text-muted-foreground">{page.title || <span lang="en" dir="ltr">Page {i + 1}</span>}</h3>
-            <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[minmax(0,14rem)_1fr]">
-              <Rows elements={page.elements ?? []} data={data} form={form} />
-            </dl>
-          </section>
-          ),
-        )}
+    <AnswerContext value={{ language, signatures, imported, reveal, showSkipped, isVisible: logic.isVisible }}>
+      <div className="flex flex-col gap-[var(--df-gap,2rem)]">
+        {pages.map(({ page, i }, n) => (
+          <Fragment key={page.id}>
+            {n > 0 && <Separator />}
+            <section
+              className="flex flex-col gap-6"
+              aria-labelledby={page.title || pages.length > 1 ? `page-${page.id}` : undefined}
+            >
+              {(page.title || pages.length > 1) && (
+                <h2
+                  id={`page-${page.id}`}
+                  className={cn('df-page-title text-xl', language === 'dv' ? 'font-bold' : 'font-[650] tracking-tight')}
+                >
+                  {page.title ? displayText(page.title, language) : <En>Page {i + 1}</En>}
+                </h2>
+              )}
+              <ReadElements elements={page.elements ?? []} data={data} />
+            </section>
+          </Fragment>
+        ))}
       </div>
     </AnswerContext>
   )

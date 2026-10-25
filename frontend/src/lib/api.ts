@@ -162,6 +162,8 @@ export interface FormSummary {
   /** Respondents' answers are kept in their browser while they fill in the form. */
   saveProgress: boolean
   saveProgressDays: number
+  /** Questions shown on submission cards (null: chosen automatically). */
+  cardFields?: string[] | null
   submissionCount: number
   newCount: number
   createdAt: string
@@ -406,8 +408,26 @@ export interface SubmissionEvent {
   createdAt: string
 }
 
+/** A stored copy of a file or signature brought over from Jotform. */
+export interface ImportedFile {
+  fieldId: string
+  index: number
+  kind: 'file' | 'signature'
+  name: string
+  mime: string
+  size: number
+  fetchedAt?: string | null
+  url: string
+}
+
 export interface SubmissionDetail extends SubmissionSummary {
   formId: string
+  /** `form` for responses, `jotform_import` for imported rows. */
+  source?: string
+  externalId?: string | null
+  /** Imported files and signatures not copied yet: links to Jotform, by question. */
+  importedLinks?: Record<string, string[]> | null
+  importedFiles?: ImportedFile[]
   schema: Form
   canEdit: boolean
   canDelete: boolean
@@ -559,6 +579,8 @@ export type FormPatch = Partial<{
   saveProgressDays: number
   /** 0 turns retention off. */
   retentionDays: number
+  /** Questions on submission cards; [] goes back to the automatic choice. */
+  cardFields: string[]
 }>
 
 export type RuleType = 'owner_email' | 'respondent_receipt'
@@ -705,6 +727,9 @@ export const api = {
   submissionStats: (formId: string) =>
     request<Record<SubmissionStatus | 'all', number>>('GET', `/forms/${formId}/submissions/stats`),
   getSubmission: (id: string) => request<SubmissionDetail>('GET', `/submissions/${id}`),
+  /** By reference number (#0047 is 47). */
+  getSubmissionByReference: (formId: string, seq: number) =>
+    request<SubmissionDetail>('GET', `/forms/${formId}/submissions/seq/${seq}`),
   setSubmissionStatus: (id: string, status: SubmissionStatus, reason?: string) =>
     request<SubmissionDetail>('PATCH', `/submissions/${id}`, { status, reason }),
   addComment: (id: string, text: string) => request<SubmissionDetail>('POST', `/submissions/${id}/comments`, { text }),

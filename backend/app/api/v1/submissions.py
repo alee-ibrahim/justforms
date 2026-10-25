@@ -13,7 +13,7 @@ import uuid
 from datetime import UTC, date, datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 from fastapi.responses import RedirectResponse, Response, StreamingResponse
 from pydantic import Field, StringConstraints, ValidationError
 from sqlalchemy import func, select
@@ -466,6 +466,23 @@ async def _soft_delete(db: DbDep, sub: Submission, form: FormRecord, user: User)
 async def get_submission(db: DbDep, loaded: Loaded) -> SubmissionDetail:
     sub, _form, role = loaded
     return await _detail(db, sub, role)
+
+
+@router.get("/forms/{form_id}/submissions/seq/{seq}", response_model=SubmissionDetail)
+async def get_submission_by_reference(
+    seq: Annotated[int, Path(ge=1)], db: DbDep, access: FormViewer
+) -> SubmissionDetail:
+    """One submission by its reference number (#0047 is 47): the viewer's linkable address."""
+    sub = await db.scalar(
+        select(Submission).where(
+            Submission.form_id == access.form.id,
+            Submission.seq == seq,
+            Submission.deleted_at.is_(None),
+        )
+    )
+    if sub is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "submission_not_found")
+    return await _detail(db, sub, access.role)
 
 
 @router.patch("/submissions/{submission_id}", response_model=SubmissionDetail)

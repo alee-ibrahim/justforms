@@ -1,10 +1,20 @@
 /**
- * Submissions (PHASE-2-SCREENS 5, PHASE-3-SCREENS 4-7): status tabs, search, filters, column
- * picker, table with selection and bulk actions, Excel export, detail sheet.
+ * Submissions (PHASE-2-SCREENS 5, PHASE-3-SCREENS 4-7, SUBMISSIONS-VIEWER-SCREENS 2): status
+ * tabs, search, filters, table or cards with selection and bulk actions, Excel export. A row or
+ * card opens the submission's own page.
  */
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { ChevronDownIcon, FileSpreadsheetIcon, InboxIcon, LockIcon, SearchIcon, UploadIcon } from 'lucide-react'
+import {
+  ChevronDownIcon,
+  FileSpreadsheetIcon,
+  InboxIcon,
+  LayoutGridIcon,
+  LockIcon,
+  SearchIcon,
+  TableIcon,
+  UploadIcon,
+} from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useFormSummary } from '@/components/builder/form-context'
@@ -12,14 +22,17 @@ import { PageContainer } from '@/components/layout/page'
 import { BulkBar } from '@/components/submissions/bulk-bar'
 import { CheckPdfDialog } from '@/components/submissions/check-pdf-dialog'
 import { ColumnPicker } from '@/components/submissions/column-picker'
-import { SubmissionSheet } from '@/components/submissions/detail-sheet'
+import { CardFieldPicker, SubmissionCards } from '@/components/submissions/cards'
+import { cardFields } from '@/components/submissions/card-fields'
 import { ExportDialog } from '@/components/submissions/export-dialog'
 import { AddFilter, DateRangeFilter, FilterChips, VersionFilter } from '@/components/submissions/filters'
 import { answerText } from '@/components/submissions/format'
 import { STATUS_LABELS } from '@/components/submissions/labels'
+import { lastViewed, listFilters, listSearch, useSubmissionList } from '@/components/submissions/list-query'
 import type { SubmissionsSearch, Tab } from '@/components/submissions/search'
 import { SubmissionStatusBadge } from '@/components/submissions/status-badge'
 import { useColumns } from '@/components/submissions/use-columns'
+import { useSubmissionsView } from '@/components/submissions/use-view'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -27,20 +40,23 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
-import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/components/ui/item'
 import { Kbd } from '@/components/ui/kbd'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { api, type ListFilters, type SubmissionSummary } from '@/lib/api'
+import { toggleGroupOn } from '@/lib/toggle'
 import { formatDateTime } from '@/lib/format'
 import { meQuery, versionQuery, versionsQuery } from '@/lib/queries'
+import { cn } from '@/lib/utils'
 import { useDelayed } from '@/lib/use-delayed'
 import { buildIndex } from '@/logic/form-index'
 import type { FieldElement, Form } from '@/schema'
 import { formLanguage } from '@/schema/language'
+import { hasThaana } from '@yashau/thaana-react'
 
 const TABS: Tab[] = ['new', 'in_review', 'approved', 'rejected', 'all']
 
@@ -80,7 +96,7 @@ function Cell({ field, row, form }: { field: FieldElement; row: SubmissionSummar
       </Tooltip>
     )
   return (
-    <bdi dir="auto" lang={row.language} className="inline-block max-w-56 truncate align-middle">
+    <bdi dir="auto" lang={hasThaana(text) ? 'dv' : 'en'} className="inline-block max-w-56 truncate align-middle">
       {text}
     </bdi>
   )
@@ -128,22 +144,28 @@ export function FormSubmissionsPage() {
   const fieldFilters = useMemo(() => search.fields ?? [], [search.fields])
 
   const filters: ListFilters = useMemo(
-    () => ({
-      status: tab === 'all' ? undefined : tab,
-      q: search.q,
-      from: search.from,
-      to: search.to,
-      version: search.version,
-      fields: fieldFilters,
-    }),
+    () => listFilters({ q: search.q, from: search.from, to: search.to, version: search.version, fields: fieldFilters }, tab),
     [tab, search.q, search.from, search.to, search.version, fieldFilters],
   )
-  // A link like ?open=<id> (from a notification email) opens that submission once.
-  const [openId, setOpenIdState] = useState<string | null>(search.open ?? null)
-  const setOpenId = (id: string | null) => {
-    setOpenIdState(id)
-    if (search.open) setSearch({ open: undefined })
-  }
+  // A link like ?open=<id> (from a notification email) opens that submission's page.
+  useEffect(() => {
+    if (!search.open) return
+    void navigate({
+      to: '/forms/$formId/submissions/$ref',
+      params: { formId: form.id, ref: search.open },
+      search: listSearch(search),
+      replace: true,
+    } as never)
+  }, [search, navigate, form.id])
+  // The view state a submission's page keeps, so Previous / Next walk this list.
+  const viewSearch = useMemo(() => listSearch({ ...search, status: search.status ?? tab }), [search, tab])
+  const openRow = (row: SubmissionSummary) =>
+    void navigate({
+      to: '/forms/$formId/submissions/$ref',
+      params: { formId: form.id, ref: String(row.seq) },
+      search: viewSearch,
+    } as never)
+  const [lastId] = useState(() => lastViewed(form.id))
   // The selection belongs to one filtered view; a new filter starts a new selection.
   const filtersKey = JSON.stringify(filters)
   const [selection, setSelection] = useState<{ key: string; ids: Set<string> }>({ key: '', ids: new Set() })
@@ -157,15 +179,7 @@ export function FormSubmissionsPage() {
   const [exportOpen, setExportOpen] = useState(false)
   const live = useQuery(versionQuery(form.id, form.currentVersion))
   const versions = useQuery({ ...versionsQuery(form.id), enabled: form.currentVersion !== null })
-  const list = useInfiniteQuery({
-    queryKey: ['submissions', form.id, filters],
-    queryFn: ({ pageParam }) => api.listSubmissions(form.id, { ...filters, cursor: pageParam }),
-    initialPageParam: undefined as number | undefined,
-    getNextPageParam: (last) => last.nextCursor ?? undefined,
-    enabled: form.currentVersion !== null && pickedTab,
-  })
-  const rows = useMemo(() => list.data?.pages.flatMap((p) => p.items) ?? [], [list.data])
-  const total = list.data?.pages[0]?.total ?? 0
+  const { list, rows, total } = useSubmissionList(form.id, filters, form.currentVersion !== null && pickedTab)
   const showSkeleton = useDelayed(list.isPending)
   const schema = live.data?.schema
   const language = schema ? formLanguage(schema) : 'en'
@@ -176,10 +190,11 @@ export function FormSubmissionsPage() {
     respondent: showRespondent,
     save: saveColumns,
   } = useColumns(me.data?.id, form.id, fields, form.accessMode !== 'public')
+  const [view, setView] = useSubmissionsView(me.data?.id, form.id)
+  const shownOnCards = useMemo(() => cardFields(fields, form.cardFields), [fields, form.cardFields])
   const canEdit = form.role !== 'viewer'
   const canDelete = form.role === 'owner'
   const sensitive = fields.filter((f) => f.sensitive).map((f) => f.label)
-  const idx = rows.findIndex((r) => r.id === openId)
   const url = form.url
   const filtered = !!(search.q || search.from || search.to || search.version || fieldFilters.length)
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id))
@@ -191,6 +206,18 @@ export function FormSubmissionsPage() {
       ?.querySelector<HTMLElement>('[data-state=active]')
       ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [tab, stats.data])
+
+  // Back from a submission: focus its row or card (whichever is on screen).
+  const refocused = useRef(false)
+  useEffect(() => {
+    if (refocused.current || !lastId || !rows.length) return
+    refocused.current = true
+    const target = [...document.querySelectorAll<HTMLElement>(`[data-submission="${lastId}"]`)].find(
+      (el) => el.offsetParent !== null,
+    )
+    target?.focus({ preventScroll: true })
+    target?.scrollIntoView({ block: 'nearest' })
+  }, [rows, lastId])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -367,8 +394,30 @@ export function FormSubmissionsPage() {
                   value={search.version}
                   onChange={(version) => setSearch({ version })}
                 />
-                <div className="ms-auto max-md:hidden">
-                  <ColumnPicker fields={fields} ids={colIds} language={language} onChange={saveColumns} />
+                <div className="ms-auto flex items-center gap-2 max-md:hidden">
+                  {view === 'table' ? (
+                    <ColumnPicker fields={fields} ids={colIds} language={language} onChange={saveColumns} />
+                  ) : (
+                    canEdit && <CardFieldPicker form={form} fields={fields} shown={shownOnCards} language={language} />
+                  )}
+                  <ToggleGroup
+                    type="single"
+                    variant="outline"
+                    size="sm"
+                    value={view}
+                    onValueChange={(v) => v && setView(v as typeof view)}
+                    aria-label="Show submissions as"
+                    className={toggleGroupOn}
+                  >
+                    <ToggleGroupItem value="table">
+                      <TableIcon />
+                      Table
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="cards">
+                      <LayoutGridIcon />
+                      Cards
+                    </ToggleGroupItem>
+                  </ToggleGroup>
                 </div>
               </div>
               {(fieldFilters.length > 0 || filtered) && (
@@ -397,16 +446,23 @@ export function FormSubmissionsPage() {
             </Alert>
           )}
           {list.isPending ? (
-            showSkeleton && (
+            showSkeleton &&
+            (view === 'cards' ? (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 6 }, (_, i) => (
+                  <Skeleton key={i} className="h-40" />
+                ))}
+              </div>
+            ) : (
               <div className="flex flex-col gap-1">
                 {Array.from({ length: 8 }, (_, i) => (
                   <Skeleton key={i} className="h-10" />
                 ))}
               </div>
-            )
+            ))
           ) : (
             <>
-              <div className="rounded-md border bg-card max-md:hidden">
+              <div className={cn('rounded-md border bg-card max-md:hidden', view === 'cards' && 'hidden')}>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -441,16 +497,14 @@ export function FormSubmissionsPage() {
                         key={row.id}
                         tabIndex={0}
                         className="h-10 cursor-pointer outline-none focus-visible:ring-3 focus-visible:ring-ring/50 data-[open=true]:bg-accent"
-                        data-open={row.id === openId}
+                        data-open={row.id === lastId}
                         data-state={selected.has(row.id) ? 'selected' : undefined}
                         data-submission={row.id}
-                        onClick={() => setOpenId(row.id)}
+                        onClick={() => openRow(row)}
                         onKeyDown={(e) => {
                           if (e.key !== 'Enter' || e.target !== e.currentTarget) return
-                          // Without this the same Enter also clicks the sheet's first button
-                          // (Next) once focus moves into it, opening the wrong submission.
                           e.preventDefault()
-                          setOpenId(row.id)
+                          openRow(row)
                         }}
                       >
                         {canEdit && (
@@ -499,34 +553,29 @@ export function FormSubmissionsPage() {
                   </TableBody>
                 </Table>
               </div>
-              <ItemGroup className="gap-2 md:hidden">
-                {rows.map((row) => (
-                  <Item key={row.id} variant="outline" className="bg-card" asChild>
-                    <button type="button" data-submission={row.id} onClick={() => setOpenId(row.id)}>
-                      <ItemContent className="min-w-0 text-start">
-                        <ItemTitle className="max-w-full tabular-nums">
-                          #{row.seq} {cols[0] && schema && <Cell field={cols[0]} row={row} form={schema} />}
-                        </ItemTitle>
-                        <ItemDescription className="tabular-nums">
-                          {formatDateTime(row.submittedAt)}
-                          {row.respondentEmail && (
-                            <>
-                              , <bdi dir="ltr">{row.respondentEmail}</bdi>
-                            </>
-                          )}
-                          {row.approval?.state === 'pending' && row.approval.step && (
-                            <>, step {row.approval.step} of {row.approval.total}</>
-                          )}
-                        </ItemDescription>
-                      </ItemContent>
-                      <ItemActions>
-                        <SubmissionStatusBadge status={row.status} />
-                      </ItemActions>
-                    </button>
-                  </Item>
-                ))}
-                {!rows.length && <p className="text-sm text-muted-foreground">No submissions match these filters.</p>}
-              </ItemGroup>
+              <div className={cn(view === 'table' && 'md:hidden')}>
+                {rows.length ? (
+                  <SubmissionCards
+                    form={form}
+                    rows={rows}
+                    schema={schema}
+                    fields={fields}
+                    shown={shownOnCards}
+                    canSelect={canEdit}
+                    selected={selected}
+                    onToggle={toggle}
+                    search={viewSearch}
+                    lastId={lastId}
+                  />
+                ) : (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    No submissions match these filters.{' '}
+                    <Button variant="link" onClick={clearFilters}>
+                      Clear filters
+                    </Button>
+                  </p>
+                )}
+              </div>
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span className="tabular-nums">
                   Showing {rows.length} of {total}
@@ -544,12 +593,6 @@ export function FormSubmissionsPage() {
           )}
         </>
       )}
-      <SubmissionSheet
-        id={openId}
-        onClose={() => setOpenId(null)}
-        onPrev={idx > 0 ? () => setOpenId(rows[idx - 1].id) : undefined}
-        onNext={idx >= 0 && idx < rows.length - 1 ? () => setOpenId(rows[idx + 1].id) : undefined}
-      />
       {exporting && (
         <ExportDialog
           key={JSON.stringify(exporting)}

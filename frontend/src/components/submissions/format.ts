@@ -1,5 +1,5 @@
 /** Answers as short text for tables and the detail view. */
-import type { FieldElement, FormLanguage } from '@/schema'
+import type { FieldElement, FormLanguage, Option } from '@/schema'
 
 export function answerText(field: FieldElement, value: unknown, language: FormLanguage): string {
   if (value === undefined || value === null) return ''
@@ -32,4 +32,28 @@ export function answerText(field: FieldElement, value: unknown, language: FormLa
 export function formatPhone(value: string): string {
   const m = /^\+960(\d{3})(\d{4})$/.exec(value)
   return m ? `+960 ${m[1]} ${m[2]}` : value
+}
+
+/** The options a choice answer picked, in the form's order, and any typed "Other" answers. */
+export function chosenOptions(field: FieldElement, value: unknown): { chosen: Option[]; other: string[] } {
+  if (field.type !== 'single_choice' && field.type !== 'multi_choice') return { chosen: [], other: [] }
+  const values = (Array.isArray(value) ? value : [value]).filter((v) => v !== undefined && v !== null && v !== '').map(String)
+  const chosen = field.options.filter((o) => values.includes(o.value))
+  const other = values.filter((v) => !field.options.some((o) => o.value === v))
+  return { chosen, other }
+}
+
+const answerDate = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+  numberingSystem: 'latn',
+})
+
+/** A date answer ("2004-02-03") as "3 Feb 2004": the day as entered, whatever the time zone. */
+export function formatAnswerDate(value: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!m) return value
+  return answerDate.format(new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))))
 }

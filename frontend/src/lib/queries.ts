@@ -43,7 +43,7 @@ export const draftQuery = (formId: string) =>
   queryOptions({ queryKey: ['draft', formId], queryFn: () => api.getDraft(formId), staleTime: 0 })
 
 /** A missing form (404, also for a malformed id) is final: no retry, so the page says so at once. */
-const retryUnlessMissing = (count: number, err: unknown) =>
+export const retryUnlessMissing = (count: number, err: unknown) =>
   !(err instanceof ApiError && (err.status === 404 || err.status === 422)) && count < 1
 
 export const formQuery = (formId: string) =>

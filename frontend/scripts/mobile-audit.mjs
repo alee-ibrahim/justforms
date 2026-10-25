@@ -145,6 +145,17 @@ async function discover(api) {
     const page = await (await api.get(`/api/v1/forms/${form.id}/submissions?limit=5`)).json()
     submissionId = (page.items ?? page.results ?? [])[0]?.id ?? null
   }
+  // An imported submission (copied files, long Jotform ids) on any published form, if there is one.
+  let imported = null
+  for (const f of published.slice(0, 10)) {
+    if (!f.submissionCount) continue
+    const page = await (await api.get(`/api/v1/forms/${f.id}/submissions?limit=200`)).json()
+    const row = (page.items ?? []).find((r) => r.source === 'jotform_import')
+    if (row) {
+      imported = { formId: f.id, seq: row.seq }
+      break
+    }
+  }
   const extra = [...args.path]
   if (!extra.some((p) => p.startsWith('/a/'))) {
     const a = await mailpitLinks(/https?:\/\/\S+\/a\/[A-Za-z0-9_-]+/)
@@ -154,7 +165,7 @@ async function discover(api) {
     const i = await mailpitLinks(/https?:\/\/\S+\/login\/invite\/[A-Za-z0-9_-]+/)
     if (i) extra.push(i)
   }
-  return { org, form, publicForms, submissionId, extra }
+  return { org, form, publicForms, submissionId, imported, extra }
 }
 
 // -- in-page checks ----------------------------------------------------------------------------
@@ -486,7 +497,25 @@ function scenarios(d) {
       await clickIf(page, page.getByRole('checkbox', { name: /^Select #/ }).nth(1))
     }],
   ])
-  if (d.submissionId) add('submission-detail', `${formPath}/submissions?open=${d.submissionId}`)
+  add('submissions-cards', `${formPath}/submissions?status=all`, [
+    ['', async (page) => void (await clickIf(page, page.getByRole('radio', { name: 'Cards' })))],
+  ], { fullPage: true })
+  // The submission's own page (SUBMISSIONS-VIEWER-SCREENS 1): the form view, its tabs, a file preview.
+  const viewerSteps = [
+    ['', null],
+    ['details', async (page) => void (await clickIf(page, page.getByRole('tab', { name: 'Details' })))],
+    ['activity', async (page) => void (await clickIf(page, page.getByRole('tab', { name: /^Activity/ })))],
+    [
+      'file-preview',
+      async (page) => {
+        await clickIf(page, page.getByRole('tab', { name: 'Answers' }))
+        await clickIf(page, page.locator('article button[aria-haspopup=dialog]').first())
+      },
+    ],
+  ]
+  if (d.submissionId) add('submission-detail', `${formPath}/submissions?open=${d.submissionId}`, viewerSteps, { fullPage: true })
+  if (d.imported)
+    add('submission-imported', `/forms/${d.imported.formId}/submissions/${d.imported.seq}`, viewerSteps, { fullPage: true })
   for (const p of d.publicForms) {
     add(`public-${p.lang}`, p.path, [
       ['', null],
@@ -512,10 +541,17 @@ function scenarios(d) {
   add('public-not-found', '/no-such-form', undefined, { anonymous: true })
   for (const p of d.extra)
     add(
-      p.startsWith('/v/') ? 'verify' : p.startsWith('/a/') ? 'approver' : p.startsWith('/login/invite/') ? 'invite' : `page-${p}`,
+      p.startsWith('/v/')
+        ? 'verify'
+        : p.startsWith('/a/')
+          ? 'approver'
+          : p.startsWith('/login/invite/')
+            ? 'invite'
+            : `page${p.replace(/[^A-Za-z0-9]+/g, '-').slice(0, 80)}`,
       p,
       undefined,
-      { anonymous: true, fullPage: true },
+      // Studio pages (/forms/...) are audited signed in.
+      { anonymous: !p.startsWith('/forms/'), fullPage: true },
     )
   return args.only ? list.filter((s) => s.name.includes(args.only)) : list
 }
