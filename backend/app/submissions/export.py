@@ -4,9 +4,13 @@
   ``JUSTFORMS_TIMEZONE``), ``Status``, ``Version``, ``Language``, ``Respondent email`` (the
   confirmed address of email-code and staff-only forms), then one column per question
   across the union of all versions: ordered by the latest version, removed questions at the
-  end. Headers are ``Label (key)`` with labels in the form's language; the fixed headers and
-  words (status, language, "Yes"/"No") are English for every form.
-- Each repeater gets its own sheet: ``Submission #``, ``Row``, then its questions.
+  end with "(version N)" after the label, N being the last version that asked them. Headers
+  are ``Label (key)`` with labels in the form's language; the fixed headers and words (status,
+  language, "Yes"/"No") are English for every form.
+- Each repeater gets its own sheet: ``Submission #``, ``Row``, then its questions. With version
+  field mappings in the form's settings (``app/submissions/version_map.py``), submissions of a
+  version without the repeater get rows there too, read from the mapped fixed questions, and
+  those questions get no columns of their own.
 - Choices show option labels (multi choice joined with ``; ``), files and signatures are links
   to the app (never presigned URLs), numbers stay numbers and everything else is text.
 - dv forms get right-to-left sheets. Cells starting with ``= + - @`` (or a tab or carriage
@@ -46,6 +50,7 @@ from app.schemas.form import (
 )
 from app.services.users import audit
 from app.storage import Storage
+from app.submissions import version_map
 from app.submissions.query import ListFilters, apply_filters
 
 log = logging.getLogger(__name__)
@@ -88,11 +93,18 @@ class Layout:
     repeaters: list[RepeaterSheet]
 
 
-def layout(forms: list[Form]) -> Layout:
-    """Columns across all versions, latest first; ``forms`` is oldest to newest."""
+def layout(
+    forms: list[Form],
+    numbers: list[int] | None = None,
+    mapped: set[str] | frozenset[str] = frozenset(),
+) -> Layout:
+    """Columns across all versions, latest first; ``forms`` is oldest to newest, ``numbers``
+    their version numbers. Questions in ``mapped`` (read as repeater rows) get no column."""
     columns: dict[str, Column] = {}
     repeaters: dict[str, RepeaterSheet] = {}
-    for form in reversed(forms):
+    numbers = numbers or list(range(1, len(forms) + 1))
+    latest = True
+    for form, number in zip(reversed(forms), reversed(numbers), strict=True):
         index = FormIndex.build(form)
         for info in index.elements.values():
             el = info.element
@@ -105,8 +117,10 @@ def layout(forms: list[Form]) -> Layout:
                 continue
             if info.kind != "field" or info.repeater_id is not None:
                 continue
-            if info.id not in columns:
-                columns[info.id] = Column(info.id, el.label, el)  # type: ignore[attr-defined,arg-type]
+            if info.id not in columns and not (info.id in mapped and not latest):
+                label = el.label if latest else f"{el.label} (version {number})"  # type: ignore[attr-defined]
+                columns[info.id] = Column(info.id, label, el)  # type: ignore[arg-type]
+        latest = False
     return Layout(list(columns.values()), list(repeaters.values()))
 
 
@@ -221,7 +235,16 @@ async def _build(db: AsyncSession, storage: Storage, settings: Settings, export:
     forms = [Form.model_validate(v.schema) for v in versions]
     version_no = {v.id: v.version for v in versions}
     language = forms[-1].settings.language if forms else "en"
-    lay = layout(forms)
+    mappings = {
+        m.repeater: m for m in version_map.parse((form_rec.settings or {}).get("versionMappings"))
+    }
+    mapped = {src for m in mappings.values() for src in m.sources}
+    lay = layout(forms, [v.version for v in versions], mapped)
+    # Per version: the mapped repeaters it lacks (their rows come from the mapping).
+    by_mapping = {
+        v.id: [r for r in mappings if not version_map.has_repeater(f, r)]
+        for v, f in zip(versions, forms, strict=True)
+    }
     raw = dict(export.filters or {})
     masked = bool(raw.pop("maskSensitive", False))
     filters = ListFilters.model_validate(raw)
@@ -285,8 +308,13 @@ async def _build(db: AsyncSession, storage: Storage, settings: Settings, export:
                     *(cell_value(c, sub.data.get(c.id), sub, ctx) for c in lay.columns),
                 ]
             )
+            from_mapping = by_mapping.get(sub.form_version_id, [])
             for rep, ws in rep_sheets:
-                rows = sub.data.get(rep.id)
+                rows = (
+                    version_map.mapped_rows(mappings[rep.id], sub.data)
+                    if rep.id in from_mapping
+                    else sub.data.get(rep.id)
+                )
                 for i, row in enumerate(rows if isinstance(rows, list) else []):
                     if not isinstance(row, dict):
                         continue

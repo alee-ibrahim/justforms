@@ -444,7 +444,8 @@ async def test_export_xlsx(
     assert (await client.post(f"/api/v1/forms/{pub.id}/publish")).status_code == 200
     wb, _info = await _export(client, db, settings, queue, file_storage, pub)
     header = rows(wb["Submissions"])[0]
-    assert header[6:8] == ["Full name (name)", "Email (email)"] and header[-1] == "Notes (notes)"
+    assert header[6:8] == ["Full name (name)", "Email (email)"]
+    assert header[-1] == "Notes (version 1) (notes)"
 
 
 async def test_export_dv_and_viewer_masking(

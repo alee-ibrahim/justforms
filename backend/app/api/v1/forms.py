@@ -45,11 +45,12 @@ from app.permissions import (
     has_org_role,
     org_role,
 )
-from app.schemas.form import FormLanguage
+from app.schemas.form import Form, FormLanguage
 from app.services import forms as svc
 from app.services import slugs
 from app.services.progress import DEFAULT_SAVE_PROGRESS_DAYS, MAX_SAVE_PROGRESS_DAYS, progress_out
 from app.services.users import audit
+from app.submissions import version_map
 
 router = APIRouter(tags=["forms"])
 
@@ -79,6 +80,8 @@ class FormOut(ApiModel):
     save_progress_days: int = DEFAULT_SAVE_PROGRESS_DAYS
     # Questions shown on submission cards (None: chosen automatically).
     card_fields: list[str] | None = None
+    # Older versions' fixed questions shown as rows of a newer repeater (export).
+    version_mappings: list[dict[str, Any]] = Field(default_factory=list)
     submission_count: int = 0
     new_count: int = 0
     created_at: datetime
@@ -139,6 +142,17 @@ Domain = Annotated[
 MAX_CARD_FIELDS = 6
 FieldKey = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,62}$")]
 
+
+class VersionMappingIn(ApiModel):
+    """A repeater and, per row, which question of an older version fills each of its
+    questions (``app/submissions/version_map.py``)."""
+
+    repeater: FieldKey
+    rows: list[Annotated[dict[FieldKey, FieldKey], Field(min_length=1)]] = Field(
+        min_length=1, max_length=version_map.MAX_ROWS
+    )
+
+
 Origin = Annotated[
     str,
     StringConstraints(strip_whitespace=True, pattern=r"^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$"),
@@ -159,6 +173,10 @@ class FormPatch(ApiModel):
     save_progress_days: Annotated[int, Field(ge=1, le=MAX_SAVE_PROGRESS_DAYS)] | None = None
     # Questions shown on submission cards; an empty list goes back to the automatic choice.
     card_fields: list[FieldKey] | None = Field(default=None, max_length=MAX_CARD_FIELDS)
+    # Older versions' fixed questions read as repeater rows; an empty list removes them.
+    version_mappings: list[VersionMappingIn] | None = Field(
+        default=None, max_length=version_map.MAX_MAPPINGS
+    )
 
 
 class DraftOut(ApiModel):
@@ -241,6 +259,9 @@ async def form_out(
         captcha=form_mode(form.settings),
         **progress_out(form.settings),
         card_fields=(form.settings or {}).get("cardFields") or None,
+        version_mappings=[
+            m.as_json() for m in version_map.parse((form.settings or {}).get("versionMappings"))
+        ],
         submission_count=counts[0],
         new_count=counts[1],
         created_at=form.created_at,
@@ -458,6 +479,29 @@ async def get_form(db: DbDep, settings: SettingsDep, access: FormViewer) -> Form
     return await form_out(db, settings, access.form, access.role)
 
 
+async def _set_version_mappings(db: DbDep, form: FormRecord, items: list[VersionMappingIn]) -> None:
+    mappings = version_map.parse([i.model_dump() for i in items])
+    if any(len(row) > version_map.MAX_ROW_FIELDS for m in mappings for row in m.rows):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "bad_version_mapping")
+    if mappings:
+        published = (
+            await db.scalars(select(FormVersion.schema).where(FormVersion.form_id == form.id))
+        ).all()
+        found = version_map.problems(
+            mappings,
+            Form.model_validate(form.draft_schema),
+            [Form.model_validate(s) for s in published],
+        )
+        if found:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                {"code": "bad_version_mapping", "problems": found[:20]},
+            )
+    rest = {k: v for k, v in (form.settings or {}).items() if k != "versionMappings"}
+    stored = [m.as_json() for m in mappings]
+    form.settings = {**rest, **({"versionMappings": stored} if stored else {})}
+
+
 @router.patch("/forms/{form_id}", response_model=FormOut)
 async def patch_form(
     body: FormPatch, db: DbDep, settings: SettingsDep, access: FormEditor
@@ -504,6 +548,8 @@ async def patch_form(
         rest = {k: v for k, v in (form.settings or {}).items() if k != "cardFields"}
         cards = list(dict.fromkeys(body.card_fields))
         form.settings = {**rest, **({"cardFields": cards} if cards else {})}
+    if body.version_mappings is not None:
+        await _set_version_mappings(db, form, body.version_mappings)
     if body.retention_days is not None:
         rest = {k: v for k, v in (form.settings or {}).items() if k != "retentionDays"}
         form.settings = {

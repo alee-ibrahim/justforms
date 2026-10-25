@@ -164,6 +164,8 @@ export interface FormSummary {
   saveProgressDays: number
   /** Questions shown on submission cards (null: chosen automatically). */
   cardFields?: string[] | null
+  /** Older versions' fixed questions read as rows of a newer repeater in the export (DESIGN 15.2). */
+  versionMappings?: { repeater: string; rows: Record<string, string>[] }[]
   submissionCount: number
   newCount: number
   createdAt: string
