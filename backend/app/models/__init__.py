@@ -33,6 +33,7 @@ from app.models.org import (
     OrgInvitation,
     OrgMembership,
     OrgRole,
+    SuperadminSource,
     User,
 )
 from app.models.signing import SigningKey
@@ -94,6 +95,7 @@ __all__ = [
     "SubmissionEvent",
     "SubmissionSource",
     "SubmissionStatus",
+    "SuperadminSource",
     "User",
     "Webhook",
     "WebhookDelivery",

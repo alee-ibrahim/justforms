@@ -18,6 +18,7 @@ auth:
     adminGroups: [justforms-admins]
     creatorGroups: [justforms-builders]
     memberGroups: [justforms-users, staff]
+    superadminGroups: [justforms-superadmins]
     existingSecret: justforms-oidc
 
 smtp:

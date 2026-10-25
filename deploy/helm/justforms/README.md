@@ -143,7 +143,11 @@ kubectl -n justforms create secret generic justforms-pdf-signing \
   `auth.oidc.existingSecret`. Register `{publicUrl}/api/v1/auth/callback` as the redirect URI.
   `adminGroups` / `creatorGroups` / `memberGroups` map IdP groups (claim `groupsClaim`) to roles
   in the default organisation (admin > form creator > member). Without group mapping, people get
-  `defaultRole` (`creator`, `member` or `none`) the first time they sign in. Admins can also
+  `defaultRole` (`creator`, `member` or `none`) the first time they sign in.
+  `superadminGroups` (exact group names or IDs, independent of the role groups) makes people
+  superadmins at sign-in and takes it away from those who left the groups, except superadmins
+  created with `create-admin`. With Entra ID, emit only groups assigned to the application to
+  avoid group overage (the token then has no `groups` claim and nothing changes). Admins can also
   invite people from Organisation settings › People; invitations are accepted when that email
   signs in.
 - Otherwise staff sign in with **one-time codes sent by email**, so configure `smtp.*`. Only
@@ -193,6 +197,7 @@ unless noted.
 | `auth.oidc.scopes` | `openid email profile` | `JUSTFORMS_OIDC_SCOPES` |
 | `auth.oidc.groupsClaim` | `groups` | `JUSTFORMS_OIDC_GROUPS_CLAIM` |
 | `auth.oidc.adminGroups` / `.creatorGroups` / `.memberGroups` | `[]` | `JUSTFORMS_OIDC_ADMIN_GROUPS` / `_CREATOR_GROUPS` / `_MEMBER_GROUPS` |
+| `auth.oidc.superadminGroups` | `[]` | `JUSTFORMS_OIDC_SUPERADMIN_GROUPS` |
 | `auth.oidc.defaultRole` | `creator` | `JUSTFORMS_OIDC_DEFAULT_ROLE` (`creator`, `member`, `none`) |
 | `auth.oidc.existingSecret` / `.existingSecretKey` | `""` / `JUSTFORMS_OIDC_CLIENT_SECRET` | `JUSTFORMS_OIDC_CLIENT_SECRET` |
 | `smtp.host` | `""` | `JUSTFORMS_SMTP_HOST` (empty: no email) |

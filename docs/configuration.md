@@ -58,6 +58,7 @@ does this for you. The bucket also needs a CORS rule allowing `POST`, `GET` and 
 | `JUSTFORMS_OIDC_SCOPES` | `openid email profile` | Scopes requested |
 | `JUSTFORMS_OIDC_GROUPS_CLAIM` | `groups` | Claim holding the user's groups |
 | `JUSTFORMS_OIDC_ADMIN_GROUPS`, `_CREATOR_GROUPS`, `_MEMBER_GROUPS` | empty | Map IdP groups to roles in the default organisation (see below) |
+| `JUSTFORMS_OIDC_SUPERADMIN_GROUPS` | empty | IdP groups whose people are superadmins, checked at each sign-in (see below) |
 | `JUSTFORMS_OIDC_DEFAULT_ROLE` | `creator` | Without group mapping: the role people get the first time they sign in (`creator`, `member`, or `none` to let people in only by invitation) |
 | `JUSTFORMS_INVITE_DAYS` | `14` | How long an invitation to join an organisation stays open (a resend restarts it) |
 | `JUSTFORMS_LOGIN_CODE_TTL_SECONDS`, `_LOGIN_CODE_MAX_ATTEMPTS` | `600`, `5` | Emailed sign-in codes |
@@ -81,6 +82,23 @@ mapped group, except people an admin invited. *Upgrading:* `JUSTFORMS_OIDC_MEMBE
 to give a role that could create forms; it now gives the member role. Put groups whose people
 build forms in `JUSTFORMS_OIDC_CREATOR_GROUPS` (the backend logs a warning while only member
 groups are set). Existing members became form creators in the upgrade, so nobody lost access.
+
+**Superadmins from IdP groups.** `JUSTFORMS_OIDC_SUPERADMIN_GROUPS` (comma-separated) makes
+people in any listed group superadmins (every organisation plus instance settings) when they
+sign in with OIDC. It works on its own: the role groups above don't have to be set. Values are
+matched exactly against the groups claim, so use whatever your IdP puts there (group names, or
+group object IDs with Entra ID). When it is set, someone no longer in a listed group loses
+superadmin at their next sign-in, but only if OIDC granted it: superadmins made with
+`justforms create-admin` keep it. Grants and removals are audit-logged
+(`user.superadmin_grant`, `user.superadmin_revoke`). Leaving it empty changes nobody's
+superadmin status.
+
+*Entra ID group overage.* When someone is in more groups than fit in a token, Entra ID leaves
+the `groups` claim out and sends `_claim_names` / `hasgroups` (a pointer to Microsoft Graph)
+instead. JustForms then logs a warning and leaves superadmin status and group-mapped roles as
+they are. Avoid it by configuring the app registration to emit only *groups assigned to the
+application* (and assigning the relevant groups to the app); reading groups from Graph is not
+supported yet.
 
 **Demo login.** `JUSTFORMS_DEMO_LOGIN_CODE` is a fixed 6-digit code accepted, after a code is
 requested, for the addresses in `JUSTFORMS_DEMO_LOGIN_EMAILS` only. The list is required and

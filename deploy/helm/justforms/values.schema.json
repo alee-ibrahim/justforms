@@ -187,6 +187,12 @@
                 "type": "string"
               }
             },
+            "superadminGroups": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
             "defaultRole": {
               "type": "string",
               "enum": ["creator", "member", "none"]

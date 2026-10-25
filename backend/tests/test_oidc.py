@@ -17,7 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1 import auth as auth_api
 from app.auth.oidc import OIDCClient, safe_next
 from app.config import Settings, get_settings
-from app.models import OrgMembership, OrgRole, User
+from app.models import AuditLog, OrgMembership, OrgRole, SuperadminSource, User
+from app.services.users import create_admin
 
 ISSUER = "https://idp.example.org/realms/test"
 CLIENT_ID = "justforms"
@@ -245,6 +246,124 @@ async def test_default_role_none(
     oidc_settings.oidc_default_role = "none"
     await _sign_in(client, idp)
     assert (await client.get("/api/v1/auth/me")).json()["orgs"] == []
+
+
+async def _user(db: AsyncSession) -> User:
+    db.expire_all()
+    user = await db.scalar(select(User).where(User.email == "staff@example.org"))
+    assert user is not None
+    return user
+
+
+async def _audit_actions(db: AsyncSession) -> list[str]:
+    rows = await db.scalars(
+        select(AuditLog.action)
+        .where(AuditLog.action.like("user.superadmin_%"))
+        .order_by(AuditLog.created_at)
+    )
+    return list(rows)
+
+
+async def test_superadmin_group_grants_and_revokes(
+    client: AsyncClient, idp: FakeIdP, db: AsyncSession, oidc_settings: Settings
+) -> None:
+    # Works without any org role mapping, with group object IDs as Entra ID sends them.
+    oidc_settings.oidc_admin_groups = []
+    oidc_settings.oidc_member_groups = []
+    oidc_settings.oidc_superadmin_groups = ["0b1c2d3e-0000-4000-8000-000000000001"]
+    idp.claims = {"groups": ["0b1c2d3e-0000-4000-8000-000000000001", "other"]}
+    await _sign_in(client, idp)
+    user = await _user(db)
+    assert user.is_superadmin and user.superadmin_source == SuperadminSource.OIDC
+    assert (await client.get("/api/v1/auth/me")).json()["isSuperadmin"] is True
+    # Still in the group: nothing changes, no second audit entry.
+    await _sign_in(client, idp)
+    assert await _audit_actions(db) == ["user.superadmin_grant"]
+
+    idp.claims = {"groups": ["other"]}
+    await _sign_in(client, idp)
+    user = await _user(db)
+    assert not user.is_superadmin and user.superadmin_source is None
+    assert await _audit_actions(db) == ["user.superadmin_grant", "user.superadmin_revoke"]
+
+
+async def test_superadmin_groups_match_exact_strings(
+    client: AsyncClient, idp: FakeIdP, db: AsyncSession, oidc_settings: Settings
+) -> None:
+    oidc_settings.oidc_superadmin_groups = ["JustForms-Superadmins"]
+    idp.claims = {"groups": ["justforms-superadmins"]}
+    await _sign_in(client, idp)
+    assert not (await _user(db)).is_superadmin
+
+
+async def test_local_superadmin_is_kept(
+    client: AsyncClient, idp: FakeIdP, db: AsyncSession, oidc_settings: Settings
+) -> None:
+    await create_admin(db, oidc_settings, "staff@example.org")
+    await db.commit()
+    oidc_settings.oidc_superadmin_groups = ["justforms-superadmins"]
+    idp.claims = {"groups": ["someone-else"]}
+    await _sign_in(client, idp)
+    user = await _user(db)
+    assert user.is_superadmin and user.superadmin_source == SuperadminSource.LOCAL
+    # Joining the group doesn't turn a local grant into one OIDC could take away.
+    idp.claims = {"groups": ["justforms-superadmins"]}
+    await _sign_in(client, idp)
+    idp.claims = {"groups": []}
+    await _sign_in(client, idp)
+    user = await _user(db)
+    assert user.is_superadmin and user.superadmin_source == SuperadminSource.LOCAL
+    assert await _audit_actions(db) == []
+
+
+async def test_group_overage_changes_nothing(
+    client: AsyncClient,
+    idp: FakeIdP,
+    db: AsyncSession,
+    oidc_settings: Settings,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    oidc_settings.oidc_superadmin_groups = ["justforms-superadmins"]
+    idp.claims = {"groups": ["justforms-superadmins", "justforms-admins"]}
+    await _sign_in(client, idp)
+    assert (await _user(db)).is_superadmin
+    # Too many groups: Entra ID points at Graph instead of sending the claim.
+    idp.claims = {
+        "_claim_names": {"groups": "src1"},
+        "_claim_sources": {"src1": {"endpoint": "https://graph.example/getMemberObjects"}},
+    }
+    with caplog.at_level("WARNING", logger=auth_api.log.name):
+        await _sign_in(client, idp)
+    assert "group overage" in caplog.text
+    user = await _user(db)
+    assert user.is_superadmin and user.superadmin_source == SuperadminSource.OIDC
+    # The org role the groups gave is kept as well.
+    assert (await client.get("/api/v1/auth/me")).json()["orgs"][0]["role"] == "admin"
+    idp.claims = {"hasgroups": True}
+    await _sign_in(client, idp)
+    assert (await _user(db)).is_superadmin
+    assert await _audit_actions(db) == ["user.superadmin_grant"]
+
+
+async def test_empty_superadmin_groups_change_nothing(
+    client: AsyncClient, idp: FakeIdP, db: AsyncSession, oidc_settings: Settings
+) -> None:
+    idp.claims = {"groups": ["justforms-admins"]}
+    await _sign_in(client, idp)
+    user = await _user(db)
+    assert not user.is_superadmin
+    # An OIDC-granted superadmin from an earlier configuration isn't touched either.
+    user.is_superadmin = True
+    user.superadmin_source = SuperadminSource.OIDC
+    await db.commit()
+    await _sign_in(client, idp)
+    assert (await _user(db)).is_superadmin
+    assert await _audit_actions(db) == []
+
+
+def test_superadmin_groups_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("JUSTFORMS_OIDC_SUPERADMIN_GROUPS", " a-id , Platform Admins ,")
+    assert Settings(environment="test").oidc_superadmin_groups == ["a-id", "Platform Admins"]
 
 
 @pytest.mark.parametrize(

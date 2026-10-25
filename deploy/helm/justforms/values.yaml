@@ -92,6 +92,10 @@ auth:
     adminGroups: []       # JUSTFORMS_OIDC_ADMIN_GROUPS
     creatorGroups: []     # JUSTFORMS_OIDC_CREATOR_GROUPS
     memberGroups: []      # JUSTFORMS_OIDC_MEMBER_GROUPS
+    # IdP groups whose people are superadmins (exact names or group IDs), checked at each
+    # sign-in and independent of the role groups. People who leave the groups lose superadmin
+    # unless it was granted with create-admin. Empty: sign-in never changes superadmin.
+    superadminGroups: []  # JUSTFORMS_OIDC_SUPERADMIN_GROUPS
     # Without group mapping: role on first sign-in (creator, member, or none = invitation only).
     defaultRole: creator  # JUSTFORMS_OIDC_DEFAULT_ROLE
     # Secret holding the client secret (required when enabled). Register

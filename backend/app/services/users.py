@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
-from app.models import AuditLog, Organization, OrgMembership, OrgRole, User
+from app.models import AuditLog, Organization, OrgMembership, OrgRole, SuperadminSource, User
 
 
 def normalize_email(email: str) -> str:
@@ -86,6 +86,8 @@ async def create_admin(
     elif display_name:
         user.display_name = display_name
     user.is_superadmin = True
+    # Granted here, so OIDC superadmin group mapping never takes it away.
+    user.superadmin_source = SuperadminSource.LOCAL
     await set_membership(db, org, user, OrgRole.ADMIN)
     await audit(db, "user.create_admin", org_id=org.id, target_type="user", target_id=user.id)
     return user

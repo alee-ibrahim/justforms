@@ -210,6 +210,8 @@ env:
     value: {{ join "," ($oidc.creatorGroups | default list) | quote }}
   - name: JUSTFORMS_OIDC_MEMBER_GROUPS
     value: {{ join "," $oidc.memberGroups | quote }}
+  - name: JUSTFORMS_OIDC_SUPERADMIN_GROUPS
+    value: {{ join "," ($oidc.superadminGroups | default list) | quote }}
   - name: JUSTFORMS_OIDC_DEFAULT_ROLE
     value: {{ $oidc.defaultRole | default "creator" | quote }}
   {{- include "justforms.secretEnv" (dict "name" "JUSTFORMS_OIDC_CLIENT_SECRET" "secret" $oidc.existingSecret "key" $oidc.existingSecretKey) | nindent 2 }}

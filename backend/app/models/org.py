@@ -29,6 +29,13 @@ class Appearance(StrEnum):
     SYSTEM = "system"
 
 
+class SuperadminSource(StrEnum):
+    """Who made someone a superadmin: locally (``create-admin``) or OIDC group mapping."""
+
+    LOCAL = "local"
+    OIDC = "oidc"
+
+
 class Organization(IdMixin, TimestampMixin, Base):
     __tablename__ = "organizations"
 
@@ -46,6 +53,10 @@ class User(IdMixin, TimestampMixin, Base):
     oidc_issuer: Mapped[str | None] = mapped_column(String(500))
     oidc_subject: Mapped[str | None] = mapped_column(String(255))
     is_superadmin: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Set while is_superadmin is true. OIDC sign-in only takes away what OIDC granted.
+    superadmin_source: Mapped[SuperadminSource | None] = mapped_column(
+        str_enum(SuperadminSource, "superadmin_source")
+    )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     appearance: Mapped[Appearance] = mapped_column(
         str_enum(Appearance, "appearance"), default=Appearance.LIGHT, server_default="light"

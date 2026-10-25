@@ -100,6 +100,11 @@ class Settings(BaseSettings):
     oidc_admin_groups: CsvList = Field(default_factory=list)
     oidc_creator_groups: CsvList = Field(default_factory=list)
     oidc_member_groups: CsvList = Field(default_factory=list)
+    # IdP groups whose people are superadmins (every organisation and instance settings),
+    # checked at each sign-in, independently of the role mapping above. Exact strings: group
+    # names or IDs, whatever the groups claim carries. When set, people no longer in a listed
+    # group lose superadmin at sign-in, unless it was granted locally (create-admin).
+    oidc_superadmin_groups: CsvList = Field(default_factory=list)
     # Without group mapping: the role someone gets in the default organisation the first time
     # they sign in with OIDC, or "none" (people join only by invitation).
     oidc_default_role: Literal["creator", "member", "none"] = "creator"
@@ -315,6 +320,7 @@ class Settings(BaseSettings):
         "oidc_admin_groups",
         "oidc_creator_groups",
         "oidc_member_groups",
+        "oidc_superadmin_groups",
         "cors_origins",
         "trusted_proxies",
         "rate_limits",

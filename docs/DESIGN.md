@@ -438,7 +438,7 @@ All primary keys are UUIDv7, so they sort by time. All tables carry `created_at`
 | Table | Key columns | Notes |
 |---|---|---|
 | `organizations` | `id`, `name`, `slug` (unique), `settings` jsonb | Workspace/tenant. Self-hosters usually run one. |
-| `users` | `id`, `email` (citext unique), `display_name`, `oidc_issuer`, `oidc_subject`, `is_superadmin`, `last_login_at`, `appearance` (`light` default, `dark`, `system`) | Staff and builders. Unique on (`oidc_issuer`, `oidc_subject`). |
+| `users` | `id`, `email` (citext unique), `display_name`, `oidc_issuer`, `oidc_subject`, `is_superadmin`, `superadmin_source` (`local`, `oidc`, null when not a superadmin), `last_login_at`, `appearance` (`light` default, `dark`, `system`) | Staff and builders. Unique on (`oidc_issuer`, `oidc_subject`). `superadmin_source`: `local` from `create-admin`, `oidc` from superadmin group mapping, which only takes away what it granted. |
 | `org_memberships` | `org_id`, `user_id`, `role` enum(`admin`,`creator`,`member`), `idp_managed` | PK (`org_id`, `user_id`). `idp_managed`: granted by OIDC sign-in (group mapping or the first-sign-in default), so group mapping may take it away; invited or admin-added memberships are kept. |
 | `org_invitations` | `id`, `org_id`, `email` (citext), `role`, `status` (`pending`,`accepted`,`cancelled`), `token_hash` (unique, SHA-256), `expires_at`, `invited_by`, `form_grants` jsonb (`[{formId, role}]`), `email_status`, `email_error`, `sent_at`, `send_count`, `accepted_at`, `accepted_user_id` | One pending invitation per (`org_id`, `email`) (partial unique index). Expiry is `JUSTFORMS_INVITE_DAYS` (14) from the last send; "expired" is computed. |
 | `forms` | `id`, `org_id`, `slug` (unique across the install among forms not deleted; the public address `/{slug}`), `title` (denormalised, for listing), `status` enum(`draft`,`live`,`closed`,`archived`), `access_mode` enum(`public`,`otp`,`staff`), `draft_schema` jsonb, `draft_revision` int, `current_version_id`, `settings` jsonb (close date, response limit, captcha, retention days, embed origins), `deleted_at` | `draft_revision` provides optimistic concurrency for the builder and AI. |
@@ -496,6 +496,8 @@ Implementation: a single resolver, `effective_form_role(user, form) -> owner|edi
 
 Optional OIDC group mapping (config): `JUSTFORMS_OIDC_ADMIN_GROUPS`, `JUSTFORMS_OIDC_CREATOR_GROUPS`, `JUSTFORMS_OIDC_MEMBER_GROUPS`. These set the role in the default organisation at each sign-in (admin > creator > member). People in no mapped group lose memberships the IdP granted but keep ones an admin invited them to. Without group mapping, people get `JUSTFORMS_OIDC_DEFAULT_ROLE` (`creator` by default, `member`, or `none` for invitation only) in the default organisation the first time they sign in; someone an admin removes is not added back.
 
+Optional superadmin group mapping: `JUSTFORMS_OIDC_SUPERADMIN_GROUPS`, independent of the role mapping. At each OIDC sign-in, someone in a listed group (exact string match, so group names or IdP object IDs) becomes superadmin with `superadmin_source = oidc`; when the setting is non-empty and they are in none of the groups, a superadmin with source `oidc` loses it. Superadmins with source `local` (`create-admin`) are never changed by sign-in, and an empty setting changes nobody. Audit entries: `user.superadmin_grant` (with the matching groups), `user.superadmin_revoke`. If the ID token carries `_claim_names`/`hasgroups` instead of the groups claim (Entra ID group overage), the backend logs a warning and leaves superadmin and group-mapped roles unchanged; operators should emit only groups assigned to the application. Reading groups from Microsoft Graph is a possible later addition.
+
 ---
 
 ## 8. Authentication flows
@@ -505,7 +507,7 @@ Optional OIDC group mapping (config): `JUSTFORMS_OIDC_ADMIN_GROUPS`, `JUSTFORMS_
 The backend acts as a confidential client (BFF pattern). No tokens reach the browser.
 
 1. SPA → `GET /api/v1/auth/login?next=/forms`. The API creates `state`, `nonce` and a PKCE verifier, stores them in Redis for 10 minutes, and redirects with 302 to the IdP authorize endpoint.
-2. IdP → `GET /api/v1/auth/callback?code&state`. The API exchanges the code, validates the ID token (issuer, audience, nonce, signature via JWKS), and upserts the user by (`iss`, `sub`) with email and name. Group mappings are applied at this point.
+2. IdP → `GET /api/v1/auth/callback?code&state`. The API exchanges the code, validates the ID token (issuer, audience, nonce, signature via JWKS), and upserts the user by (`iss`, `sub`) with email and name. Group mappings (org roles and superadmin, §7) are applied at this point.
 3. The API creates a server-side session in Redis (8 h idle, 7 d absolute) and sets the `justforms_session` cookie (`HttpOnly; Secure; SameSite=Lax; Path=/`) plus a non-HttpOnly `justforms_csrf` cookie.
 4. Logout clears the session and, if the IdP advertises `end_session_endpoint`, performs RP-initiated logout.
 

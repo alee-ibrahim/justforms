@@ -29,7 +29,14 @@ from app.auth.sessions import (
     set_session_cookies,
 )
 from app.email import login_code_message
-from app.models import Appearance, Organization, OrgMembership, OrgRole, User
+from app.models import (
+    Appearance,
+    Organization,
+    OrgMembership,
+    OrgRole,
+    SuperadminSource,
+    User,
+)
 from app.queue import JobQueue, get_queue
 from app.ratelimit import per_ip
 from app.services import invitations
@@ -224,6 +231,48 @@ def _claim_email(claims: dict[str, Any]) -> str | None:
     return None
 
 
+def _claim_groups(settings: SettingsDep, claims: dict[str, Any]) -> set[str] | None:
+    """The person's IdP groups, or None when the IdP left them out of the token.
+
+    Entra ID drops the groups claim when someone is in too many groups ("group overage") and
+    sends ``_claim_names`` (or ``hasgroups``) pointing at Microsoft Graph instead.
+    """
+    name = settings.oidc_groups_claim
+    raw = claims.get(name)
+    if raw is None:
+        claim_names = claims.get("_claim_names")
+        if (isinstance(claim_names, dict) and name in claim_names) or claims.get("hasgroups"):
+            return None
+        return set()
+    return {str(g) for g in raw} if isinstance(raw, list) else set()
+
+
+async def _sync_superadmin(db: DbDep, settings: SettingsDep, user: User, groups: set[str]) -> None:
+    """Grant or take away superadmin from JUSTFORMS_OIDC_SUPERADMIN_GROUPS (DESIGN 7)."""
+    matched = sorted(groups & set(settings.oidc_superadmin_groups))
+    if matched and not user.is_superadmin:
+        user.is_superadmin = True
+        user.superadmin_source = SuperadminSource.OIDC
+        await audit(
+            db,
+            "user.superadmin_grant",
+            target_type="user",
+            target_id=user.id,
+            meta={"source": "oidc", "groups": matched},
+        )
+    elif not matched and user.is_superadmin and user.superadmin_source == SuperadminSource.OIDC:
+        # Only what OIDC granted: superadmins made with create-admin keep it.
+        user.is_superadmin = False
+        user.superadmin_source = None
+        await audit(
+            db,
+            "user.superadmin_revoke",
+            target_type="user",
+            target_id=user.id,
+            meta={"source": "oidc"},
+        )
+
+
 async def upsert_oidc_user(db: DbDep, settings: SettingsDep, claims: dict[str, Any]) -> User:
     issuer, subject = str(claims["iss"]), str(claims["sub"])
     email = _claim_email(claims)
@@ -253,9 +302,18 @@ async def upsert_oidc_user(db: DbDep, settings: SettingsDep, claims: dict[str, A
 
     org = await ensure_default_org(db, settings)
     membership = await db.get(OrgMembership, (org.id, user.id))
-    if settings.oidc_group_mapping:
-        raw_groups = claims.get(settings.oidc_groups_claim) or []
-        groups = {str(g) for g in raw_groups} if isinstance(raw_groups, list) else set()
+    groups = _claim_groups(settings, claims)
+    if groups is None and (settings.oidc_group_mapping or settings.oidc_superadmin_groups):
+        log.warning(
+            "OIDC sign-in of %s: the ID token has no %r claim because the IdP left the groups "
+            "out (Entra ID group overage: _claim_names/hasgroups). Roles and superadmin are "
+            "left unchanged. Emit only the groups assigned to the application instead.",
+            user.email,
+            settings.oidc_groups_claim,
+        )
+    if groups is not None and settings.oidc_superadmin_groups:
+        await _sync_superadmin(db, settings, user, groups)
+    if settings.oidc_group_mapping and groups is not None:
         role: OrgRole | None = None
         if groups & set(settings.oidc_admin_groups):
             role = OrgRole.ADMIN
@@ -270,7 +328,12 @@ async def upsert_oidc_user(db: DbDep, settings: SettingsDep, claims: dict[str, A
             # The IdP is authoritative for what it granted: no mapped group, no role. People
             # an admin invited or added keep theirs.
             await db.delete(membership)
-    elif new_user and membership is None and settings.oidc_default_role != "none":
+    elif (
+        not settings.oidc_group_mapping
+        and new_user
+        and membership is None
+        and settings.oidc_default_role != "none"
+    ):
         membership = await set_membership(db, org, user, OrgRole(settings.oidc_default_role))
         membership.idp_managed = True
     # Invitations for this address. Not when the IdP says the address isn't verified.
