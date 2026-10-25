@@ -215,11 +215,16 @@ as "Step 2 of 3: Match columns" (text, not a custom stepper).
 ### 3.4 Submission detail
 
 Imported submissions show, at the top of the Answers tab, an `Alert` (`HistoryIcon`):
-"Imported from Jotform (submission {id}), originally submitted {date}." When the row has file
-or signature links: "Files and signatures stay on Jotform:" and a list "{question label}:
-{link}" (links open in a new tab, `rel="noopener noreferrer"`, `bdi dir="ltr"`). Imported
-signatures are not part of JustForms' signature audit trail; the Answers list shows them as
-unanswered.
+"Imported from Jotform (submission {id}), originally submitted {date}." When files were
+copied in (`justforms fetch-imported-files`): "Files and signatures copied from Jotform:" and an
+`ItemGroup` of outline `Item`s (thumbnail for images, `FileTextIcon` for PDFs), each with the
+question label, the file name and size, and a ghost download `Button` with a `Tooltip`.
+Signature images carry an outline `Badge` "Imported" and the description "Image from Jotform,
+not captured by JustForms". Links not copied (yet) follow: "Not copied yet, still on Jotform:"
+(or "Files and signatures stay on Jotform:" when nothing was copied) and a list "{question
+label}: {link}" (links open in a new tab, `rel="noopener noreferrer"`, `bdi dir="ltr"`).
+Imported signatures are not part of JustForms' signature audit trail; the Answers list shows
+them as unanswered.
 
 ## 4. Accessibility and keyboard
 

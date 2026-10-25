@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import UTC, datetime, tzinfo
 from typing import Any, Literal
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -104,6 +106,54 @@ async def read_form(
     questions = await _get(region, api_key, f"/form/{form_id}/questions", transport=transport)
     properties = await _get(region, api_key, f"/form/{form_id}/properties", transport=transport)
     return source_from_api(form or {}, questions or {}, properties or {})
+
+
+PAGE = 1000
+MAX_PAGES = 200
+# Jotform's API reports submission times in US Eastern time, whatever the account's own time
+# zone is (its Excel export uses the account's zone instead).
+API_TIMEZONE = "America/New_York"
+
+
+def parse_api_time(value: Any, tz: tzinfo) -> datetime | None:
+    """``2025-04-15 06:12:44`` in ``tz`` -> an aware UTC datetime (None when unreadable)."""
+    try:
+        local = datetime.strptime(str(value).strip(), "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+    return local.replace(tzinfo=tz).astimezone(UTC)
+
+
+async def submission_times(
+    region: Region,
+    api_key: str,
+    form_id: str,
+    *,
+    tz: tzinfo | None = None,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> dict[str, datetime]:
+    """Exact submit time (UTC) of each of the form's submissions, by Jotform submission id.
+    Deleted submissions are left out. Paged, 1000 per request."""
+    if not re.fullmatch(r"\d{1,24}", form_id):
+        raise JotformApiError("not_found")
+    zone = tz or ZoneInfo(API_TIMEZONE)
+    out: dict[str, datetime] = {}
+    for page in range(MAX_PAGES):
+        content = await _get(
+            region,
+            api_key,
+            f"/form/{form_id}/submissions",
+            {"limit": str(PAGE), "offset": str(page * PAGE), "orderby": "id"},
+            transport=transport,
+        )
+        rows = [r for r in content or [] if isinstance(r, dict)]
+        for row in rows:
+            sid, at = str(row.get("id", "")), parse_api_time(row.get("created_at"), zone)
+            if sid and at is not None and row.get("status") != "DELETED":
+                out[sid] = at
+        if len(rows) < PAGE:
+            break
+    return out
 
 
 # -- mapping API JSON onto JfQuestion --------------------------------------------------------

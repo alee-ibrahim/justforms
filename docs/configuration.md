@@ -43,6 +43,9 @@ A name like `JUSTFORMS_S3_ENDPOINT_URL`, `_BUCKET` means `JUSTFORMS_S3_ENDPOINT_
 | `JUSTFORMS_MAX_UPLOAD_MB` | `25` | Largest single upload |
 | `JUSTFORMS_UPLOAD_URL_TTL_SECONDS` | `900` | How long a started upload may take before its upload URL or token expires |
 | `JUSTFORMS_PENDING_UPLOAD_TTL_HOURS` | `24` | Uploads never attached to a submission are purged after this many hours |
+| `JUSTFORMS_JOTFORM_API_KEY` | | Optional Jotform API key. With it, submission imports take exact submit times from Jotform's API, and `justforms fetch-imported-files` / `rebuild-jotform-import` work (DESIGN 13.3). Used only for those calls, sent in the `APIKEY` header, never stored or logged. Give it to the backend and worker from a Secret (Helm: `extraEnv` with `valueFrom.secretKeyRef`) |
+| `JUSTFORMS_JOTFORM_API_REGION` | `us` | `us`, `eu` or `hipaa`: which Jotform API host the key belongs to |
+| `JUSTFORMS_JOTFORM_API_TIMEZONE` | `America/New_York` | Time zone of submission times in Jotform's API (US Eastern, whatever the account's own zone) |
 
 With S3, add the bucket's origin (the public endpoint when one is set) to
 `JUSTFORMS_CSP_EXTRA_CONNECT_SRC` (below) so browsers may upload to it directly; the Helm chart

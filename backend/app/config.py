@@ -160,6 +160,13 @@ class Settings(BaseSettings):
     upload_url_ttl_seconds: int = Field(default=900, ge=60)
     # Uploads never attached to a submission are purged after this many hours.
     pending_upload_ttl_hours: int = Field(default=24, ge=1)
+    # Jotform API key for `justforms fetch-imported-files` (files behind imported links need
+    # it). Read from the environment for that run only; never stored or logged.
+    jotform_api_key: SecretStr | None = None
+    # With a key, submission imports take each row's exact submit time from Jotform's API
+    # (the export file only has dates). Jotform reports API times in US Eastern time.
+    jotform_api_region: Literal["us", "eu", "hipaa"] = "us"
+    jotform_api_timezone: str = "America/New_York"
 
     # Time zone for dates staff see in exports and PDFs, and for "today" in date limits.
     timezone: str = "UTC"

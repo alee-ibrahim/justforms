@@ -20,9 +20,10 @@ from sqlalchemy import func, select
 
 from app.answers import answer_text, mask_sensitive
 from app.api.v1.common import ApiModel
-from app.api.v1.files import content_disposition
+from app.api.v1.files import PREVIEWABLE, content_disposition
 from app.approvals import service as approvals
 from app.auth.deps import CurrentUser, DbDep, SettingsDep, StorageDep
+from app.importers.imported_files import pending_links, stored_entry, stored_files
 from app.integrity import append_event, verify_submission
 from app.logic.index import FormIndex
 from app.models import (
@@ -98,6 +99,21 @@ class EventOut(ApiModel):
     created_at: datetime
 
 
+class ImportedFileOut(ApiModel):
+    """A file or signature image copied from the source product; not part of the answers,
+    the content hash or the signature audit trail."""
+
+    field_id: str
+    index: int
+    kind: Literal["file", "signature"]
+    name: str
+    mime: str
+    size: int
+    fetched_at: str | None = None
+    # GET it (``?preview=1`` shows images inline).
+    url: str
+
+
 class SubmissionDetail(SubmissionSummary):
     form_id: uuid.UUID
     schema_: dict[str, Any] = Field(alias="schema")
@@ -111,9 +127,11 @@ class SubmissionDetail(SubmissionSummary):
     # Hashes kept out of the respondent's PDF; staff see them here (DESIGN 9.5).
     schema_hash: str | None = None
     chain_head: str | None = None
-    # Imported rows: the source's submission id and its file/signature links, by field id.
+    # Imported rows: the source's submission id, the file/signature links that have no stored
+    # copy, by field id, and the stored copies (DESIGN 13.3, "Imported files").
     external_id: str | None = None
     imported_links: dict[str, list[str]] | None = None
+    imported_files: list[ImportedFileOut] = Field(default_factory=list)
 
 
 class StatusPatch(ApiModel):
@@ -337,7 +355,20 @@ async def _detail(db: DbDep, sub: Submission, role: FormRole) -> SubmissionDetai
         data=mask_sensitive(form, sub.data),
         source=sub.source.value,
         external_id=sub.external_id,
-        imported_links=sub.imported_links,
+        imported_links=pending_links(sub.imported_links) or None,
+        imported_files=[
+            ImportedFileOut(
+                field_id=field_id,
+                index=i,
+                kind=e.get("kind", "file"),
+                name=e.get("name", "file"),
+                mime=e.get("mime", "application/octet-stream"),
+                size=int(e.get("size", 0)),
+                fetched_at=e.get("fetchedAt"),
+                url=f"/api/v1/submissions/{sub.id}/imported-files/{field_id}/{i}",
+            )
+            for field_id, i, e in stored_files(sub.imported_links)
+        ],
         schema_=version.schema,
         can_edit=has_form_role(role, FormRole.EDITOR),
         can_delete=has_form_role(role, FormRole.OWNER),
@@ -675,6 +706,39 @@ async def request_pdf(db: DbDep, loaded: Loaded, queue: QueueDep) -> PdfStatusOu
     if start:
         await queue.enqueue("render_submission_pdf", submission_id=str(sub.id))
     return PdfStatusOut(pdf_status=sub.pdf_status)
+
+
+@router.get("/submissions/{submission_id}/imported-files/{field_id}/{index}", response_model=None)
+async def download_imported_file(
+    field_id: Annotated[str, StringConstraints(max_length=63)],
+    index: Annotated[int, Field(ge=0, le=1000)],
+    loaded: Loaded,
+    storage: StorageDep,
+    preview: Annotated[bool, Query()] = False,
+) -> Response:
+    """A stored copy of an imported file or signature (viewer and up). Sent as an
+    attachment like uploads; ``?preview=1`` shows raster images inline under a sandbox CSP."""
+    sub, _form, _role = loaded
+    try:
+        entry = stored_entry(sub.imported_links, field_id, index)
+    except KeyError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "file_not_found") from None
+    name, mime = str(entry.get("name", "file")), str(entry.get("mime", ""))
+    inline = preview and mime in PREVIEWABLE
+    if not inline:
+        url = await storage.presign_download(entry["key"], filename=name)
+        if url is not None:
+            return RedirectResponse(url, status_code=status.HTTP_302_FOUND)
+    return StreamingResponse(
+        storage.iter_chunks(entry["key"]),
+        media_type=mime if inline else "application/octet-stream",
+        headers={
+            "Content-Disposition": content_disposition("inline" if inline else "attachment", name),
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+            "Cache-Control": "private, no-store",
+        },
+    )
 
 
 @router.get("/signatures/{signature_id}/image", response_model=None)

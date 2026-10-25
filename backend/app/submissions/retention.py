@@ -1,6 +1,6 @@
 """Erasing submissions: owner hard delete, soft-delete expiry and per-form retention
 (DESIGN 14.5). Erasing removes the row (files, signatures and events cascade), every stored
-object that belongs to it, and leaves a tombstone in ``audit_log``.
+object that belongs to it (imported copies included), and leaves a tombstone in ``audit_log``.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.importers.imported_files import stored_keys
 from app.models import FileRecord, FormRecord, Signature, Submission
 from app.services.users import audit
 from app.storage import Storage
@@ -39,6 +40,7 @@ async def erase(
         keys += [s.svg_key, s.png_key]
     if sub.signed_pdf_key:
         keys.append(sub.signed_pdf_key)
+    keys += stored_keys(sub.imported_links)
     for key in keys:
         await storage.delete(key)
     await audit(

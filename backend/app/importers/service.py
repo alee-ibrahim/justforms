@@ -7,6 +7,7 @@ import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,8 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.answers import search_text
 from app.branding.images import BrandImageError, clean_image
 from app.config import Settings
+from app.importers.jotform import api_source
 from app.importers.jotform.submissions import (
     IGNORE,
+    RowResult,
     Table,
     convert_row,
     importable_fields,
@@ -69,6 +72,8 @@ async def create_form(
     schema["settings"] = settings
     draft = Form.model_validate(schema).dump()
     record_settings: dict[str, Any] = {"importedFrom": "jotform"}
+    if imp.source.get("jotformFormId"):
+        record_settings["jotformFormId"] = str(imp.source["jotformFormId"])
     if imp.source.get("captcha"):
         record_settings["captcha"] = "auto"
     form = FormRecord(
@@ -153,15 +158,9 @@ async def _import_rows(
     dropped: dict[str, int] = {}
     problem_rows: list[dict[str, Any]] = []
     links_count = 0
-    pending = 0
 
-    # Serialise reference numbers with live submissions on the same form.
-    await db.execute(select(FormRecord.id).where(FormRecord.id == form_rec.id).with_for_update())
-    last = await db.scalar(
-        select(func.max(Submission.seq)).where(Submission.form_id == form_rec.id)
-    )
-    seq = last or 0
-
+    # Convert every row first: reference numbers then go out oldest first.
+    rows: list[tuple[int, RowResult]] = []
     for number, row in enumerate(table.rows, start=2):  # row 1 is the header
         res = convert_row(row, mapping, fields, settings.tz, order)
         for col, code, text in res.problems:
@@ -179,6 +178,27 @@ async def _import_rows(
             continue
         if res.external_id:
             seen.add(res.external_id)
+        rows.append((number, res))
+
+    # Exact submit times from Jotform's API when a key is configured (exports carry dates
+    # only, or times in the account's zone); the file's value stays the fallback.
+    exact, times_report = await exact_times(settings, form_rec)
+    exact_used = 0
+    for _number, res in rows:
+        at = exact.get(res.external_id or "")
+        if at is not None:
+            res.submitted_at = at
+            exact_used += 1
+    rows.sort(key=lambda r: (r[1].submitted_at or now, r[0]))
+
+    # Serialise reference numbers with live submissions on the same form.
+    await db.execute(select(FormRecord.id).where(FormRecord.id == form_rec.id).with_for_update())
+    last = await db.scalar(
+        select(func.max(Submission.seq)).where(Submission.form_id == form_rec.id)
+    )
+    seq = last or 0
+    pending = 0
+    for done, (number, res) in enumerate(rows, start=1):
         seq += 1
         submitted = res.submitted_at.astimezone(UTC) if res.submitted_at else now
         sub = Submission(
@@ -207,12 +227,14 @@ async def _import_rows(
         }
         if res.external_id:
             payload["jotformSubmissionId"] = res.external_id
+            if res.external_id in exact:
+                payload["timeSource"] = "jotform_api"
         await append_event(db, sub, EventType.CREATED, payload=payload)
         imported += 1
         links_count += sum(len(v) for v in res.links.values())
         pending += 1
         if pending >= BATCH:
-            imp.stats = {**imp.stats, "rowsDone": number - 1}
+            imp.stats = {**imp.stats, "rowsDone": done}
             await db.flush()
             pending = 0
 
@@ -226,7 +248,35 @@ async def _import_rows(
         "links": links_count,
         "problemRows": problem_rows,
         "dedupe": has_id,
+        "exactTimes": {**times_report, "used": exact_used},
     }
+
+
+def jotform_form_id(form_rec: FormRecord) -> str | None:
+    value = (form_rec.settings or {}).get("jotformFormId")
+    return str(value) if value else None
+
+
+async def exact_times(
+    settings: Settings, form_rec: FormRecord, jotform_id: str | None = None
+) -> tuple[dict[str, datetime], dict[str, Any]]:
+    """Jotform submission id -> exact submit time (UTC) through the API, when a key is set
+    and the form's Jotform id is known. Never raises: the report says why times are missing."""
+    form_ref = jotform_id or jotform_form_id(form_rec)
+    if settings.jotform_api_key is None or not form_ref:
+        reason = "no_key" if settings.jotform_api_key is None else "no_jotform_form_id"
+        return {}, {"source": "file", "reason": reason}
+    try:
+        times = await api_source.submission_times(
+            settings.jotform_api_region,
+            settings.jotform_api_key.get_secret_value(),
+            form_ref,
+            tz=ZoneInfo(settings.jotform_api_timezone),
+        )
+    except api_source.JotformApiError as exc:
+        log.warning("Jotform submission times unavailable: %s", exc.code)
+        return {}, {"source": "file", "reason": f"api_{exc.code}"}
+    return times, {"source": "jotform_api", "found": len(times)}
 
 
 async def run_submissions_import(

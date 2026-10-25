@@ -24,6 +24,7 @@ import { ActivityList, CommentBox } from './activity'
 import { ApprovalBlock } from './approval-block'
 import { AuditDetails } from './audit-details'
 import { Answers } from './answers'
+import { type ImportedFile, ImportedFiles } from './imported-files'
 import { IntegrityBadge, PdfButton } from './integrity'
 import { STATUS_LABELS } from './labels'
 import { SubmissionStatusBadge } from './status-badge'
@@ -252,6 +253,7 @@ type Imported = SubmissionDetail & {
   source?: string
   externalId?: string | null
   importedLinks?: Record<string, string[]> | null
+  importedFiles?: ImportedFile[]
 }
 
 function fieldLabels(schema: SubmissionDetail['schema']): Map<string, string> {
@@ -269,6 +271,7 @@ function fieldLabels(schema: SubmissionDetail['schema']): Map<string, string> {
 function ImportedNote({ d }: { d: Imported }) {
   if (d.source !== 'jotform_import') return null
   const links = Object.entries(d.importedLinks ?? {})
+  const files = d.importedFiles ?? []
   const labels = fieldLabels(d.schema)
   return (
     <Alert>
@@ -284,9 +287,15 @@ function ImportedNote({ d }: { d: Imported }) {
       </AlertTitle>
       <AlertDescription>
         <p>Originally submitted {formatDateTime(d.submittedAt)}. Signatures from Jotform are not part of JustForms' audit trail.</p>
+        {files.length > 0 && (
+          <>
+            <p>Files and signatures copied from Jotform:</p>
+            <ImportedFiles files={files} labels={labels} />
+          </>
+        )}
         {links.length > 0 && (
           <>
-            <p>Files and signatures stay on Jotform:</p>
+            <p>{files.length > 0 ? 'Not copied yet, still on Jotform:' : 'Files and signatures stay on Jotform:'}</p>
             <ul className="flex list-disc flex-col gap-1 ps-5">
               {links.flatMap(([fieldId, urls]) =>
                 urls.map((u) => (
