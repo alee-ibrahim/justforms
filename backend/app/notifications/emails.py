@@ -179,6 +179,7 @@ Answers are not included in this email.
 {% endif %}{{ body_text }}
 {% if step_of %}{{ step_of }}
 {% endif %}
+
 {{ w.approval_approve }}: {{ approve_url }}
 {{ w.approval_reject }}: {{ reject_url }}
 {{ w.approval_open }}: {{ url }}
