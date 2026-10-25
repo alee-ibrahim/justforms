@@ -9,7 +9,8 @@ Layout, mirrored for Dhivehi forms: the logo and organisation name at the top st
 title (up to three lines, the largest size that fits), an optional description (up to two
 lines), the form's address at the bottom start, and a band in the primary colour along the
 bottom edge. Colours are the form theme's light values; Latin text uses the bundled Atkinson
-Hyperlegible Next and Thaana uses Noto Sans Thaana (both SIL OFL).
+Hyperlegible Next and Thaana the install's server Thaana face (``app.pdf.faces``: the operator's
+``JUSTFORMS_THAANA_FONT_FILE``, else the bundled Noto Sans Thaana).
 """
 
 from __future__ import annotations
@@ -23,7 +24,8 @@ from fpdf import FPDF
 from fpdf.enums import Align
 from PIL import Image
 
-from app.pdf.render import FONTS
+from app.pdf.faces import BUNDLED, FONTS, ThaanaFace
+from app.pdf.render import add_thaana
 
 WIDTH, HEIGHT = 1200, 630
 PAD = 72
@@ -64,6 +66,7 @@ class Card:
     colors: Colors
     logo: bytes | None = None  # PNG or sanitised SVG
     logo_size: tuple[int, int] | None = None
+    thaana: ThaanaFace = BUNDLED  # ``app.pdf.faces.thaana_face(settings, "image")``
 
 
 def _rgb(hex_: str) -> tuple[int, int, int]:
@@ -76,7 +79,7 @@ def is_thaana(text: str) -> bool:
 
 
 class _Canvas(FPDF):
-    def __init__(self) -> None:
+    def __init__(self, thaana: ThaanaFace = BUNDLED) -> None:
         # 1 pt = 1 px: rasterised at scale 1 the page is exactly 1200x630.
         super().__init__(orientation="P", unit="pt", format=(WIDTH, HEIGHT))
         self.set_auto_page_break(False)
@@ -84,8 +87,7 @@ class _Canvas(FPDF):
         self.c_margin = 0
         self.add_font("latin", "", str(FONTS / "AtkinsonHyperlegibleNext-Regular.ttf"))
         self.add_font("latin", "B", str(FONTS / "AtkinsonHyperlegibleNext-Bold.ttf"))
-        self.add_font("thaana", "", str(FONTS / "NotoSansThaana-Regular.ttf"))
-        self.add_font("thaana", "B", str(FONTS / "NotoSansThaana-Bold.ttf"))
+        add_thaana(self, thaana)
         self.add_page()
 
     def use(self, text: str, size: float, *, bold: bool = False) -> float:
@@ -157,7 +159,7 @@ def _logo_box(card: Card) -> tuple[float, float] | None:
 
 
 def _draw(card: Card) -> bytes:
-    c = _Canvas()
+    c = _Canvas(card.thaana)
     c.set_fill_color(*_rgb(card.colors.background))
     c.rect(0, 0, WIDTH, HEIGHT, style="F")
     c.set_fill_color(*_rgb(card.colors.primary))

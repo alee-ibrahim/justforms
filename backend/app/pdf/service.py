@@ -29,6 +29,7 @@ from app.models import (
     Submission,
     SubmissionEvent,
 )
+from app.pdf.faces import thaana_face
 from app.pdf.render import ApprovalLine, FileInfo, PdfInput, SignatureInfo, render_pdf
 from app.pdf.sign import PdfCheck, check_pdf, sign_pdf
 from app.schemas.form import Form
@@ -127,6 +128,7 @@ async def build_input(
             for s in sigs
         },
         approvals=await approval_lines(db, sub),
+        thaana=thaana_face(settings, "pdf"),
     )
 
 

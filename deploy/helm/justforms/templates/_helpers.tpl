@@ -126,6 +126,12 @@ Validation: fail early on settings the backend would reject at start-up.
 {{- if and (has $v.ai.provider (list "gemini" "anthropic")) (not $v.ai.existingSecret) -}}{{- fail (printf "ai.existingSecret is required for ai.provider %s" $v.ai.provider) -}}{{- end -}}
 {{- if and (eq $v.ai.provider "openai_compat") (not $v.ai.baseUrl) -}}{{- fail "ai.baseUrl is required for ai.provider openai_compat" -}}{{- end -}}
 {{- end -}}
+{{- if and $v.fonts.server.configMap $v.fonts.server.secret -}}
+{{- fail "fonts.server: set configMap or secret, not both" -}}
+{{- end -}}
+{{- if and (or $v.fonts.server.configMap $v.fonts.server.secret) (not $v.fonts.server.thaanaKey) -}}
+{{- fail "fonts.server.thaanaKey is required with fonts.server.configMap or fonts.server.secret" -}}
+{{- end -}}
 {{- with $v.thaanaFontCssUrl -}}
 {{- if not (or (hasPrefix "https://" .) (hasPrefix "/" .)) -}}
 {{- fail "thaanaFontCssUrl must be an https:// URL, a /path or empty" -}}
@@ -175,6 +181,16 @@ env:
   {{- with $v.thaanaFonts }}
   - name: JUSTFORMS_THAANA_FONTS
     value: {{ join "," . | quote }}
+  {{- end }}
+  {{- with $v.fonts.server }}
+  {{- if and (or .configMap .secret) .thaanaKey }}
+  - name: JUSTFORMS_THAANA_FONT_FILE
+    value: {{ printf "%s/%s" .mountPath .thaanaKey | quote }}
+  {{- if .thaanaBoldKey }}
+  - name: JUSTFORMS_THAANA_FONT_BOLD_FILE
+    value: {{ printf "%s/%s" .mountPath .thaanaBoldKey | quote }}
+  {{- end }}
+  {{- end }}
   {{- end }}
   {{- if kindIs "bool" $v.cookieSecure }}
   - name: JUSTFORMS_COOKIE_SECURE
@@ -373,6 +389,11 @@ volumeMounts:
     mountPath: {{ $v.branding.mountPath }}
     readOnly: true
   {{- end }}
+  {{- if or $v.fonts.server.configMap $v.fonts.server.secret }}
+  - name: server-fonts
+    mountPath: {{ $v.fonts.server.mountPath }}
+    readOnly: true
+  {{- end }}
   {{- with $v.extraVolumeMounts }}
   {{- toYaml . | nindent 2 }}
   {{- end }}
@@ -402,6 +423,18 @@ volumes:
   - name: branding
     configMap:
       name: {{ . }}
+  {{- end }}
+  {{- with $v.fonts.server.configMap }}
+  - name: server-fonts
+    configMap:
+      name: {{ . }}
+  {{- else }}
+  {{- with $v.fonts.server.secret }}
+  - name: server-fonts
+    secret:
+      secretName: {{ . }}
+      defaultMode: 0444
+  {{- end }}
   {{- end }}
   {{- with $v.extraVolumes }}
   {{- toYaml . | nindent 2 }}

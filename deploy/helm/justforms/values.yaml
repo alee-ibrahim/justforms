@@ -60,6 +60,19 @@ thaanaFontCssUrl: "https://dvfonts.yashau.com/css2?family=Faruma&display=swap"
 # JUSTFORMS_THAANA_FONTS: Thaana fonts a form theme can choose (family names; the first is the
 # default). Empty: the built-in list. With a self-hosted stylesheet, list only what it provides.
 thaanaFonts: []
+# Thaana font for server-side rendering (signed PDFs and link-preview images). Empty: the
+# bundled Noto Sans Thaana. Mount a TrueType/OpenType file whose licence allows it from a
+# ConfigMap (binaryData; up to about 1 MiB) or a Secret, and name its key. Sets
+# JUSTFORMS_THAANA_FONT_FILE (and _BOLD_FILE). The file is checked when first used: without the
+# Thaana letters, or (for PDFs) when its embedding permissions forbid embedding, the bundled face
+# is used and a warning is logged. Restart the API and worker after changing the file.
+fonts:
+  server:
+    configMap: ""
+    secret: ""
+    thaanaKey: ""          # e.g. Thaana-Regular.ttf
+    thaanaBoldKey: ""      # optional; the regular file is used for bold when empty
+    mountPath: /etc/justforms/fonts
 # JUSTFORMS_COOKIE_SECURE: true/false; set to null to use the backend default (on in production).
 cookieSecure: true
 # JUSTFORMS_CORS_ORIGINS: browser origins allowed to call the API. Empty = [publicUrl].

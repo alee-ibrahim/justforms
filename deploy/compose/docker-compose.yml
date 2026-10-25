@@ -87,6 +87,10 @@ x-backend-env: &backend-env
   JUSTFORMS_THAANA_FONT_CSS_URL: "${JUSTFORMS_THAANA_FONT_CSS_URL-https://dvfonts.yashau.com/css2?family=Faruma&display=swap}"
   # Thaana fonts a form theme can choose (comma-separated family names). Empty: the built-in list.
   JUSTFORMS_THAANA_FONTS: ${JUSTFORMS_THAANA_FONTS:-}
+  # Thaana font for server rendering (signed PDFs, link-preview images): a path inside the
+  # backend/worker containers (mount the file there). Empty: the bundled Noto Sans Thaana.
+  JUSTFORMS_THAANA_FONT_FILE: ${JUSTFORMS_THAANA_FONT_FILE:-}
+  JUSTFORMS_THAANA_FONT_BOLD_FILE: ${JUSTFORMS_THAANA_FONT_BOLD_FILE:-}
 
 services:
   postgres:

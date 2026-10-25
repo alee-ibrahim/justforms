@@ -164,6 +164,8 @@ Optional. With no provider every AI feature is hidden. See [Features](features.m
 | `JUSTFORMS_THAANA_FONT_CSS_URL` | the public [dvfonts](https://dvfonts.yashau.com) CDN (Faruma) | Stylesheet for Faruma. `/fonts/faruma.css` to self-host, empty to disable |
 | `JUSTFORMS_THAANA_FONTS` | a built-in list (Faruma, MV Faseyha, MV A Waheed, ...) | Thaana fonts form themes can choose; each loads from the font service above when a form uses it |
 | `JUSTFORMS_FONTS_DIR` | `./fonts` | Compose only: directory (relative to `deploy/compose/`) served at `/fonts/` |
+| `JUSTFORMS_THAANA_FONT_FILE` | empty (bundled Noto Sans Thaana) | Path to a Thaana TTF/OTF inside the API and worker containers, used for server rendering: signed PDFs and link-preview images |
+| `JUSTFORMS_THAANA_FONT_BOLD_FILE` | empty (the regular file) | Optional bold face for the same |
 
 The Thaana stack is `Faruma, "MV Faseyha", "Noto Sans Thaana", sans-serif`. Only Noto Sans
 Thaana (SIL OFL) is bundled. Faruma and MV fonts are never shipped in the repository or the
@@ -186,6 +188,29 @@ well. For example:
 
 On Kubernetes put the same files in a ConfigMap and set `frontend.fontsConfigMap`. Only use
 fonts you are licensed to embed on the web.
+
+### Server-rendered Thaana (PDFs and link previews)
+
+Signed PDFs and generated link-preview images are drawn on the server, so they cannot use the
+browser's fonts. They use the bundled Noto Sans Thaana unless `JUSTFORMS_THAANA_FONT_FILE`
+points at a TrueType/OpenType Thaana font (for example the same face the web uses, if your
+licence allows embedding it). With compose, mount the file into the `backend` and `worker`
+services (e.g. `./fonts/Thaana-Regular.ttf:/etc/justforms/fonts/Thaana-Regular.ttf:ro`) and set
+the variable; with Helm use `fonts.server.*` (see the chart README).
+
+The file is checked once per process, the first time it is needed:
+
+- it must open as a font with outlines and cover the Thaana letters and vowel signs
+  (U+0780 to U+07B0);
+- for PDFs, its OS/2 `fsType` must allow embedding a subset (installable, editable or
+  preview & print; not "restricted", "no subsetting" or "bitmap only"). Link-preview images are
+  rasterised and never contain the font, so a font that may not be embedded is still used there.
+
+A file that fails a check is not used: the bundled face takes its place and a warning is logged
+once. The supplied face is used only for the characters Noto Sans Thaana covers (Thaana,
+Arabic-script punctuation, digits and common punctuation), so Latin words inside Dhivehi text
+keep the Latin face. Generated link-preview images include the font in their version, so they
+are made again when it changes. Restart the API and worker after replacing the file.
 
 ## Abuse controls
 

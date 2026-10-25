@@ -95,6 +95,26 @@ S3 origins added to the CSP:
 Self-hosted fonts: put `fonts.css` and the font files in a ConfigMap and set
 `frontend.fontsConfigMap`; they are served at `/fonts/`.
 
+Server-rendered Thaana (signed PDFs, link-preview images) uses the bundled Noto Sans Thaana
+unless you supply a font whose licence allows it, e.g.:
+
+```sh
+kubectl create configmap justforms-server-fonts --from-file=Thaana-Regular.ttf
+```
+
+```yaml
+fonts:
+  server:
+    configMap: justforms-server-fonts
+    thaanaKey: Thaana-Regular.ttf
+```
+
+The file is checked when first used (it must cover the Thaana letters; for PDFs its OS/2
+`fsType` must allow embedding a subset; link-preview images are rasterised and never contain
+the font). A file that fails falls back to Noto Sans Thaana with one warning in the log.
+Link-preview images are made again when the font changes. Restart the API and worker after
+replacing the file.
+
 ### Security
 
 - Backend, worker and migrate run as uid/gid 10001 (`runAsNonRoot`), with a read-only root
@@ -187,6 +207,8 @@ unless noted.
 | `maxUploadMb` | `25` | `JUSTFORMS_MAX_UPLOAD_MB` |
 | `thaanaFontCssUrl` | dvfonts CDN | `JUSTFORMS_THAANA_FONT_CSS_URL` (also on the frontend) |
 | `thaanaFonts` | `[]` (built-in list) | `JUSTFORMS_THAANA_FONTS` (comma-joined): Thaana fonts form themes can choose |
+| `fonts.server.configMap` / `.secret` | `""` | ConfigMap (`binaryData`) or Secret holding a Thaana TTF/OTF for server rendering (signed PDFs, link-preview images), mounted read-only at `fonts.server.mountPath` (`/etc/justforms/fonts`) in the API, worker and migration job. Empty: the bundled Noto Sans Thaana |
+| `fonts.server.thaanaKey` / `.thaanaBoldKey` | `""` | Keys (file names) in it; set `JUSTFORMS_THAANA_FONT_FILE` / `JUSTFORMS_THAANA_FONT_BOLD_FILE`. Bold is optional (the regular file is used for bold) |
 | `cookieSecure` | `true` | `JUSTFORMS_COOKIE_SECURE`; `null` omits it (backend default: on in production) |
 | `corsOrigins` | `[]` | `JUSTFORMS_CORS_ORIGINS`; empty means `[publicUrl]` |
 | `existingSecret` | `justforms` | Main Secret (see [Secrets](#secrets)) |

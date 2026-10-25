@@ -96,6 +96,9 @@ external secrets operator").
 - The PDF renderer embeds TTFs from `backend/app/pdf/fonts/` (Atkinson Hyperlegible Next and Noto
   Sans Thaana, both SIL OFL, licence files alongside). Only add fonts there under a licence that
   allows embedding.
+- Operators can supply a Thaana TTF/OTF for server rendering (PDFs and link-preview images) with
+  `JUSTFORMS_THAANA_FONT_FILE`; it goes through `app.pdf.faces.thaana_face(settings, purpose)`,
+  which falls back to the bundled Noto Sans Thaana. Tests use renamed copies of the bundled face.
 
 ## Signatures and signed PDFs
 

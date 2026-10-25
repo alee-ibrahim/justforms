@@ -198,6 +198,13 @@ class Settings(BaseSettings):
     # from it when a form uses it; with a self-hosted stylesheet, list only families your
     # /fonts/fonts.css provides. Noto Sans Thaana (bundled) is always offered.
     thaana_fonts: CsvList = Field(default_factory=lambda: list(DEFAULT_THAANA_FONTS))
+    # Thaana TrueType/OpenType font for server-side rendering (signed PDFs, link-preview
+    # images), e.g. a licensed Faruma mounted into the container. Empty: the bundled Noto Sans
+    # Thaana. Checked at first use (Thaana coverage; for PDFs, embedding permissions); an
+    # unusable file falls back to the bundled face with a warning. The bold file is optional
+    # (the regular one is used for bold text when it is not set).
+    thaana_font_file: str = ""
+    thaana_font_bold_file: str = ""
 
     @field_validator("timezone")
     @classmethod

@@ -9,7 +9,8 @@ it stays in the studio, and the hashes that tie the file to its record travel in
 document metadata.
 
 Fonts are bundled under ``fonts/`` (SIL OFL): Atkinson Hyperlegible Next for Latin and
-Noto Sans Thaana for Thaana. Faruma is never bundled (licence unclear, DESIGN 16).
+Noto Sans Thaana for Thaana. Faruma is never bundled (licence unclear, DESIGN 16); an operator
+can supply a Thaana font for server rendering (``JUSTFORMS_THAANA_FONT_FILE``, ``app.pdf.faces``).
 
 Fixed labels (reference, submitted, approval record, footer, "No answer", "Yes"/"No") are
 English for every form. The page follows the form's direction: in a Dhivehi form every line
@@ -23,7 +24,6 @@ import io
 import struct
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
@@ -34,6 +34,7 @@ from fpdf.enums import Align, XPos, YPos
 from app.answers import WORDS, answer_text
 from app.logic.engine import evaluate
 from app.logic.index import FormIndex
+from app.pdf.faces import BUNDLED, FONTS, ThaanaFace
 from app.schemas.form import (
     ContentElement,
     DateField,
@@ -51,7 +52,6 @@ from app.schemas.form import (
     YesNoField,
 )
 
-FONTS = Path(__file__).parent / "fonts"
 INK = (24, 32, 58)
 MUTED = (90, 99, 128)
 # Question labels: a darker ink-muted than MUTED, so they never read as pale captions.
@@ -135,6 +135,15 @@ class PdfInput:
     show_brand: bool = False
     # The form theme's primary colour (title rule and page headings), None for ink.
     accent: tuple[int, int, int] | None = None
+    # The Thaana face (``app.pdf.faces.thaana_face(settings, "pdf")``).
+    thaana: ThaanaFace = BUNDLED
+
+
+def add_thaana(pdf: FPDF, face: ThaanaFace) -> None:
+    """Register ``face`` as the "thaana" family (regular and bold)."""
+    rng = list(face.unicode_range) if face.unicode_range else None
+    pdf.add_font("thaana", "", str(face.regular), unicode_range=rng)
+    pdf.add_font("thaana", "B", str(face.bold), unicode_range=rng)
 
 
 def _size(n: int) -> str:
@@ -160,8 +169,7 @@ class _Doc(FPDF):
         self.set_auto_page_break(True, margin=MARGIN + FOOTER_HEIGHT)
         self.add_font("latin", "", str(FONTS / "AtkinsonHyperlegibleNext-Regular.ttf"))
         self.add_font("latin", "B", str(FONTS / "AtkinsonHyperlegibleNext-Bold.ttf"))
-        self.add_font("thaana", "", str(FONTS / "NotoSansThaana-Regular.ttf"))
-        self.add_font("thaana", "B", str(FONTS / "NotoSansThaana-Bold.ttf"))
+        add_thaana(self, src.thaana)
         self.set_title(f"{src.form_title} {reference(src.seq)}")
         self.set_author(src.org_name or "JustForms")
         self.set_creator("JustForms")

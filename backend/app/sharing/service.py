@@ -34,6 +34,7 @@ from app.branding.service import Brand, image_bytes
 from app.branding.service import resolve as resolve_brand
 from app.config import Settings
 from app.models import FormRecord, Organization
+from app.pdf.faces import thaana_face
 from app.sharing import image as og
 from app.storage import ObjectNotFoundError, Storage
 from app.theme import resolve as themes
@@ -192,6 +193,7 @@ class Preview:
             str(c.rtl),
             json.dumps(c.colors.__dict__, sort_keys=True),
             self.logo_version,
+            c.thaana.version,
         ]
         return hashlib.sha256("\x1f".join(parts).encode()).hexdigest()[:16]
 
@@ -263,6 +265,7 @@ def build(
         address=_address(settings, form.slug),
         rtl=language == "dv",
         colors=colors,
+        thaana=thaana_face(settings, "image"),
     )
     return Preview(
         form_id=form.id,
@@ -353,7 +356,7 @@ class SitePreview:
     @property
     def version(self) -> str:
         c = self.card
-        parts = [og.RENDER_VERSION, c.title, c.address, self.logo_version]
+        parts = [og.RENDER_VERSION, c.title, c.address, self.logo_version, c.thaana.version]
         return hashlib.sha256("\x1f".join(parts).encode()).hexdigest()[:16]
 
     @property
@@ -372,6 +375,7 @@ def build_site(settings: Settings, org: Organization | None) -> SitePreview:
         address=_address(settings, None),
         rtl=og.is_thaana(brand.name),
         colors=colors,
+        thaana=thaana_face(settings, "image"),
     )
     return SitePreview(brand.name, f"{settings.public_origin}/", card, logo_version)
 
