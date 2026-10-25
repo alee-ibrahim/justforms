@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-router'
 
 import { AppShell } from '@/components/layout/app-shell'
+import { validateFormsSearch } from '@/components/forms/forms-view'
 import { validateSubmissionsSearch } from '@/components/submissions/search'
 import { meQuery, metaQuery } from '@/lib/queries'
 import { autoSignInUrl, clearSignedOut, loginTarget, startAutoSignIn } from '@/lib/sso-auto'
@@ -93,6 +94,7 @@ const indexRoute = createRoute({
 const formsRoute = createRoute({
   getParentRoute: () => authedRoute,
   path: '/forms',
+  validateSearch: validateFormsSearch,
   component: FormsPage,
 })
 

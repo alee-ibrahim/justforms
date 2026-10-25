@@ -1,32 +1,20 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
-import { CircleIcon, EllipsisIcon, FileInputIcon, FilePlusIcon, FileTextIcon } from 'lucide-react'
-import { useState } from 'react'
-import { toast } from 'sonner'
+import { useQuery } from '@tanstack/react-query'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
+import { FileInputIcon, FilePlusIcon, FileTextIcon, SearchIcon } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
-import { FormStatusBadge } from '@/components/forms/form-status-badge'
 import { CreateFormDialog } from '@/components/forms/create-form-dialog'
+import { FormsList } from '@/components/forms/forms-list'
+import {
+  applyFormsView,
+  isFiltered,
+  SORT_LABELS,
+  type FormsSearch,
+  type FormsSort,
+} from '@/components/forms/forms-view'
 import { PageContainer } from '@/components/layout/page'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import {
   Empty,
   EmptyContent,
@@ -35,107 +23,159 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
+import { Label } from '@/components/ui/label'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useMenuTooltip } from '@/components/layout/use-menu-tooltip'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { api, type FormSummary } from '@/lib/api'
-import { formatDateTime } from '@/lib/format'
+import type { FormListItem, FormStatus } from '@/lib/api'
+import { FORM_STATUS_LABELS } from '@/lib/labels'
 import { formsQuery, meQuery } from '@/lib/queries'
 import { canCreateForms } from '@/lib/roles'
 import { useDelayed } from '@/lib/use-delayed'
+import { cn } from '@/lib/utils'
 
-function RowMenu({ form, orgId, canCreate }: { form: FormSummary; orgId: string; canCreate: boolean }) {
-  const menuTip = useMenuTooltip()
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const [confirm, setConfirm] = useState(false)
-  const remove = useMutation({
-    mutationFn: () => api.deleteForm(form.id),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['forms', orgId] })
-      toast.success('Deleted the form')
-    },
-    onError: () => toast.error("Couldn't delete the form. Try again."),
-  })
-  const duplicate = useMutation({
-    mutationFn: () => api.duplicateForm(form.id),
-    onSuccess: async (copy) => {
-      await queryClient.invalidateQueries({ queryKey: ['forms', orgId] })
-      toast.success('Duplicated the form')
-      await navigate({ to: '/forms/$formId/edit', params: { formId: copy.id } })
-    },
-    onError: () => toast.error("Couldn't duplicate the form. Try again."),
-  })
-  const canEdit = form.role !== 'viewer'
+function ToolbarSelect({
+  id,
+  label,
+  value,
+  onChange,
+  children,
+  className,
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (value: string) => void
+  children: ReactNode
+  className?: string
+}) {
   return (
-    <>
-      <DropdownMenu>
-        <Tooltip {...menuTip.tooltip}>
-          <TooltipTrigger asChild>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" aria-label="Form actions">
-                <EllipsisIcon />
-              </Button>
-            </DropdownMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent>Form actions</TooltipContent>
-        </Tooltip>
-        <DropdownMenuContent align="end" {...menuTip.content}>
-          {canEdit && (
-            <DropdownMenuItem asChild>
-              <Link to="/forms/$formId/edit" params={{ formId: form.id }}>
-                Open
-              </Link>
-            </DropdownMenuItem>
-          )}
-          {canEdit && canCreate && (
-            <DropdownMenuItem onSelect={() => duplicate.mutate()}>Duplicate</DropdownMenuItem>
-          )}
-          <DropdownMenuItem asChild>
-            <Link to="/forms/$formId/share" params={{ formId: form.id }}>
-              Share
-            </Link>
-          </DropdownMenuItem>
-          {form.role === 'owner' && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onSelect={() => setConfirm(true)}>
-                Delete
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <AlertDialog open={confirm} onOpenChange={setConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this form?</AlertDialogTitle>
-            <AlertDialogDescription>
-              <bdi dir="auto">{form.title || 'Untitled form'}</bdi> and its link stop working
-              for everyone. Submissions are kept for the retention period.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => remove.mutate()}>
-              Delete form
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+    <div className={cn('flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2', className)}>
+      <Label htmlFor={id} className="text-muted-foreground">
+        {label}
+      </Label>
+      <NativeSelect id={id} className="w-full sm:w-auto" value={value} onChange={(e) => onChange(e.target.value)}>
+        {children}
+      </NativeSelect>
+    </div>
   )
 }
 
-function FormsTable({ orgId, canCreate }: { orgId: string; canCreate: boolean }) {
+function useFormsSearch() {
+  const search = useSearch({ strict: false }) as FormsSearch
+  const navigate = useNavigate()
+  const setSearch = (patch: Partial<FormsSearch>) =>
+    void navigate({
+      to: '.',
+      search: (prev: FormsSearch) => {
+        const next: Record<string, unknown> = { ...prev, ...patch }
+        for (const k of Object.keys(next)) if (next[k] === undefined || next[k] === '') delete next[k]
+        return next
+      },
+      replace: true,
+    } as never)
+  return [search, setSearch] as const
+}
+
+function FormsView({
+  forms,
+  orgId,
+  meId,
+  canCreate,
+}: {
+  forms: FormListItem[]
+  orgId: string
+  meId?: string
+  canCreate: boolean
+}) {
+  const [search, setSearch] = useFormsSearch()
+  const [query, setQuery] = useState(search.q ?? '')
+  // The list follows the typing at once; the URL catches up after a pause.
+  const typing = useRef<number | undefined>(undefined)
+  const onType = (value: string) => {
+    setQuery(value)
+    window.clearTimeout(typing.current)
+    typing.current = window.setTimeout(() => setSearch({ q: value.trim() || undefined }), 300)
+  }
+  useEffect(() => () => window.clearTimeout(typing.current), [])
+  const view = useMemo(() => ({ ...search, q: query }), [search, query])
+  const rows = useMemo(() => applyFormsView(forms, view), [forms, view])
+  const sort: FormsSort = search.sort ?? 'edited'
+  const clear = () => {
+    setQuery('')
+    setSearch({ q: undefined, owner: undefined, status: undefined })
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <InputGroup className="lg:max-w-xs">
+          <InputGroupAddon>
+            <SearchIcon />
+          </InputGroupAddon>
+          <InputGroupInput
+            type="search"
+            placeholder="Search forms"
+            aria-label="Search forms"
+            value={query}
+            onChange={(e) => onType(e.target.value)}
+          />
+        </InputGroup>
+        <div className="grid grid-cols-2 gap-2 min-[400px]:grid-cols-3 sm:flex sm:flex-wrap sm:items-center sm:gap-4">
+          <ToolbarSelect
+            id="forms-owner"
+            label="Owner"
+            value={search.owner ?? 'all'}
+            onChange={(v) => setSearch({ owner: v === 'mine' ? 'mine' : undefined })}
+          >
+            <NativeSelectOption value="all">Everyone</NativeSelectOption>
+            <NativeSelectOption value="mine">Owned by me</NativeSelectOption>
+          </ToolbarSelect>
+          <ToolbarSelect
+            id="forms-status"
+            label="Status"
+            value={search.status ?? 'all'}
+            onChange={(v) => setSearch({ status: v === 'all' ? undefined : (v as FormStatus) })}
+          >
+            <NativeSelectOption value="all">All statuses</NativeSelectOption>
+            {(Object.keys(FORM_STATUS_LABELS) as FormStatus[]).map((s) => (
+              <NativeSelectOption key={s} value={s}>
+                {FORM_STATUS_LABELS[s]}
+              </NativeSelectOption>
+            ))}
+          </ToolbarSelect>
+          <ToolbarSelect
+            id="forms-sort"
+            label="Sort by"
+            className="max-[399px]:col-span-2"
+            value={sort}
+            onChange={(v) => setSearch({ sort: v === 'edited' ? undefined : (v as FormsSearch['sort']) })}
+          >
+            {(Object.keys(SORT_LABELS) as FormsSort[]).map((s) => (
+              <NativeSelectOption key={s} value={s}>
+                {SORT_LABELS[s]}
+              </NativeSelectOption>
+            ))}
+          </ToolbarSelect>
+        </div>
+      </div>
+      {rows.length > 0 ? (
+        <FormsList forms={rows} orgId={orgId} meId={meId} canCreate={canCreate} sort={sort} />
+      ) : (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card px-4 py-6 text-sm text-muted-foreground">
+          No forms match these filters.
+          {isFiltered(view) && (
+            <Button variant="link" className="h-auto p-0" onClick={clear}>
+              Clear filters
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FormsSection({ orgId, meId, canCreate }: { orgId: string; meId?: string; canCreate: boolean }) {
   const forms = useQuery(formsQuery(orgId))
   const showSkeleton = useDelayed(forms.isPending)
 
@@ -143,16 +183,14 @@ function FormsTable({ orgId, canCreate }: { orgId: string; canCreate: boolean })
     return showSkeleton ? (
       <div className="flex flex-col gap-2">
         {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} className="h-10 w-full" />
+          <Skeleton key={i} className="h-14 w-full" />
         ))}
       </div>
     ) : null
   if (forms.isError)
     return (
       <Alert variant="destructive">
-        <AlertDescription>
-          Couldn't load your forms. Check your connection and reload the page.
-        </AlertDescription>
+        <AlertDescription>Couldn't load your forms. Check your connection and reload the page.</AlertDescription>
       </Alert>
     )
   if (forms.data.length === 0 && !canCreate)
@@ -192,72 +230,7 @@ function FormsTable({ orgId, canCreate }: { orgId: string; canCreate: boolean })
       </Empty>
     )
 
-  return (
-    <div className="rounded-md border bg-card">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="ps-4">Title</TableHead>
-            <TableHead className="max-sm:hidden">Status</TableHead>
-            <TableHead>Submissions</TableHead>
-            <TableHead className="max-md:hidden">Updated</TableHead>
-            <TableHead className="w-12">
-              <span className="sr-only">Actions</span>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {forms.data.map((form) => (
-            <TableRow key={form.id} className="h-10">
-              <TableCell className="ps-4 font-medium whitespace-normal">
-                {/* Titles are form content (any language): let the browser pick the direction. */}
-                <Link
-                  to={form.role === 'viewer' ? '/forms/$formId/submissions' : '/forms/$formId/edit'}
-                  params={{ formId: form.id }}
-                  className="rounded-sm underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:items-center"
-                >
-                  {form.title ? <bdi dir="auto">{form.title}</bdi> : 'Untitled form'}
-                </Link>
-                {/* Phones drop the Status column; the badge sits under the title instead. */}
-                <div className="mt-1 sm:hidden">
-                  <FormStatusBadge status={form.status} />
-                </div>
-              </TableCell>
-              <TableCell className="max-sm:hidden">
-                <FormStatusBadge status={form.status} />
-              </TableCell>
-              <TableCell className="tabular-nums">
-                {form.currentVersion === null ? (
-                  <span className="text-muted-foreground">-</span>
-                ) : (
-                  <Link
-                    to="/forms/$formId/submissions"
-                    params={{ formId: form.id }}
-                    className="inline-flex items-center gap-2 rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
-                    aria-label={`${form.submissionCount} submissions, ${form.newCount} new`}
-                  >
-                    {form.newCount > 0 && (
-                      <Badge>
-                        <CircleIcon data-icon="inline-start" className="fill-current" />
-                        {form.newCount} new
-                      </Badge>
-                    )}
-                    <span className="text-muted-foreground">{form.submissionCount}</span>
-                  </Link>
-                )}
-              </TableCell>
-              <TableCell className="text-muted-foreground tabular-nums max-md:hidden">
-                {formatDateTime(form.updatedAt)}
-              </TableCell>
-              <TableCell className="text-end">
-                <RowMenu form={form} orgId={orgId} canCreate={canCreate} />
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  )
+  return <FormsView forms={forms.data} orgId={orgId} meId={meId} canCreate={canCreate} />
 }
 
 export function FormsPage() {
@@ -282,7 +255,7 @@ export function FormsPage() {
         )}
       </div>
       {org ? (
-        <FormsTable orgId={org.id} canCreate={canCreate} />
+        <FormsSection orgId={org.id} meId={me?.id} canCreate={canCreate} />
       ) : (
         <Alert>
           <AlertDescription>

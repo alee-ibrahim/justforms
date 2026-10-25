@@ -1,0 +1,40 @@
+/** A forms list row for tests. */
+import type { FormListItem } from '@/lib/api'
+
+export function listItem(overrides: Partial<FormListItem> = {}): FormListItem {
+  return {
+    id: 'f1',
+    orgId: 'o1',
+    orgSlug: 'org',
+    slug: 'form',
+    url: 'https://forms.example.org/form',
+    title: 'Form',
+    status: 'live',
+    accessMode: 'public',
+    draftRevision: 1,
+    currentVersion: 1,
+    role: 'owner',
+    embedOrigins: [],
+    retentionDays: null,
+    otpAllowedDomains: [],
+    otpOneResponse: false,
+    captcha: 'off',
+    submissionCount: 0,
+    newCount: 0,
+    createdAt: '2026-10-01T09:00:00Z',
+    updatedAt: '2026-10-01T09:00:00Z',
+    language: 'en',
+    hasUnpublishedChanges: false,
+    owner: { id: 'u1', name: 'Aminath Ali', email: 'aminath@example.org' },
+    ownerCount: 1,
+    ownedByMe: true,
+    recentCount: 0,
+    approvalsOn: false,
+    pendingApprovalCount: 0,
+    lastSubmissionAt: null,
+    lastEditedAt: '2026-10-01T09:00:00Z',
+    lastEditedBy: null,
+    importedFrom: null,
+    ...overrides,
+  }
+}

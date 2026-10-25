@@ -50,6 +50,14 @@ class Submission(IdMixin, TimestampMixin, Base):
         UniqueConstraint("form_id", "seq"),
         Index("ix_submissions_form_id_created_at", "form_id", "created_at"),
         Index("ix_submissions_form_id_respondent_email", "form_id", "respondent_email"),
+        # Per-form counts and the latest submission for the forms list, from the index alone.
+        Index(
+            "ix_submissions_form_stats",
+            "form_id",
+            "submitted_at",
+            postgresql_include=["status", "approval_state"],
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
         # Imported rows keep the source's id, so importing the same file twice skips them.
         Index(
             "uq_submissions_form_source_external_id",

@@ -3,22 +3,27 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from pydantic import Field, StringConstraints, ValidationError
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, select, true
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import aliased
 
 from app.api.v1.common import ApiModel
+from app.approvals.config import active as approvals_active
+from app.approvals.config import load_config as load_approvals
 from app.auth.deps import CurrentUser, DbDep, SettingsDep
 from app.captcha import CaptchaMode, form_mode
 from app.config import Settings
 from app.models import (
     AccessMode,
+    ApprovalState,
+    FormDraftHistory,
     FormPermission,
     FormRecord,
     FormRole,
@@ -72,6 +77,40 @@ class FormOut(ApiModel):
     new_count: int = 0
     created_at: datetime
     updated_at: datetime
+
+
+class PersonRef(ApiModel):
+    id: uuid.UUID
+    name: str
+    email: str
+
+
+class FormListItem(FormOut):
+    """A row of the forms list (docs/ux/FORMS-LIST-SCREENS.md): the form plus who owns it and
+    its activity. Only what anyone with a role on the form may see (Share and Submissions)."""
+
+    language: FormLanguage = "en"
+    # Published, and the draft differs from the live version.
+    has_unpublished_changes: bool = False
+    # The creator while they are an owner, else the earliest owner; owner_count counts all
+    # explicit owners (organisation admins are owners implicitly and not counted).
+    owner: PersonRef | None = None
+    owner_count: int = 0
+    # The viewer holds an explicit owner grant.
+    owned_by_me: bool = False
+    # Submissions that arrived in the last RECENT_DAYS days.
+    recent_count: int = 0
+    approvals_on: bool = False
+    pending_approval_count: int = 0
+    last_submission_at: datetime | None = None
+    # The latest draft edit (or the creation) and who made it.
+    last_edited_at: datetime
+    last_edited_by: PersonRef | None = None
+    # "jotform" for forms brought in by the importer.
+    imported_from: str | None = None
+
+
+RECENT_DAYS = 7
 
 
 class FormCreate(ApiModel):
@@ -234,35 +273,138 @@ async def slug_check(
     )
 
 
-@router.get("/orgs/{org_id}/forms", response_model=list[FormOut])
+def _person(pid: uuid.UUID | None, name: str | None, email: str | None) -> PersonRef | None:
+    return PersonRef(id=pid, name=name or "", email=email) if pid and email else None
+
+
+@router.get("/orgs/{org_id}/forms", response_model=list[FormListItem])
 async def list_forms(
     org_id: uuid.UUID, db: DbDep, settings: SettingsDep, user: CurrentUser
-) -> list[FormOut]:
-    role_in_org = await org_role(db, user, org_id)
-    base = select(FormRecord).where(FormRecord.org_id == org_id, FormRecord.deleted_at.is_(None))
-    out: list[FormOut] = []
-    if role_in_org == OrgRole.ADMIN:
-        rows = (await db.execute(base.order_by(FormRecord.updated_at.desc()))).scalars().all()
-        counts = await _counts(db, [f.id for f in rows])
-        for form in rows:
-            out.append(
-                await form_out(db, settings, form, FormRole.OWNER, counts.get(form.id, (0, 0)))
-            )
-        return out
-    query = (
-        select(FormRecord, FormPermission.role)
-        .join(FormPermission, FormPermission.form_id == FormRecord.id)
-        .where(
-            FormRecord.org_id == org_id,
-            FormRecord.deleted_at.is_(None),
-            or_(FormPermission.user_id == user.id),
+) -> list[FormListItem]:
+    """Every form the user can open, with its owner and activity, in one query (no N+1).
+
+    Organisation admins see every form; everyone else the forms they hold a role on.
+    """
+    is_admin = await org_role(db, user, org_id) == OrgRole.ADMIN
+    f = FormRecord
+    mine = aliased(FormPermission)
+    editor = aliased(User)
+    since = datetime.now(UTC) - timedelta(days=RECENT_DAYS)
+
+    stats = (
+        select(
+            func.count().label("total"),
+            func.count().filter(Submission.status == SubmissionStatus.NEW).label("new"),
+            func.count().filter(Submission.submitted_at >= since).label("recent"),
+            func.count()
+            .filter(Submission.approval_state == ApprovalState.PENDING)
+            .label("pending"),
+            func.max(Submission.submitted_at).label("last_at"),
         )
-        .order_by(FormRecord.updated_at.desc())
+        .where(Submission.form_id == f.id, Submission.deleted_at.is_(None))
+        .lateral("stats")
     )
-    granted = (await db.execute(query)).all()
-    counts = await _counts(db, [f.id for f, _r in granted])
-    for form, role in granted:
-        out.append(await form_out(db, settings, form, role, counts.get(form.id, (0, 0))))
+    owner = (
+        select(User.id, User.display_name, User.email, func.count().over().label("n"))
+        .join(FormPermission, FormPermission.user_id == User.id)
+        .where(FormPermission.form_id == f.id, FormPermission.role == FormRole.OWNER)
+        .order_by(
+            case((User.id == f.created_by, 0), else_=1), FormPermission.created_at, User.email
+        )
+        .limit(1)
+        .lateral("owner")
+    )
+    edit = (
+        select(FormDraftHistory.created_at, FormDraftHistory.actor_id)
+        .where(FormDraftHistory.form_id == f.id, FormDraftHistory.undone.is_(False))
+        .order_by(FormDraftHistory.revision.desc())
+        .limit(1)
+        .lateral("edit")
+    )
+    edited_at = func.coalesce(edit.c.created_at, f.created_at)
+
+    query = (
+        select(
+            f.id,
+            f.slug,
+            f.title,
+            f.status,
+            f.access_mode,
+            f.draft_revision,
+            f.settings,
+            f.created_at,
+            f.updated_at,
+            f.draft_schema["settings"]["language"].astext.label("language"),
+            FormVersion.version,
+            (f.draft_schema != FormVersion.schema).label("changed"),
+            mine.role.label("my_role"),
+            stats.c.total,
+            stats.c.new,
+            stats.c.recent,
+            stats.c.pending,
+            stats.c.last_at,
+            owner.c.id.label("owner_id"),
+            owner.c.display_name.label("owner_name"),
+            owner.c.email.label("owner_email"),
+            owner.c.n.label("owner_count"),
+            edited_at.label("edited_at"),
+            editor.id.label("editor_id"),
+            editor.display_name.label("editor_name"),
+            editor.email.label("editor_email"),
+        )
+        .outerjoin(FormVersion, FormVersion.id == f.current_version_id)
+        .outerjoin(mine, (mine.form_id == f.id) & (mine.user_id == user.id))
+        .join(stats, true())
+        .outerjoin(owner, true())
+        .outerjoin(edit, true())
+        .outerjoin(editor, editor.id == func.coalesce(edit.c.actor_id, f.created_by))
+        .where(f.org_id == org_id, f.deleted_at.is_(None))
+        .order_by(edited_at.desc(), f.id)
+    )
+    if not is_admin:
+        query = query.where(mine.user_id.is_not(None))
+    rows = (await db.execute(query)).all()
+
+    org = await db.get(Organization, org_id)
+    out: list[FormListItem] = []
+    for r in rows:
+        extra = r.settings or {}
+        out.append(
+            FormListItem(
+                id=r.id,
+                org_id=org_id,
+                org_slug=org.slug if org else "",
+                slug=r.slug,
+                url=f"{settings.public_origin}{slugs.public_path(r.slug)}",
+                title=r.title,
+                status=r.status,
+                access_mode=r.access_mode,
+                draft_revision=r.draft_revision,
+                current_version=r.version,
+                role=FormRole.OWNER if is_admin else r.my_role,
+                embed_origins=list(extra.get("embedOrigins", [])),
+                retention_days=extra.get("retentionDays"),
+                otp_allowed_domains=list(extra.get("otpAllowedDomains", [])),
+                otp_one_response=bool(extra.get("otpOneResponse", False)),
+                captcha=form_mode(extra),
+                submission_count=r.total,
+                new_count=r.new,
+                created_at=r.created_at,
+                updated_at=r.updated_at,
+                language="dv" if r.language == "dv" else "en",
+                has_unpublished_changes=r.version is not None and bool(r.changed),
+                owner=_person(r.owner_id, r.owner_name, r.owner_email),
+                owner_count=r.owner_count or 0,
+                owned_by_me=r.my_role == FormRole.OWNER,
+                recent_count=r.recent,
+                approvals_on=approvals_active(load_approvals(extra)),
+                pending_approval_count=r.pending,
+                last_submission_at=r.last_at,
+                last_edited_at=r.edited_at,
+                last_edited_by=_person(r.editor_id, r.editor_name, r.editor_email),
+                imported_from=extra.get("importedFrom"),
+            )
+        )
     return out
 
 

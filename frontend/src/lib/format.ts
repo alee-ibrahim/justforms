@@ -43,3 +43,16 @@ const dateOnly = new Intl.DateTimeFormat('en-GB', {
 export function formatDate(iso: string): string {
   return dateOnly.format(new Date(iso))
 }
+
+const relative = new Intl.RelativeTimeFormat('en', { numeric: 'auto', style: 'long' })
+
+/** "just now", "5 minutes ago", "yesterday", "3 days ago"; older than 30 days: "7 Nov 2026". */
+export function formatRelative(iso: string, now: number = Date.now()): string {
+  const seconds = Math.round((new Date(iso).getTime() - now) / 1000)
+  const abs = Math.abs(seconds)
+  if (abs < 45) return 'just now'
+  if (abs < 3600) return relative.format(Math.round(seconds / 60), 'minute')
+  if (abs < 86400) return relative.format(Math.round(seconds / 3600), 'hour')
+  if (abs < 30 * 86400) return relative.format(Math.round(seconds / 86400), 'day')
+  return formatDate(iso)
+}

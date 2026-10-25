@@ -165,6 +165,32 @@ export interface FormSummary {
   updatedAt: string
 }
 
+export interface PersonRef {
+  id: string
+  name: string
+  email: string
+}
+
+/** A row of the forms list: the form plus owner and activity (docs/ux/FORMS-LIST-SCREENS.md). */
+export interface FormListItem extends FormSummary {
+  language: FormLanguage
+  /** Published, and the draft differs from the live version. */
+  hasUnpublishedChanges: boolean
+  /** The creator while they are an owner, else the earliest owner. */
+  owner: PersonRef | null
+  ownerCount: number
+  /** The viewer holds an explicit owner grant (admins own every form implicitly). */
+  ownedByMe: boolean
+  /** Submissions in the last 7 days. */
+  recentCount: number
+  approvalsOn: boolean
+  pendingApprovalCount: number
+  lastSubmissionAt: string | null
+  lastEditedAt: string
+  lastEditedBy: PersonRef | null
+  importedFrom: string | null
+}
+
 /** A form theme: every value optional, missing = inherit (backend app/schemas/theme.py). */
 export interface ThemeColors {
   primary?: string
@@ -625,7 +651,7 @@ export const api = {
   verifyCode: (email: string, code: string) =>
     request<Me>('POST', '/auth/local/verify', { email, code }),
 
-  listForms: (orgId: string) => request<FormSummary[]>('GET', `/orgs/${orgId}/forms`),
+  listForms: (orgId: string) => request<FormListItem[]>('GET', `/orgs/${orgId}/forms`),
   createForm: (orgId: string, body: { title: string; language: FormLanguage; slug?: string }) =>
     request<FormSummary>('POST', `/orgs/${orgId}/forms`, body),
   orgTheme: (orgId: string) => request<ThemeOut>('GET', `/orgs/${orgId}/form-theme`),

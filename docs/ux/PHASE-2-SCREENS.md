@@ -992,6 +992,7 @@ Route `/forms/$id/submissions`. Staff triage: find, open, decide, export.
 
 ## 6. Forms list (touch-up for consistency)
 
+Superseded by [FORMS-LIST-SCREENS.md](FORMS-LIST-SCREENS.md) (owner, activity, filters, sorting).
 Not a Phase 2 deliverable but it is the entry point:
 - Page heading "Forms" + primary `Button` "New form".
 - `Table` (not cards): Title, Status (`Badge`: Draft / Live / Closed), Submissions (new
