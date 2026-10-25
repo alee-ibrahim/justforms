@@ -23,6 +23,7 @@ import { listItem } from './list-item.fixture'
 
 const NOW = new Date('2026-10-25T12:00:00Z').getTime()
 let root: Root | undefined
+let current: { state: { location: { pathname: string } } } | undefined
 let host: HTMLElement | undefined
 
 afterEach(() => {
@@ -49,6 +50,7 @@ async function render(forms: FormListItem[], sort: FormsSort = 'edited') {
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
+  current = router
   await act(async () => {
     root!.render(
       <QueryClientProvider client={new QueryClient()}>
@@ -102,8 +104,10 @@ describe('FormsList', () => {
     expect(text).toContain('yesterday')
     expect(text).toContain('by you')
     expect(text).not.toContain('Dhivehi')
-    expect(row!.querySelector('a[href="/forms/grant/edit"]')).not.toBeNull()
-    expect(row!.querySelector('a[href="/forms/grant/submissions"]')?.getAttribute('aria-label')).toBe(
+    // With submissions, the title opens them; Edit stays in the menu.
+    expect(row!.querySelector('a[href="/forms/grant/submissions"]')).not.toBeNull()
+    expect(row!.querySelector('a[href="/forms/grant/edit"]')).toBeNull()
+    expect(row!.querySelector('a[aria-label][href="/forms/grant/submissions"]')?.getAttribute('aria-label')).toBe(
       '128 submissions, 3 new, 5 in the last 7 days, 2 awaiting approval',
     )
   })
@@ -154,5 +158,19 @@ describe('FormsList', () => {
     const sorted = el.querySelector('[data-testid=forms-table] th[aria-sort]')
     expect(sorted?.textContent).toBe('Form')
     expect(sorted?.getAttribute('aria-sort')).toBe('ascending')
+  })
+
+  it('opens submissions or the editor when a row or card is clicked', async () => {
+    const el = await render([
+      listItem({ id: 'busy', title: 'Busy', submissionCount: 2 }),
+      listItem({ id: 'quiet', title: 'Quiet', submissionCount: 0, currentVersion: null, status: 'draft' }),
+    ])
+    const [busy, quiet] = rowsOf(el, 'table')
+    expect(quiet!.querySelector('a[href="/forms/quiet/edit"]')).not.toBeNull()
+    await act(async () => busy!.querySelectorAll('td')[2]!.click())
+    expect(current!.state.location.pathname).toBe('/forms/busy/submissions')
+    const [, quietCard] = rowsOf(el, 'cards')
+    await act(async () => quietCard!.click())
+    expect(current!.state.location.pathname).toBe('/forms/quiet/edit')
   })
 })

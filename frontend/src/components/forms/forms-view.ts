@@ -60,3 +60,9 @@ export function applyFormsView(forms: FormListItem[], search: FormsSearch): Form
     )
     .sort(COMPARE[search.sort ?? 'edited'])
 }
+
+/** Where opening a form goes: its submissions once it has any (and always for submissions
+ * viewers), else the editor. */
+export function openPath(form: FormListItem): '/forms/$formId/submissions' | '/forms/$formId/edit' {
+  return form.role === 'viewer' || form.submissionCount > 0 ? '/forms/$formId/submissions' : '/forms/$formId/edit'
+}

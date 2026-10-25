@@ -1,5 +1,5 @@
 /** English labels for studio UI enums. The studio UI is English only. */
-import type { FormStatus } from '@/lib/api'
+import type { FormRole, FormStatus } from '@/lib/api'
 import type { FieldType } from '@/schema'
 
 export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
@@ -24,4 +24,17 @@ export const FORM_STATUS_LABELS: Record<FormStatus, string> = {
   live: 'Live',
   closed: 'Closed',
   archived: 'Archived',
+}
+
+/** Per-form roles. The API value `viewer` reads "Submissions viewer" everywhere in the UI. */
+export const FORM_ROLE_LABELS: Record<FormRole, string> = {
+  owner: 'Owner',
+  editor: 'Editor',
+  viewer: 'Submissions viewer',
+}
+
+export const FORM_ROLE_DESCRIPTIONS: Record<FormRole, string> = {
+  owner: 'Everything an editor can do, plus manage access and delete the form.',
+  editor: 'Can edit and publish the form and change submission status.',
+  viewer: "Can view and export submissions, can't edit the form.",
 }

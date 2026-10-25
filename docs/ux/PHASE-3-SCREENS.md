@@ -233,21 +233,23 @@ A card on the Share page, after "Versions", visible whether or not the form is p
 │ ┌──────────────────────────────────────────────────────────┐   │
 │ │ (AA) Aminath Ali  aminath@example.org     Owner (admin)  │   │  Item, not editable
 │ │ (IN) Ibrahim N.   ibrahim@example.org     [Editor ▾] [✕] │   │  Select + icon Button
-│ │ (MH) mariyam@example.org                  [Viewer ▾] [✕] │   │
+│ │ (MH) mariyam@example.org      [Submissions viewer ▾] [✕] │   │
 │ └──────────────────────────────────────────────────────────┘   │
-│ [ name@example.org            ] [Viewer ▾] [Add]               │  InputGroup-free row
-│ Viewers read submissions and comment. Editors also change      │
-│ status and edit the form. Owners also manage access and delete.│
+│ [ name@example.org ] [Submissions viewer ▾] [Add]              │  InputGroup-free row
+│ A submissions viewer can view and export submissions, but      │
+│ can't edit the form. Editors also edit the form and change     │
+│ status.                                                        │
+│ Owners also manage access and delete.                          │
 └───────────────────────────────────────────────────────────────┘
 ```
 
 - `Card` like the other Share cards; people as `Item size="sm"` rows with `Avatar`
   initials, `ItemTitle` name (or email), `ItemDescription` email, and at the end either a
-  role `Select` (Owner, Editor, Viewer) plus an icon `Button` "Remove {name}" with
+  role `Select` (Owner, Editor, Submissions viewer; API value `viewer`) plus an icon `Button` "Remove {name}" with
   `Tooltip`, or a muted "Owner (organisation admin)" for admins.
 - Add row: `Input type="email"` with label "Add someone by email" (visually hidden label
   only if the placeholder repeats it; keep a visible `FieldLabel`), role `Select` defaulting
-  to Viewer, `Button` "Add". Only people who already belong to the organisation can be
+  to Submissions viewer, `Button` "Add". Only people who already belong to the organisation can be
   added; otherwise `FieldError`: "No one with that email is in your organisation. Ask an
   admin to add them first."
 - Every change saves at once; toast "Access updated". Removing yourself as an owner asks

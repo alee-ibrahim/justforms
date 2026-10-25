@@ -19,9 +19,9 @@ Three organisation roles. The word in the UI is on the left; the stored value in
 |---|---|---|
 | **Admin** (`admin`) | Everything: organisation settings, branding, form theme, people. Acts as owner of every form. | |
 | **Form creator** (`creator`) | Create and import forms (they become the owner), duplicate forms they can edit. Sees forms they created and forms shared with them. | Organisation settings, people, other people's forms unless shared. |
-| **Member** (`member`) | Open the forms shared with them, in the role they were given (viewer, editor, owner). | Create, import or duplicate forms; organisation settings. |
+| **Member** (`member`) | Open the forms shared with them, in the role they were given (submissions viewer, editor, owner). | Create, import or duplicate forms; organisation settings. |
 
-Form roles (owner, editor, viewer) don't change. Superadmins act as admins of every
+Form roles (owner, editor, viewer) don't change; `viewer` reads "Submissions viewer" in the UI. Superadmins act as admins of every
 organisation. One-line descriptions, used wherever a role is picked:
 
 - Admin: "Everything, including organisation settings and people. Owner of every form."

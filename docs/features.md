@@ -150,7 +150,8 @@ The full mapping is in [DESIGN.md §13](DESIGN.md#13-import-from-jotform).
 - Three organisation roles: **Admin** (everything, including organisation settings, people and
   branding; owner of every form), **Form creator** (creates and imports forms, sees the ones
   they created or that are shared with them) and **Member** (sees only the forms shared with
-  them). Each form also has its own owners, editors and viewers.
+  them). Each form also has its own owners, editors and submissions viewers (can view and export
+  submissions, can't edit the form).
 - Organisation settings › People lists everyone with their role, status (active, never signed
   in, invited, invite expired) and last sign-in, with search.
 - Invite several people at once by email with a role. They get a branded email with a link to

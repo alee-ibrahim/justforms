@@ -17,7 +17,7 @@ editors are on the form's Share page, counts are on its Submissions page.
 
 | Fact | Source | Shown as |
 |---|---|---|
-| Title | form title, in the form's language | link to the builder (viewers: Submissions); `lang`/`dir` from the form |
+| Title | form title, in the form's language | opens Submissions once the form has any (always for submissions viewers), else the builder; `lang`/`dir` from the form |
 | Owner | the form's creator while they are an owner, else the earliest owner | `Avatar` initials + name; "You" for the viewer; more owners: "+2" with the names in the row's accessible text |
 | Status | `draft` / `live` / `closed` / `archived` | `FormStatusBadge` (Draft / Live / Closed / Archived, icon + word) |
 | Unpublished changes | published form whose draft differs from the live version | muted "Unpublished changes" with `FilePenLineIcon` under the badge |
@@ -82,7 +82,16 @@ Title (link), status badge + new badge + count, owner + last submission. Awaitin
 replaces the count line's tail when non-zero ("2 awaiting approval"). Language, access mode
 and edit details stay on the desktop table.
 
-## 5. States
+## 5. Opening a form
+
+- A click anywhere on a row (table) or card opens the form where the title link goes: its
+  Submissions when it has any, else the builder. Clicks on links, buttons and the menu keep
+  their own action; selecting text doesn't navigate. Keyboard users use the title link (same
+  destination), so nothing is reachable by mouse only.
+- The row menu always offers Edit (editors and owners), Submissions, Share, Duplicate and
+  Delete (owners), so both destinations are always one step away.
+
+## 6. States
 
 | State | Copy |
 |---|---|
@@ -91,7 +100,7 @@ and edit details stay on the desktop table.
 | No forms | unchanged `Empty` states (creator / member) |
 | Filters match nothing | inline: "No forms match these filters." [Clear filters] |
 
-## 6. Self-critique
+## 7. Self-critique
 
 | First idea | Problem | Changed to |
 |---|---|---|

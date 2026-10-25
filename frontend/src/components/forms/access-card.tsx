@@ -28,8 +28,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { api, ApiError, type AccessEntry, type AccessList, type FormRole } from '@/lib/api'
+import { FORM_ROLE_LABELS } from '@/lib/labels'
 
-const ROLES: Record<FormRole, string> = { owner: 'Owner', editor: 'Editor', viewer: 'Viewer' }
+const ROLES = FORM_ROLE_LABELS
 
 function initials(e: { displayName?: string; email: string }): string {
   const source = e.displayName?.trim() || e.email
@@ -135,7 +136,7 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
                   ) : manage ? (
                     <>
                       <Select value={e.role} onValueChange={(v) => change(e, v as FormRole)} disabled={lastOwner(e) || save.isPending}>
-                        <SelectTrigger size="sm" className="w-28" aria-label={`Role of ${e.displayName || e.email}`}>
+                        <SelectTrigger size="sm" className="w-44" aria-label={`Role of ${e.displayName || e.email}`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -242,7 +243,7 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
                   />
                 </Field>
                 <Select value={role} onValueChange={(v) => setRole(v as FormRole)}>
-                  <SelectTrigger className="w-28" aria-label="Role">
+                  <SelectTrigger className="w-44" aria-label="Role">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -279,8 +280,8 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
                 </Alert>
               )}
               <FieldDescription>
-                Viewers read submissions and comment. Editors also change status and edit the form. Owners also manage
-                access and delete.
+                A submissions viewer can view and export submissions, but can't edit the form. Editors also edit the
+                form and change status. Owners also manage access and delete.
               </FieldDescription>
             </Field>
           </form>

@@ -479,7 +479,7 @@ Superadmins act as admins of every organisation. An organisation always keeps at
 
 **Sharing with someone new.** Owners grant form roles only to organisation members. When an owner who is also an org admin adds an address from outside, the Share page offers "Invite and share": an invitation as `member` carrying the form role (`POST /forms/{id}/permissions/invite`), listed as pending access on the form until accepted. Other owners are told to ask an admin; inviting brings someone into the whole organisation, which is an admin decision.
 
-**Form roles** (granted per form via `form_permissions`)
+**Form roles** (granted per form via `form_permissions`; the UI calls `viewer` "Submissions viewer": can view and export submissions, can't edit the form)
 
 | Capability | viewer | editor | owner |
 |---|:-:|:-:|:-:|

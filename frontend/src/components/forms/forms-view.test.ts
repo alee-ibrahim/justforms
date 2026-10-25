@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { FormListItem } from '@/lib/api'
 import { formatRelative } from '@/lib/format'
 
-import { applyFormsView, isFiltered, validateFormsSearch } from './forms-view'
+import { applyFormsView, isFiltered, openPath, validateFormsSearch } from './forms-view'
 import { listItem } from './list-item.fixture'
 
 const forms = [
@@ -86,5 +86,13 @@ describe('formatRelative', () => {
     expect(formatRelative('2026-10-24T09:00:00Z', now)).toBe('yesterday')
     expect(formatRelative('2026-10-20T12:00:00Z', now)).toBe('5 days ago')
     expect(formatRelative('2026-08-01T12:00:00Z', now)).toBe('1 Aug 2026')
+  })
+})
+
+describe('openPath', () => {
+  it('opens submissions when there are any, else the editor; submissions viewers always submissions', () => {
+    expect(openPath(listItem({ submissionCount: 3 }))).toBe('/forms/$formId/submissions')
+    expect(openPath(listItem({ submissionCount: 0 }))).toBe('/forms/$formId/edit')
+    expect(openPath(listItem({ submissionCount: 0, role: 'viewer' }))).toBe('/forms/$formId/submissions')
   })
 })

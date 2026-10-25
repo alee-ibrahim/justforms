@@ -11,11 +11,11 @@ import {
   GlobeIcon,
   MailCheckIcon,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type MouseEvent, type ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import { FormStatusBadge } from '@/components/forms/form-status-badge'
-import type { FormsSort } from '@/components/forms/forms-view'
+import { openPath, type FormsSort } from '@/components/forms/forms-view'
 import { useMenuTooltip } from '@/components/layout/use-menu-tooltip'
 import {
   AlertDialog,
@@ -93,10 +93,23 @@ function Owner({ form, meId, className }: { form: FormListItem; meId?: string; c
   )
 }
 
+/** A click anywhere on a row or card opens the form, unless it hit a link, button or menu.
+ * Keyboard users get the same destination from the title link. */
+function useOpenOnClick(form: FormListItem) {
+  const navigate = useNavigate()
+  return (e: MouseEvent<HTMLElement>) => {
+    const target = e.target as HTMLElement
+    if (target.closest('a, button, [role=menuitem], [role=dialog], [role=alertdialog]')) return
+    if (!e.currentTarget.contains(target)) return // clicks inside portals (menus, dialogs)
+    if (window.getSelection()?.toString()) return // selecting text is not a click
+    void navigate({ to: openPath(form), params: { formId: form.id } })
+  }
+}
+
 function FormLink({ form }: { form: FormListItem }) {
   return (
     <Link
-      to={form.role === 'viewer' ? '/forms/$formId/submissions' : '/forms/$formId/edit'}
+      to={openPath(form)}
       params={{ formId: form.id }}
       className={cn(
         FOCUS,
@@ -234,7 +247,7 @@ export function RowMenu({ form, orgId, canCreate }: { form: FormListItem; orgId:
           {canEdit && (
             <DropdownMenuItem asChild>
               <Link to="/forms/$formId/edit" params={{ formId: form.id }}>
-                Open
+                Edit
               </Link>
             </DropdownMenuItem>
           )}
@@ -297,6 +310,24 @@ const SORTED_COLUMN: Partial<Record<FormsSort, string>> = {
   edited: 'last-edited',
 }
 
+function FormRow({ form, children }: { form: FormListItem; children: ReactNode }) {
+  const open = useOpenOnClick(form)
+  return (
+    <TableRow className="cursor-pointer" data-form={form.id} onClick={open}>
+      {children}
+    </TableRow>
+  )
+}
+
+function FormCard({ form, children }: { form: FormListItem; children: ReactNode }) {
+  const open = useOpenOnClick(form)
+  return (
+    <Item variant="outline" className="cursor-pointer items-start bg-card" data-form={form.id} onClick={open}>
+      {children}
+    </Item>
+  )
+}
+
 function FormsTable({ forms, orgId, meId, canCreate, sort, now }: ListProps & { now: number }) {
   const ariaSort = (column: string) =>
     SORTED_COLUMN[sort] === column ? (sort === 'name' ? 'ascending' : 'descending') : undefined
@@ -324,7 +355,7 @@ function FormsTable({ forms, orgId, meId, canCreate, sort, now }: ListProps & { 
         </TableHeader>
         <TableBody>
           {forms.map((form) => (
-            <TableRow key={form.id} className="align-top" data-form={form.id}>
+            <FormRow key={form.id} form={form}>
               <TableCell className="max-w-80 min-w-56 ps-4 whitespace-normal">
                 <FormLink form={form} />
                 <FormFacts form={form} />
@@ -357,7 +388,7 @@ function FormsTable({ forms, orgId, meId, canCreate, sort, now }: ListProps & { 
               <TableCell className="text-end">
                 <RowMenu form={form} orgId={orgId} canCreate={canCreate} />
               </TableCell>
-            </TableRow>
+            </FormRow>
           ))}
         </TableBody>
       </Table>
@@ -370,7 +401,7 @@ function FormCards({ forms, orgId, meId, canCreate, now }: ListProps & { now: nu
   return (
     <ItemGroup className="gap-2 lg:hidden" data-testid="forms-cards">
       {forms.map((form) => (
-        <Item key={form.id} variant="outline" className="items-start bg-card" data-form={form.id}>
+        <FormCard key={form.id} form={form}>
           <ItemContent className="min-w-0 gap-2">
             <ItemTitle className="w-full min-w-0 text-base">
               <FormLink form={form} />
@@ -401,7 +432,7 @@ function FormCards({ forms, orgId, meId, canCreate, now }: ListProps & { now: nu
           <ItemActions>
             <RowMenu form={form} orgId={orgId} canCreate={canCreate} />
           </ItemActions>
-        </Item>
+        </FormCard>
       ))}
     </ItemGroup>
   )
