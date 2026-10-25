@@ -127,12 +127,16 @@ class Conversion:
     language: str
     detected_language: str
     captcha: bool = False
+    # Collapsible sections in the source, and whether each became a page (a step).
+    collapse_sections: int = 0
+    collapse_as_pages: bool = False
 
 
 @dataclass
 class _Ctx:
     language: str
     max_upload_mb: int
+    collapse_as_pages: bool = False
     pool: IdPool = field(default_factory=IdPool)
     report: ImportReport = field(default_factory=ImportReport)
     pages: list[dict[str, Any]] = field(default_factory=list)
@@ -145,6 +149,8 @@ class _Ctx:
     by_qid: dict[str, dict[str, Any]] = field(default_factory=dict)
     page_of: dict[str, int] = field(default_factory=dict)
     started: bool = False  # something visible was added
+    # Our page index where each Jotform page starts (page-skip conditions count Jotform pages).
+    jotform_pages: list[int] = field(default_factory=lambda: [0])
 
     @property
     def page(self) -> dict[str, Any]:
@@ -256,6 +262,44 @@ def _part_section(ctx: _Ctx, q: JfQuestion, defaults: dict[str, str]) -> dict[st
     return section
 
 
+def _new_page(ctx: _Ctx) -> None:
+    """Start a page unless the current one is still empty (and untitled)."""
+    if ctx.page["elements"] or ctx.page.get("title"):
+        ctx.pages.append({"id": f"page_{len(ctx.pages) + 1}", "elements": []})
+    ctx.section = None
+
+
+def _has_field(elements: list[dict[str, Any]]) -> bool:
+    return any(e.get("kind") == "field" or _has_field(e.get("elements", [])) for e in elements)
+
+
+def _collapse_page(ctx: _Ctx, q: JfQuestion) -> None:
+    """A collapsible section as a step: its own page, titled with the section's text.
+
+    Questions before the first collapse keep a page of their own (Jotform shows them above
+    every section); headings or text alone there join the first step instead, so a form
+    whose sections start right after its header gets one step per section.
+    """
+    page = ctx.page
+    if page.get("title") or _has_field(page["elements"]):
+        ctx.pages.append({"id": f"page_{len(ctx.pages) + 1}", "elements": []})
+        page = ctx.page
+    ctx.section = None
+    if q.text:
+        page["title"] = q.text
+    ctx.by_qid[q.qid] = page
+    ctx.page_of[q.qid] = len(ctx.pages) - 1
+    ctx.report.items.append(
+        _item(
+            q,
+            "changed",
+            "page",
+            page,
+            "Became a step: a page of its own with the questions that follow.",
+        )
+    )
+
+
 def _convert_question(ctx: _Ctx, q: JfQuestion) -> None:
     t = q.type
     props = q.props
@@ -265,9 +309,8 @@ def _convert_question(ctx: _Ctx, q: JfQuestion) -> None:
     el: dict[str, Any]
 
     if t == "control_pagebreak":
-        if ctx.page["elements"] or ctx.page.get("title"):
-            ctx.pages.append({"id": f"page_{len(ctx.pages) + 1}", "elements": []})
-        ctx.section = None
+        _new_page(ctx)
+        ctx.jotform_pages.append(len(ctx.pages) - 1)
         report.append(_item(q, "imported", "page", None, "Starts a new page."))
         return
 
@@ -297,6 +340,10 @@ def _convert_question(ctx: _Ctx, q: JfQuestion) -> None:
             )
             notes.append("The sub-heading became a text block under it.")
         report.append(_item(q, "imported", "heading", el, *notes))
+        return
+
+    if t == "control_collapse" and ctx.collapse_as_pages:
+        _collapse_page(ctx, q)
         return
 
     if t == "control_collapse":
@@ -635,7 +682,8 @@ def _iter_fields(elements: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _find(doc: dict[str, Any], element_id: str) -> dict[str, Any] | None:
-    stack: list[dict[str, Any]] = [e for p in doc["pages"] for e in p["elements"]]
+    """The element (or page) with this id."""
+    stack: list[dict[str, Any]] = [*doc["pages"]]
     while stack:
         el = stack.pop()
         if el.get("id") == element_id:
@@ -772,8 +820,8 @@ def _apply_condition(ctx: _Ctx, doc: dict[str, Any], raw: dict[str, Any]) -> Con
         m = re.match(r"^page-(\d+)$", skip)
         if skip in ("end", "page-end"):
             goto = "submit"
-        elif m and 1 <= int(m.group(1)) <= len(doc["pages"]):
-            goto = doc["pages"][int(m.group(1)) - 1]["id"]
+        elif m and 1 <= int(m.group(1)) <= len(ctx.jotform_pages):
+            goto = doc["pages"][ctx.jotform_pages[int(m.group(1)) - 1]]["id"]
         else:
             return ConditionReport(summary, "not_imported", "The page it skips to is unknown.")
         pages = [ctx.page_of.get(str(t.get("field")), 0) for t in terms]
@@ -831,10 +879,17 @@ def convert(
     language: str | None = None,
     max_upload_mb: int = 25,
     source_kind: str = "html",
+    collapse_as_pages: bool | None = None,
 ) -> Conversion:
+    """``collapse_as_pages``: each collapsible section becomes a step (page). ``None`` picks
+    the default: on when the form has collapsible sections and no page breaks."""
     detected = detect_language(src)
     lang = language or detected
-    ctx = _Ctx(language=lang, max_upload_mb=max_upload_mb)
+    collapses = sum(1 for q in src.questions if q.type == "control_collapse")
+    if collapse_as_pages is None:
+        collapse_as_pages = default_collapse_as_pages(src)
+    collapse_as_pages = collapse_as_pages and collapses > 0
+    ctx = _Ctx(language=lang, max_upload_mb=max_upload_mb, collapse_as_pages=collapse_as_pages)
     ctx.pages.append({"id": "page_1", "elements": []})
     for q in src.questions:
         _convert_question(ctx, q)
@@ -881,10 +936,31 @@ def convert(
             f"The text looks {'Dhivehi' if detected == 'dv' else 'English'}, "
             f"but the form language was set to {'Dhivehi' if lang == 'dv' else 'English'}."
         )
+    if collapse_as_pages:
+        report.notes.append(
+            f"Each of the {collapses} collapsible sections became a step (page) of its own, "
+            "the way Jotform shows one section at a time."
+        )
+    elif collapses:
+        report.notes.append(
+            "Collapsible sections are shown open, one after another on the same page."
+        )
     form = Form.model_validate(doc).dump()
     return Conversion(
-        form=form, report=report, language=lang, detected_language=detected, captcha=ctx.captcha
+        form=form,
+        report=report,
+        language=lang,
+        detected_language=detected,
+        captcha=ctx.captcha,
+        collapse_sections=collapses,
+        collapse_as_pages=collapse_as_pages,
     )
+
+
+def default_collapse_as_pages(src: JfSource) -> bool:
+    """Collapsible sections become steps by default when the form has no page breaks."""
+    types = {q.type for q in src.questions}
+    return "control_collapse" in types and "control_pagebreak" not in types
 
 
 def field_count(doc: dict[str, Any]) -> int:

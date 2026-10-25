@@ -122,6 +122,49 @@ async def test_url_import_uses_fetch(
     assert res.json()["report"]["counts"] == {"imported": 74, "changed": 5, "skipped": 0}
 
 
+async def test_collapsible_sections_as_steps_option(
+    client: AsyncClient, db: AsyncSession, settings: Settings, queue: RecordingQueue
+) -> None:
+    me = await admin_client(client, db, settings, queue)
+    res = await _preview(client, me, html=html("registration_form.html"))
+    preview = res.json()
+    assert preview["collapseSections"] == 5 and preview["collapseAsPages"] is True
+    assert preview["pageCount"] == 5
+    assert preview["schema"]["pages"][1]["title"] == "GOVERNANCE STRUCTURE"
+
+    res = await client.patch(
+        f"/api/v1/imports/{preview['id']}/options", json={"collapseAsPages": False}
+    )
+    assert res.status_code == 200, res.text
+    sections = res.json()
+    assert sections["collapseAsPages"] is False and sections["pageCount"] == 1
+    assert sections["fieldCount"] == preview["fieldCount"]
+    assert any("shown open" in n for n in sections["report"]["notes"])
+    assert sections["report"]["logo"] == preview["report"]["logo"]
+
+    res = await client.patch(
+        f"/api/v1/imports/{preview['id']}/options", json={"collapseAsPages": True}
+    )
+    assert res.json()["pageCount"] == 5
+    res = await client.post(f"/api/v1/imports/{preview['id']}/form", json={})
+    draft = (await client.get(f"/api/v1/forms/{res.json()['formId']}/draft")).json()
+    assert [p["title"] for p in draft["schema"]["pages"]][-1] == "DISCLAIMER AND SIGNATURE"
+    res = await client.patch(
+        f"/api/v1/imports/{preview['id']}/options", json={"collapseAsPages": False}
+    )
+    assert res.status_code == 409
+
+    # Asked for up front, and not offered for a form without collapsible sections.
+    res = await _preview(client, me, html=html("registration_form.html"), collapseAsPages=False)
+    assert res.json()["pageCount"] == 1 and res.json()["collapseAsPages"] is False
+    res = await _preview(client, me, html=html("all_controls.html"))
+    assert res.json()["collapseSections"] == 0
+    res = await client.patch(
+        f"/api/v1/imports/{res.json()['id']}/options", json={"collapseAsPages": True}
+    )
+    assert res.status_code == 422
+
+
 async def test_fetch_guard(settings: Settings, monkeypatch: pytest.MonkeyPatch) -> None:
     async def resolve(url: str, _settings: Settings) -> Target:
         host = httpx.URL(url).host

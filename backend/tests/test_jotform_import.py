@@ -19,6 +19,7 @@ from app.importers.jotform import api_source
 from app.importers.jotform.convert import convert
 from app.importers.jotform.fetch import FetchError, normalise_url
 from app.importers.jotform.html_source import NotAJotform, read_html
+from app.importers.jotform.model import JfCondition, JfOption, JfQuestion, JfSource
 from app.importers.jotform.submissions import (
     IGNORE,
     TableError,
@@ -51,6 +52,15 @@ def elements(doc: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 
 # -- the anonymised real form ----------------------------------------------------------------
+
+
+SECTION_TITLES = [
+    "BASIC INFORMATION",
+    "GOVERNANCE STRUCTURE",
+    "MISSION AND OBJECTIVES",
+    "AREAS OF INTEREST",
+    "DISCLAIMER AND SIGNATURE",
+]
 
 
 @pytest.fixture(scope="module")
@@ -87,15 +97,14 @@ def test_registration_converts(registration: Any) -> None:
     assert doc["settings"]["title"] == "Community Network"
     assert doc["settings"]["description"] == "Volunteer Groups Network"
     assert "submitLabel" not in doc["settings"]
-    assert len(doc["pages"]) == 1
-    sections = [e for e in doc["pages"][0]["elements"] if e["kind"] == "section"]
-    assert [s["title"] for s in sections] == [
-        "BASIC INFORMATION",
-        "GOVERNANCE STRUCTURE",
-        "MISSION AND OBJECTIVES",
-        "AREAS OF INTEREST",
-        "DISCLAIMER AND SIGNATURE",
-    ]
+    # No page breaks, five collapsible sections: one step (page) per section by default.
+    assert registration.collapse_sections == 5 and registration.collapse_as_pages
+    assert [p["id"] for p in doc["pages"]] == [f"page_{n}" for n in range(1, 6)]
+    assert [p["title"] for p in doc["pages"]] == SECTION_TITLES
+    assert not any(e["kind"] == "section" for p in doc["pages"] for e in p["elements"])
+    # The heading before the first section joins the first step.
+    assert doc["pages"][0]["elements"][0]["id"] == "heading_1"
+    assert [e["id"] for e in doc["pages"][4]["elements"]] == ["paragraph_1", "signature", "date"]
     els = elements(doc)
     name = els["group_name"]
     assert name["type"] == "short_text" and name["required"] and name["width"] == "half"
@@ -133,15 +142,104 @@ def test_registration_converts(registration: Any) -> None:
     assert sum(1 for e in els.values() if e.get("contentType") == "divider") == 16
 
 
+def test_registration_as_sections() -> None:
+    conv = convert(read_html(fixture("registration_form.html")), collapse_as_pages=False)
+    doc = conv.form
+    assert conv.collapse_sections == 5 and not conv.collapse_as_pages
+    assert len(doc["pages"]) == 1
+    sections = [e for e in doc["pages"][0]["elements"] if e["kind"] == "section"]
+    assert [s["title"] for s in sections] == SECTION_TITLES
+    report = conv.report.as_json()
+    collapse = [i for i in report["items"] if i["jotformType"] == "control_collapse"]
+    assert {i["justformsType"] for i in collapse} == {"section"}
+    assert any("shown open" in n for n in report["notes"])
+
+
+def test_steps_keep_the_same_question_ids(registration: Any) -> None:
+    sections = convert(read_html(fixture("registration_form.html")), collapse_as_pages=False)
+    as_steps = {k for k, v in elements(registration.form).items() if v["kind"] != "section"}
+    as_sections = {k for k, v in elements(sections.form).items() if v["kind"] != "section"}
+    assert as_steps == as_sections
+
+
 def test_registration_report(registration: Any) -> None:
     report = registration.report.as_json()
     assert report["counts"] == {"imported": 74, "changed": 5, "skipped": 0}
     assert len(report["items"]) == 79
+    collapse = [i for i in report["items"] if i["jotformType"] == "control_collapse"]
+    assert [i["justformsType"] for i in collapse] == ["page"] * 5
+    assert [i["elementId"] for i in collapse] == [f"page_{n}" for n in range(1, 6)]
+    assert "step" in collapse[0]["notes"][0]
+    assert any("5 collapsible sections became a step" in n for n in report["notes"])
     assert report["conditions"] == []
     assert "no conditions" in report["conditionsNote"]
     assert any("Cover image" in d for d in report["dropped"])
     title = report["items"][0]
     assert title["jotformType"] == "control_head" and title["justformsType"] == "form title"
+
+
+def _q(qid: str, type_: str, label: str = "", **kw: Any) -> JfQuestion:
+    return JfQuestion(qid=qid, type=type_, label=label, name=snake(label) if label else "", **kw)
+
+
+def _mixed(intro_field: bool = True) -> JfSource:
+    """Page breaks and collapsible sections together, with a page skip and a section rule."""
+    questions = [
+        _q("1", "control_head", text="Mixed"),
+        *([_q("2", "control_textbox", "Intro")] if intro_field else []),
+        _q("3", "control_collapse", text="First section"),
+        _q("4", "control_radio", "Skip ahead", options=[JfOption("Yes"), JfOption("No")]),
+        _q("5", "control_pagebreak"),
+        _q("6", "control_collapse", text="Second section"),
+        _q("7", "control_textbox", "Second"),
+        _q("8", "control_pagebreak"),
+        _q("9", "control_textbox", "Last"),
+    ]
+    skip = {
+        "type": "page",
+        "terms": [{"field": "4", "operator": "equals", "value": "Yes"}],
+        "action": [{"skipTo": "page-3"}],
+    }
+    show = {
+        "type": "field",
+        "terms": [{"field": "4", "operator": "equals", "value": "No"}],
+        "action": [{"visibility": "Show", "field": "6"}],
+    }
+    return JfSource(
+        title="Mixed", questions=questions, conditions=[JfCondition(skip), JfCondition(show)]
+    )
+
+
+def test_page_breaks_win_by_default() -> None:
+    conv = convert(_mixed())
+    assert conv.collapse_sections == 2 and not conv.collapse_as_pages
+    doc = conv.form
+    assert len(doc["pages"]) == 3
+    assert [e["kind"] for e in doc["pages"][1]["elements"]] == ["section"]
+    assert doc["pages"][0]["next"][0]["goto"] == "page_3"
+    assert doc["pages"][1]["elements"][0]["visibleIf"]["field"] == "skip_ahead"
+
+
+def test_collapses_and_page_breaks_as_steps() -> None:
+    conv = convert(_mixed(), collapse_as_pages=True)
+    doc = conv.form
+    Form.model_validate(doc)
+    # The intro question keeps a page; each section and each Jotform page start one.
+    assert [p.get("title") for p in doc["pages"]] == [None, "First section", "Second section", None]
+    assert [e["id"] for e in doc["pages"][0]["elements"]] == ["intro"]
+    # "Skip to Jotform page 3" lands on the page that page became, from the question's page.
+    assert doc["pages"][1]["next"] == [
+        {"if": {"field": "skip_ahead", "op": "eq", "value": True}, "goto": "page_4"}
+    ]
+    # A rule on a section now shows or hides its page.
+    assert doc["pages"][2]["visibleIf"] == {"field": "skip_ahead", "op": "eq", "value": False}
+    assert [c.status for c in conv.report.conditions] == ["imported", "imported"]
+
+
+def test_heading_only_intro_joins_the_first_step() -> None:
+    doc = convert(_mixed(intro_field=False), collapse_as_pages=True).form
+    assert doc["pages"][0]["title"] == "First section"
+    assert len(doc["pages"]) == 3
 
 
 # -- the other control types ---------------------------------------------------------------

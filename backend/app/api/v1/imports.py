@@ -80,6 +80,8 @@ class JotformHtmlIn(ApiModel):
     url: Annotated[str, StringConstraints(max_length=2000, strip_whitespace=True)] | None = None
     # None: detect from the text (mostly Thaana -> dv).
     language: FormLanguage | None = None
+    # Collapsible sections become steps (pages). None: on when the form has no page breaks.
+    collapse_as_pages: bool | None = None
 
     @model_validator(mode="after")
     def _one_source(self) -> JotformHtmlIn:
@@ -96,6 +98,7 @@ class JotformApiKeyIn(ApiModel):
 class JotformApiFormIn(JotformApiKeyIn):
     form_id: JotformId
     language: FormLanguage | None = None
+    collapse_as_pages: bool | None = None
 
 
 class JotformFormOut(ApiModel):
@@ -118,7 +121,14 @@ class FormImportOut(ApiModel):
     jotform_form_id: str | None = None
     field_count: int
     page_count: int
+    # Collapsible sections in the source (0: the option does not apply) and the choice made.
+    collapse_sections: int = 0
+    collapse_as_pages: bool = False
     form_id: uuid.UUID | None = None
+
+
+class FormImportOptionsIn(ApiModel):
+    collapse_as_pages: bool
 
 
 class CreateFormIn(ApiModel):
@@ -206,6 +216,8 @@ def _form_out(imp: Import) -> FormImportOut:
         jotform_form_id=src.get("jotformFormId"),
         field_count=field_count(schema),
         page_count=len(schema["pages"]),
+        collapse_sections=src.get("collapseSections", 0),
+        collapse_as_pages=bool(src.get("collapseAsPages")),
         form_id=imp.form_id,
     )
 
@@ -220,14 +232,28 @@ async def _save_preview(
     src: JfSource,
     conv: Conversion,
     source_url: str | None,
+    other: Conversion | None = None,
 ) -> FormImportOut:
     """Store the preview. The form's logo is downloaded now (so the report is accurate before
-    a draft exists) and kept at ``imports/{id}/logo.{ext}`` until the draft is created."""
+    a draft exists) and kept at ``imports/{id}/logo.{ext}`` until the draft is created.
+
+    ``other`` is the same form converted with the opposite collapsible-section choice; both
+    are kept so the preview can switch without reading the source again."""
     logo = await jf_logo.import_logo(src.logo_url, source_url, settings)
-    report = conv.report.as_json()
-    if logo.image is not None:
-        report["dropped"] = [d for d in report["dropped"] if d != COVER_IMAGE]
-    report["logo"] = logo.report
+
+    def finished(c: Conversion) -> dict[str, Any]:
+        report = c.report.as_json()
+        if logo.image is not None:
+            report["dropped"] = [d for d in report["dropped"] if d != COVER_IMAGE]
+        report["logo"] = logo.report
+        return report
+
+    report = finished(conv)
+    variants: dict[str, Any] = {}
+    if other is not None:
+        for c in (conv, other):
+            key = "pages" if c.collapse_as_pages else "sections"
+            variants[key] = {"form": c.form, "report": finished(c)}
     imp = Import(
         org_id=org_id,
         kind=kind,
@@ -238,6 +264,9 @@ async def _save_preview(
             "sourceUrl": source_url,
             "jotformFormId": src.form_id,
             "captcha": conv.captcha,
+            "collapseSections": conv.collapse_sections,
+            "collapseAsPages": conv.collapse_as_pages,
+            "variants": variants,
         },
         report=report,
         created_by=user.id,
@@ -257,13 +286,31 @@ async def _save_preview(
     return _form_out(imp)
 
 
-def _convert(src: JfSource, language: str | None, settings: Any, kind: str) -> Conversion:
+def _convert(
+    src: JfSource, language: str | None, settings: Any, kind: str, collapse_as_pages: bool | None
+) -> tuple[Conversion, Conversion | None]:
+    """The conversion asked for, and the one with the opposite collapsible-section choice
+    when the form has collapsible sections."""
     try:
-        return convert(
-            src, language=language, max_upload_mb=settings.max_upload_mb, source_kind=kind
+        conv = convert(
+            src,
+            language=language,
+            max_upload_mb=settings.max_upload_mb,
+            source_kind=kind,
+            collapse_as_pages=collapse_as_pages,
         )
+        other = None
+        if conv.collapse_sections:
+            other = convert(
+                src,
+                language=language,
+                max_upload_mb=settings.max_upload_mb,
+                source_kind=kind,
+                collapse_as_pages=not conv.collapse_as_pages,
+            )
     except ConversionError as exc:  # pragma: no cover - a bug in the importer
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "conversion_failed") from exc
+    return conv, other
 
 
 @router.post(
@@ -296,9 +343,9 @@ async def import_jotform_html(
             {"detail": "not_a_jotform", "formUrl": exc.form_url},
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
-    conv = _convert(src, body.language, settings, "html")
+    conv, other = _convert(src, body.language, settings, "html", body.collapse_as_pages)
     return await _save_preview(
-        db, storage, settings, user, org_id, ImportKind.JOTFORM_HTML, src, conv, source_url
+        db, storage, settings, user, org_id, ImportKind.JOTFORM_HTML, src, conv, source_url, other
     )
 
 
@@ -344,9 +391,9 @@ async def import_jotform_api(
         raise _api_error(exc) from exc
     if not src.questions:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "not_a_jotform")
-    conv = _convert(src, body.language, settings, "api")
+    conv, other = _convert(src, body.language, settings, "api", body.collapse_as_pages)
     return await _save_preview(
-        db, storage, settings, user, org_id, ImportKind.JOTFORM_API, src, conv, None
+        db, storage, settings, user, org_id, ImportKind.JOTFORM_API, src, conv, None, other
     )
 
 
@@ -368,6 +415,27 @@ async def _load(db: DbDep, user: CurrentUser, import_id: uuid.UUID) -> Import:
 
 
 Loaded = Annotated[Import, Depends(_load)]
+
+
+@router.patch("/imports/{import_id}/options", response_model=FormImportOut)
+async def set_form_import_options(
+    body: FormImportOptionsIn, db: DbDep, imp: Loaded
+) -> FormImportOut:
+    """Switch a preview between collapsible sections as steps (pages) and as sections."""
+    if imp.kind == ImportKind.JOTFORM_SUBMISSIONS:
+        raise HTTPException(status.HTTP_409_CONFLICT, "wrong_import_kind")
+    if imp.status != ImportStatus.PREVIEW or imp.form_id is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "already_created")
+    src = imp.source
+    if bool(src.get("collapseAsPages")) != body.collapse_as_pages:
+        variant = (src.get("variants") or {}).get("pages" if body.collapse_as_pages else "sections")
+        if variant is None:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "option_not_available")
+        imp.source = {**src, "form": variant["form"], "collapseAsPages": body.collapse_as_pages}
+        imp.report = variant["report"]
+        await db.commit()
+        await db.refresh(imp)
+    return _form_out(imp)
 
 
 @router.post("/imports/{import_id}/form", response_model=CreatedOut, status_code=201)

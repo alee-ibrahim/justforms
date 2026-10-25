@@ -78,3 +78,25 @@ export function prefetchControls(types: Set<string>): void {
   if (types.has('file')) void import('./file-upload')
   if (types.has('signature')) void import('./signature-pad')
 }
+
+/**
+ * Answers with every top-level repeater padded to `minRows` empty rows: the rows the renderer
+ * shows before anything is typed. The rule engine then marks their required questions, so Next
+ * checks them the way the server does (`pad_repeaters` in backend/app/validation/answers.py).
+ */
+export function padToMinRows<A extends Record<string, unknown>>(
+  elements: Iterable<{ element: Element; repeaterId: string | null }>,
+  answers: A,
+): A {
+  let out: Record<string, unknown> | null = null
+  for (const { element: el, repeaterId } of elements) {
+    if (el.kind !== 'repeater' || repeaterId !== null || !el.minRows) continue
+    const rows = answers[el.id]
+    if (rows !== undefined && rows !== null && !Array.isArray(rows)) continue
+    const have = Array.isArray(rows) ? rows : []
+    if (have.length >= el.minRows) continue
+    out ??= { ...answers }
+    out[el.id] = [...have, ...Array.from({ length: el.minRows - have.length }, () => ({}))]
+  }
+  return (out ?? answers) as A
+}

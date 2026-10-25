@@ -22,13 +22,22 @@ import {
 } from '@/components/ui/breadcrumb'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Item, ItemContent, ItemDescription, ItemTitle } from '@/components/ui/item'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Spinner } from '@/components/ui/spinner'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -334,7 +343,7 @@ function Preview({ preview, language, orgId, orgSlug }: { preview: FormImport; l
           )}
         >
           <FormRenderer
-            key={`${device}-${language}`}
+            key={`${device}-${language}-${preview.collapseAsPages}`}
             form={form}
             mode="preview"
             frame={device === 'phone' ? 'bare' : 'page'}
@@ -355,11 +364,13 @@ function ResultStep({
   orgId,
   orgSlug,
   onRestart,
+  onChange,
 }: {
   preview: FormImport
   orgId: string
   orgSlug: string
   onRestart: () => void
+  onChange: (p: FormImport) => void
 }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -375,6 +386,10 @@ function ResultStep({
       toast.success('Draft created. Check it, then publish.')
       await navigate({ to: '/forms/$formId/edit', params: { formId } })
     },
+  })
+  const steps = useMutation({
+    mutationFn: (collapseAsPages: boolean) => importsApi.setOptions(preview.id, { collapseAsPages }),
+    onSuccess: onChange,
   })
   const detected = FORM_LANGUAGES[preview.detectedLanguage].label
 
@@ -425,7 +440,30 @@ function ResultStep({
                   : `Most of the text is in ${detected}.`}
               </FieldDescription>
             </FieldSet>
+            {preview.collapseSections > 0 && (
+              <Field orientation="horizontal" data-disabled={steps.isPending || undefined}>
+                <FieldContent>
+                  <FieldLabel htmlFor="jf-steps">Collapsible sections become steps (pages)</FieldLabel>
+                  <FieldDescription>
+                    {preview.collapseAsPages
+                      ? `Each of the ${preview.collapseSections} sections is a step with Next and Back, the way Jotform shows one section at a time.`
+                      : `The ${preview.collapseSections} sections are shown open, one after another on the same page.`}
+                  </FieldDescription>
+                </FieldContent>
+                <Switch
+                  id="jf-steps"
+                  checked={preview.collapseAsPages}
+                  disabled={steps.isPending || create.isPending}
+                  onCheckedChange={(v) => steps.mutate(v)}
+                />
+              </Field>
+            )}
           </FieldGroup>
+          {steps.isError && (
+            <Alert variant="destructive">
+              <AlertDescription>Couldn't change how sections are imported. Try again.</AlertDescription>
+            </Alert>
+          )}
           {create.isError && (
             <Alert variant="destructive">
               <AlertDescription>Couldn't create the draft. Try again.</AlertDescription>
@@ -513,7 +551,16 @@ export function JotformImportPage() {
           <div hidden={preview !== null} className="w-full max-w-3xl">
             <SourceStep orgId={org.id} onRead={setPreview} />
           </div>
-          {preview && <ResultStep key={preview.id} preview={preview} orgId={org.id} orgSlug={org.slug} onRestart={() => setPreview(null)} />}
+          {preview && (
+            <ResultStep
+              key={preview.id}
+              preview={preview}
+              orgId={org.id}
+              orgSlug={org.slug}
+              onRestart={() => setPreview(null)}
+              onChange={setPreview}
+            />
+          )}
         </>
       )}
     </PageContainer>

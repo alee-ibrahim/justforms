@@ -23,7 +23,7 @@ import { contentProps, formLanguage } from '@/schema/language'
 
 import { legibleAccent } from './accent'
 import { DEFAULT_THEME, themeAttrs } from './theme'
-import { prefetchControls } from './util'
+import { padToMinRows, prefetchControls } from './util'
 import {
   type AnswerPath,
   controlId,
@@ -187,7 +187,12 @@ export function FormRenderer({
   const pageChanged = useRef(false)
   const barRef = useRef<HTMLElement>(null)
 
-  const ev = useMemo(() => safeEvaluate(form, answers), [form, answers])
+  // Rows shown for a repeater's minimum count are evaluated too, so their required questions
+  // stop Next even before anything is typed in them.
+  const ev = useMemo(
+    () => safeEvaluate(form, padToMinRows(index.elements.values(), answers)),
+    [form, index, answers],
+  )
   const path = ev?.path.length ? ev.path : form.pages.map((p) => p.id)
   const pageIndexInPath = Math.max(0, path.indexOf(pageId))
   const page = form.pages.find((p) => p.id === pageId) ?? form.pages[0]

@@ -89,11 +89,14 @@ side. Phones and tablets: `Tabs` "Report" | "Preview" above one column.
  │ Title  [ Registration form          ]  │  │                               │
  │ Form language  ◉ English  ○ Dhivehi    │  │   (FormRenderer, preview)     │
  │ Detected from the text: English.        │  │                               │
+ │ Collapsible sections become    [●━]     │  │                               │
+ │ steps (pages)                            │  │                               │
+ │ Each of the 5 sections is a step…       │  │                               │
  │ [ Create draft ]  [ Start over ]        │  │                               │
  └─────────────────────────────────────────┘  │                               │
  ┌ Card: Import report ────────────────────┐  │                               │
  │ 74 imported  5 changed  0 not imported  │  │                               │
- │ 79 Jotform questions became 1 page,     │  │                               │
+ │ 79 Jotform questions became 5 pages,    │  │                               │
  │ 50 questions.                           │  │                               │
  │ ▸ Questions (79)          (Accordion)   │  │                               │
  │ ▸ Conditions                            │  │                               │
@@ -104,7 +107,14 @@ side. Phones and tablets: `Tabs` "Report" | "Preview" above one column.
 - **Create the draft** card: `Field` "Title" (`Input`, `contentProps(language)`), `FieldSet`
   "Form language" (`RadioGroup` English / Dhivehi, preselected from detection) with
   `FieldDescription` "Detected from the text: Dhivehi." When the choice differs from the
-  detection: "Most of the text is in {detected}." Buttons: primary "Create draft"
+  detection: "Most of the text is in {detected}." Only when the Jotform form has collapsible
+  sections: a horizontal `Field` with `Switch` "Collapsible sections become steps (pages)"
+  (on by default when the form has no page breaks, DESIGN 13.6) and a `FieldDescription` that
+  follows the choice: "Each of the {n} sections is a step with Next and Back, the way Jotform
+  shows one section at a time." / "The {n} sections are shown open, one after another on the
+  same page." Switching calls `PATCH /imports/{id}/options`; the report, the page count and the
+  preview update in place (the switch is disabled while it saves; on failure an `Alert` "Couldn't
+  change how sections are imported. Try again."). Buttons: primary "Create draft"
   (`Spinner` while saving) and ghost "Start over" (back to step 1, keeps the input).
 - **Import report** card:
   - Summary: three `Badge`s with icon and word, never colour alone: `CheckIcon` "{n}
@@ -121,7 +131,10 @@ side. Phones and tablets: `Tabs` "Report" | "Preview" above one column.
     - **Conditions**: one row per Jotform condition with "Imported" / "Not imported" badge
       and the reason; or the note "The form's HTML has no conditions…".
     - **Not imported**: form-level things that never come across (theme, emails, thank-you
-      page, cover image) as a plain list.
+      page, cover image) as a plain list, then the report's notes (for collapsible sections:
+      "Each of the {n} collapsible sections became a step (page) of its own…" or "Collapsible
+      sections are shown open, one after another on the same page."). Each collapse row reads
+      "Collapsible section became a new page" (note "Became a step…") or "…became a section".
 - **Preview** card: `ToggleGroup` Phone/Desktop like Preview (PHASE-2 2.10), then the real
   `FormRenderer` in `mode="preview"` (uploads stay in the browser, nothing is posted). Phone
   frame: 390px wide, bordered.

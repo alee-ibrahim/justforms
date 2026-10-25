@@ -60,6 +60,10 @@ export interface FormImport {
   jotformFormId: string | null
   fieldCount: number
   pageCount: number
+  /** Collapsible sections in the Jotform form (0: the steps option does not apply). */
+  collapseSections: number
+  /** Each collapsible section became a step (page) rather than an open section. */
+  collapseAsPages: boolean
   formId: string | null
 }
 
@@ -132,6 +136,8 @@ export const importsApi = {
     call<JotformForm[]>('POST', `/orgs/${orgId}/imports/jotform/api/forms`, { apiKey, region }),
   fromApi: (orgId: string, apiKey: string, region: JotformRegion, formId: string) =>
     call<FormImport>('POST', `/orgs/${orgId}/imports/jotform/api`, { apiKey, region, formId }),
+  setOptions: (importId: string, body: { collapseAsPages: boolean }) =>
+    call<FormImport>('PATCH', `/imports/${importId}/options`, body),
   createForm: (importId: string, body: { title?: string; language?: FormLanguage }) =>
     call<{ formId: string }>('POST', `/imports/${importId}/form`, body),
   uploadSubmissions: (formId: string, file: File) =>
