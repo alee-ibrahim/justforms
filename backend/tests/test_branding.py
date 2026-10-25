@@ -352,3 +352,61 @@ async def test_sign_in_code_email_uses_the_default_organisation_brand(
     function, kwargs = queue.jobs[-1]
     assert function == "send_email" and kwargs["from_name"] == "Example Office"
     assert kwargs["subject"] == "Your Example Office sign-in code"
+
+
+async def test_site_icon_and_manifests_follow_the_default_organisation(
+    client: AsyncClient,
+    db: AsyncSession,
+    settings: Settings,
+    queue: RecordingQueue,
+) -> None:
+    # Nothing set: 404, so the web server serves JustForms' own files.
+    for name in ("favicon.ico", "favicon.svg", "apple-touch-icon.png"):
+        assert (await client.get(f"/api/v1/public/site/{name}")).status_code == 404
+    assert (await client.get("/api/v1/public/site/robots.txt")).status_code == 404
+
+    me = await admin_client(client, db, settings, queue)
+    url = f"/api/v1/orgs/{me['orgs'][0]['id']}/branding"
+    res = await client.put(
+        url, json={"displayName": "Example Youth Office", "primaryColor": "#0f766e"}
+    )
+    assert res.status_code == 200, res.text
+    assert (await client.get("/api/v1/public/site/favicon.ico")).status_code == 404  # no icon yet
+    manifest = await client.get("/api/v1/public/site/manifest.webmanifest")
+    assert manifest.status_code == 200
+    assert manifest.headers["content-type"] == "application/manifest+json"
+    assert manifest.json()["name"] == "Example Youth Office"
+    assert manifest.json()["theme_color"] == "#0F766E" and manifest.json()["start_url"] == "/forms"
+    form = (await client.get("/api/v1/public/site/form.webmanifest")).json()
+    assert form["display"] == "browser" and "start_url" not in form
+
+    icon = png(256, 256)
+    res = await client.put(
+        f"{url}/images/icon", content=icon, headers={"Content-Type": "image/png"}
+    )
+    assert res.status_code == 200, res.text
+    first = None
+    for name in ("favicon.ico", "favicon.svg", "apple-touch-icon.png"):
+        res = await client.get(f"/api/v1/public/site/{name}")
+        assert res.status_code == 200 and res.headers["content-type"] == "image/png"
+        assert "sandbox" in res.headers["content-security-policy"]
+        assert res.headers["cache-control"] == "public, max-age=300" and res.headers["etag"]
+        first = first or res.content
+        assert res.content == first
+    with Image.open(io.BytesIO(first or b"")) as img:
+        assert img.size == (256, 256)
+    etag = res.headers["etag"]
+    res = await client.get("/api/v1/public/site/favicon.ico", headers={"If-None-Match": etag})
+    assert res.status_code == 304 and res.content == b""
+    manifest = (await client.get("/api/v1/public/site/manifest.webmanifest")).json()
+    assert manifest["icons"][0]["src"].startswith("/api/v1/public/branding/_/icon?v=")
+
+    # A new icon changes the ETag, so browsers pick it up on revalidation.
+    res = await client.put(
+        f"{url}/images/icon",
+        content=png(256, 256, "#B91C1C"),
+        headers={"Content-Type": "image/png"},
+    )
+    assert res.status_code == 200
+    res = await client.get("/api/v1/public/site/favicon.ico", headers={"If-None-Match": etag})
+    assert res.status_code == 200 and res.headers["etag"] != etag

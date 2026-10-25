@@ -31,6 +31,7 @@ from app.services.users import audit
 
 router = APIRouter(tags=["branding"])
 public = APIRouter(prefix="/public/branding", tags=["branding"])
+site = APIRouter(prefix="/public/site", tags=["branding"])
 
 IMAGE_HEADERS = {
     "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
@@ -40,6 +41,10 @@ IMAGE_HEADERS = {
 }
 YEAR = "public, max-age=31536000, immutable"
 SHORT = "public, max-age=300"
+
+# The site-wide icon and manifest paths every page's HTML links before any script runs.
+SITE_ICONS = frozenset({"favicon.ico", "favicon.svg", "apple-touch-icon.png"})
+SITE_MANIFESTS = frozenset({"manifest.webmanifest", "form.webmanifest"})
 
 
 class BrandingIn(ApiModel):
@@ -323,3 +328,41 @@ async def brand_image(
     ref = brand.images[kind]
     cache = YEAR if request.query_params.get("v") == ref.sha[:12] else SHORT
     return Response(data, media_type=mime, headers={"Cache-Control": cache, **IMAGE_HEADERS})
+
+
+@site.get("/{name}")
+async def site_file(
+    name: str,
+    request: Request,
+    db: DbDep,
+    redis: RedisDep,
+    settings: SettingsDep,
+    storage: StorageDep,
+) -> Response:
+    """``/favicon.ico``, ``/favicon.svg``, ``/apple-touch-icon.png`` and the two manifests for
+    the default organisation, so a branded install shows its icon from the first byte, before
+    any script swaps the links. The web server proxies those paths here and serves JustForms'
+    own files on a 404 (no icon, no branding) or any other error.
+    """
+    if name not in SITE_ICONS | SITE_MANIFESTS:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
+    brand = await _brand(service.INSTANCE_SLUG, request, db, redis, settings)
+    if name in SITE_MANIFESTS:
+        if not brand.custom:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
+        form = name == "form.webmanifest"
+        data = json.dumps(service.manifest(brand, form=form)).encode()
+        mime = "application/manifest+json"
+        etag = f'"{brand.version}{"-form" if form else ""}"'
+    else:
+        ref = brand.images.get("icon")
+        found = await service.image_bytes(brand, "icon", storage) if ref else None
+        if ref is None or found is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
+        data, mime = found
+        etag = f'"{ref.sha[:16]}"'
+    # Fixed URLs: a short cache, then revalidation by ETag, so a new icon shows up soon.
+    headers = {"Cache-Control": SHORT, "ETag": etag, **IMAGE_HEADERS}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
+    return Response(data, media_type=mime, headers=headers)

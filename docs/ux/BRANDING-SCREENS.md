@@ -42,6 +42,9 @@ they carry meaning, not brand.
 
 - Studio header (logo or icon + name), sign-in page, browser tab title ("Forms – Example
   Youth Office"), favicon, web app manifest (`/api/v1/public/branding/{org}/manifest.webmanifest`).
+  The default organisation's icon is also served at `/favicon.ico`, `/favicon.svg` and
+  `/apple-touch-icon.png` (and its manifest at the root manifest paths), so the first page load
+  shows it with no flash of the JustForms mark.
 - Public form: logo (or name) above the form title; footer under the sheet with the support
   link and "Powered by JustForms". Tab title "{form title} – {name}", favicon and manifest.
 - Approver page and verify page: same header and footer; verify says "Issued by {name}".

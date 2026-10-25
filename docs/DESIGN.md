@@ -1168,7 +1168,12 @@ Screens and copy: [ux/BRANDING-SCREENS.md](ux/BRANDING-SCREENS.md).
   form's own accent still overrides the primary inside that form.
 - **Pages.** `frontend/src/lib/branding.ts` links the theme stylesheet (the public form does it
   from the URL before the form loads), swaps favicon/apple-touch icon and the manifest
-  (`/api/v1/public/branding/{slug}/manifest.webmanifest`) and titles the tab. Public form,
+  (`/api/v1/public/branding/{slug}/manifest.webmanifest`) and titles the tab. Before any script
+  runs, the fixed `/favicon.ico`, `/favicon.svg`, `/apple-touch-icon.png`, `/manifest.webmanifest`
+  and `/form.webmanifest` the HTML links already carry the default organisation's icon and
+  manifest: nginx proxies them to `/api/v1/public/site/{name}` (5-minute cache, then ETag
+  revalidation) and serves the bundled JustForms files when that answers 404 (no icon or no
+  branding) or fails. Public form,
   approver and verify responses carry `brand`; the studio reads `/public/branding/{slug}` for
   the user's organisation. Logo above the form title, "Get help" and "Powered by JustForms" under
   the sheet (`components/brand/brand-parts.tsx`); embedded forms skip both.

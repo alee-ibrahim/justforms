@@ -220,7 +220,8 @@ async def image_bytes(brand: Brand, kind: str, storage: Storage) -> tuple[bytes,
     return None
 
 
-def manifest(brand: Brand) -> dict[str, Any]:
+def manifest(brand: Brand, *, form: bool = False) -> dict[str, Any]:
+    """The web app manifest: the studio's (installable), or ``form`` pages' (a plain tab)."""
     icons: list[dict[str, str]] = []
     icon = brand.images.get("icon")
     if icon is not None:
@@ -233,6 +234,14 @@ def manifest(brand: Brand) -> dict[str, Any]:
             {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"},
         ]
     pal = brand.palette
+    if form:
+        return {
+            "name": brand.name,
+            "short_name": brand.name[:12],
+            "display": "browser",
+            "background_color": "#F3F5F9",
+            "icons": icons,
+        }
     return {
         "name": brand.name,
         "short_name": brand.name[:12],
