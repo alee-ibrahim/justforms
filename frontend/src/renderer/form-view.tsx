@@ -266,8 +266,14 @@ export function FormRenderer({
     return validateAnswer(field, value, isRequired(p.id, scope))
   })
 
+  // Answers the respondent has changed: blur only checks those (or ones already showing an
+  // error), so leaving an untouched empty question, e.g. the row "Add" just focused, adds no
+  // error above the next control. Next and Submit still check everything.
+  const edited = useRef(new Set<string>())
+
   const setValue = useStableCallback((p: AnswerPath, value: unknown) => {
     touched.current = true
+    edited.current.add(pathKey(p))
     setAnswers((prev) => {
       if (p.repeater === undefined) {
         const next = { ...prev }
@@ -297,6 +303,7 @@ export function FormRenderer({
     const key = pathKey(p)
     const message = check(p, getValue(p))
     setErrors((prev) => {
+      if (message && !edited.current.has(key) && !prev.has(key)) return prev
       const next = new Map(prev)
       if (message) next.set(key, message)
       else next.delete(key)
@@ -528,6 +535,7 @@ export function FormRenderer({
 
   const resetForm = () => {
     touched.current = false
+    edited.current = new Set()
     setAnswers(initialAnswers ?? {})
     setErrors(new Map())
     setSummary([])

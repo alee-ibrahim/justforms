@@ -703,7 +703,7 @@ Both are English for every form (an `<En>` run after a Dhivehi label).
 
 ### 4.6 Validation
 
-- Validate a field on blur once it has been touched, and the whole page on "Next"/"Submit".
+- Validate a field on blur once it has been touched (its answer changed, or it already shows an error; leaving an untouched empty question adds no error), and the whole page on "Next"/"Submit".
   Do not validate while typing (except clearing an error once the value becomes valid).
 - On failed Next: render an **error summary** `Alert variant="destructive"` at the top of the
   page: title "There's a problem" (1 error) / "There are {n} problems", body a list of links
