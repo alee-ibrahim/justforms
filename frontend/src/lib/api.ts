@@ -610,11 +610,22 @@ export interface NotificationRule {
   includeAnswers: boolean
   attachPdf: boolean
   emailField: string | null
+  /** Custom subject and opening text (placeholders like {reference}); null = built-in text. */
+  subject: string | null
+  message: string | null
+  replyTo: string | null
 }
 
 export interface EmailLogEntry {
   id: string
-  kind: 'owner_new' | 'receipt' | 'webhook_disabled' | 'approval_request' | 'approval_outcome'
+  kind:
+    | 'owner_new'
+    | 'receipt'
+    | 'webhook_disabled'
+    | 'approval_request'
+    | 'approval_outcome'
+    | 'test_owner_new'
+    | 'test_receipt'
   to: string
   status: 'queued' | 'sent' | 'failed'
   attempts: number
@@ -803,6 +814,7 @@ export const api = {
   getNotifications: (formId: string) => request<Notifications>('GET', `/forms/${formId}/notifications`),
   putNotification: (formId: string, type: RuleType, rule: NotificationRule) =>
     request<Notifications>('PUT', `/forms/${formId}/notifications/${type}`, rule),
+  sendTestEmails: (formId: string) => request<Notifications>('POST', `/forms/${formId}/notifications/test`),
   listWebhooks: (formId: string) => request<Webhook[]>('GET', `/forms/${formId}/webhooks`),
   createWebhook: (formId: string, body: WebhookInput) =>
     request<{ webhook: Webhook; secret: string }>('POST', `/forms/${formId}/webhooks`, body),

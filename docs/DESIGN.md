@@ -451,7 +451,7 @@ All primary keys are UUIDv7, so they sort by time. All tables carry `created_at`
 | `files` | `id`, `org_id`, `form_id`, `submission_id` nullable, `field_id`, `storage_key`, `original_name`, `mime`, `size`, `sha256`, `state` enum(`pending`,`attached`,`orphaned`), `scan_status` enum(`not_scanned`,`clean`,`infected`) | `pending` rows that are never attached get purged after 24 h. |
 | `signatures` | `id`, `submission_id`, `field_id`, `strokes` jsonb, `svg_key`, `png_key`, `strokes_sha256`, `signed_at` (client), `received_at` (server), `ip`, `user_agent`, `attestation_text`, `language` | One row per signature field. |
 | `respondent_otps` | `id`, `email`, `form_id`, `code_hash`, `expires_at`, `attempts`, `consumed_at`, `ip` | Code stored as HMAC-SHA256. |
-| `notification_rules` | `id`, `form_id`, `type` (`owner_email`,`respondent_receipt`), `recipients` jsonb, `include_answers` bool, `attach_pdf` bool, `enabled` | |
+| `notification_rules` | `id`, `form_id`, `type` (`owner_email`,`respondent_receipt`), `recipients` jsonb, `include_answers` bool, `attach_pdf` bool, `email_field`, `subject`, `message`, `reply_to`, `enabled` | |
 | `webhooks` | `id`, `form_id`, `url`, `secret_enc` bytea, `events` text[], `enabled`, `include_sensitive` bool | Secret encrypted with the app key (§14.5). |
 | `webhook_deliveries` | `id`, `webhook_id`, `event_id`, `event`, `payload` jsonb, `attempt`, `status` (`pending`,`succeeded`,`failed`), `response_code`, `response_snippet` (first 1 KB), `next_attempt_at`, `duration_ms` | Kept for 30 days. |
 | `exports` | `id`, `form_id`, `requested_by`, `format` (`xlsx`), `filters` jsonb, `status`, `storage_key`, `row_count`, `expires_at` | File expires after 24 h. |
@@ -632,8 +632,10 @@ Antivirus scanning comes later. `scan_status` already exists in the schema. A la
 ### 11.1 Email
 
 - SMTP only (`JUSTFORMS_SMTP_*`). Messages are sent by the worker and rendered from Jinja2 templates as both HTML and text. Template wording is English for every form, `dv` ones included (§16); form content in an email (title, labels, answers, `successMessage`, approval step names) is shown in the form's language and direction inside the English, left-to-right message.
-- **Owner notification.** Sent to the configured recipients (defaulting to form owners) with a summary and a link to the submission. Answers are included only if `include_answers` is on, and sensitive fields are never included.
-- **Respondent receipt.** Sent to the verified OTP email, or to the value of a designated `email` field if the form opts in. It can attach the signed PDF, in which case the job waits for the PDF job to finish.
+- **Owner notification.** Sent to the configured recipients (up to 10 addresses, inside or outside the organisation; empty = the form's owners) with a summary and a link to the submission. Answers are included only if `include_answers` is on, and sensitive fields are never included.
+- **Respondent receipt.** Sent to the verified OTP email, or to the value of a designated `email` question (not in a repeater) if the form opts in; a public form can only use the latter. It can attach the signed PDF, in which case the job waits for the PDF job to finish.
+- **Custom wording.** Each rule can replace the subject and the opening text (plain text, not HTML; the receipt's replaces the thank-you or the form's success message, the owner's goes above the link) and set a Reply-To address. Placeholders: `{reference}`, `{form_title}`, `{submitted}` and `{answer:<question key>}` for a question outside a repeater that isn't sensitive, a signature or a file. Saving refuses any other placeholder; an unanswered question fills in as empty. The reference, the answers and the PDF note stay as they are. The owner writes this text, so it is not system text and may be in any language.
+- **Test emails.** `POST /forms/{formId}/notifications/test` (owners, rate limit `notify_test`, 5 an hour per person) queues both emails rendered with the current settings, sample answers (each question's label in brackets), reference `#0000`, no PDF and "[Test]" before the subject. They go only to the person asking, read no submission and appear in the email log as `test_owner_new` / `test_receipt`.
 - **OTP emails.** These go on a priority queue.
 
 Retries: 5 attempts with exponential backoff starting at 30 seconds. After that the failure is logged and shown on the form's Notifications page.
@@ -1046,7 +1048,7 @@ All endpoints are JSON. OpenAPI is served at `/api/v1/openapi.json`, and the TS 
 - `GET /forms/{formId}/versions`, `GET /forms/{formId}/versions/{n}`
 - `POST /forms/{formId}/duplicate`
 - `GET|PUT /forms/{formId}/permissions` (any role reads; owners replace the explicit grants with `{grants: [{email, role}]}`; only organisation members can be granted, org admins are listed as implicit owners; the response also lists `pending` invited access and `canInvite`), `POST /forms/{formId}/permissions/invite` (owner who is an org admin), `DELETE /forms/{formId}/permissions/invitations/{id}`
-- `GET /forms/{formId}/notifications` (both rules, the email questions and the last 10 emails), `PUT /forms/{formId}/notifications/{owner_email|respondent_receipt}`
+- `GET /forms/{formId}/notifications` (both rules, the email questions and the last 10 emails), `PUT /forms/{formId}/notifications/{owner_email|respondent_receipt}` (`{enabled, recipients, includeAnswers, attachPdf, emailField, subject, message, replyTo}`), `POST /forms/{formId}/notifications/test`
 - `GET /forms/{formId}/approvals` (any role: settings, issues, email questions), `PUT /forms/{formId}/approvals` (owners)
 - `GET|POST /forms/{formId}/webhooks`, `PATCH|DELETE .../{id}`, `POST .../{id}/rotate-secret`, `POST .../{id}/test`, `GET .../{id}/deliveries?before=`, `POST .../{id}/deliveries/{deliveryId}/redeliver`
 - `PATCH /forms/{formId}` also takes `accessMode`, `otpAllowedDomains`, `otpOneResponse`, `captcha` (`off|always|auto`), `retentionDays`, `saveProgress` and `saveProgressDays` (1-90)

@@ -56,6 +56,8 @@ DEFAULTS: dict[str, Limit] = {
     "ai_request": Limit(40, 3600),  # per user
     "ai_request_org": Limit(400, 3600),  # per organisation
     "ai_import": Limit(10, 3600),  # paper forms read, per user
+    # Notification test emails (to the person asking).
+    "notify_test": Limit(5, 3600),  # per user
 }
 
 

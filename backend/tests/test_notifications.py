@@ -495,3 +495,116 @@ def test_dv_approval_emails_isolate_form_content() -> None:
     assert out.subject == "Not approved: \u2068ފޯމު\u2069 (#0007)"
     assert out.html and "Your response #0007 was not approved." in out.html
     assert 'dir="auto">ނުފުދޭ' in out.html
+
+
+async def test_custom_wording_reply_to_and_placeholders(
+    client: AsyncClient,
+    db: AsyncSession,
+    settings: Settings,
+    queue: RecordingQueue,
+    file_storage: Storage,
+) -> None:
+    pub, _me = await _setup(client, db, settings, queue)
+    url = f"/api/v1/forms/{pub.id}/notifications"
+    # Placeholders must name something that can be filled; sensitive answers can't be used.
+    for bad in ("{answer:nid}", "{answer:nope}", "{name}"):
+        res = await client.put(
+            f"{url}/respondent_receipt",
+            json={"enabled": True, "emailField": "email", "message": f"Hi {bad}"},
+        )
+        assert res.status_code == 422, bad
+        assert res.json()["detail"] == {"code": "unknown_placeholder", "placeholder": bad}
+    res = await client.put(
+        f"{url}/respondent_receipt",
+        json={"enabled": True, "emailField": "email", "subject": "Line\nbreak"},
+    )
+    assert res.status_code == 422
+    res = await client.put(
+        f"{url}/owner_email",
+        json={"enabled": True, "recipients": [f"r{i}@example.org" for i in range(11)]},
+    )
+    assert res.status_code == 422  # at most 10 extra addresses
+    res = await client.put(
+        f"{url}/respondent_receipt",
+        json={
+            "enabled": True,
+            "emailField": "email",
+            "subject": "We received {form_title} ({reference})",
+            "message": "Dear {answer:name},\n\nThank you. <b>We'll be in touch.</b>",
+            "replyTo": "Team@Example.org",
+        },
+    )
+    assert res.status_code == 200, res.text
+    rule = res.json()["respondentReceipt"]
+    assert rule["replyTo"] == "team@example.org" and rule["subject"].startswith("We received")
+    await client.put(
+        f"{url}/owner_email",
+        json={
+            "enabled": True,
+            "recipients": ["office@example.org"],
+            "subject": "New application: {answer:name} ({reference})",
+        },
+    )
+    sub = await _submit(client, pub, db)
+    jobs = await events.dispatch(db, settings, "submission.created", sub.id)
+    rows = {r.kind: r for r in [await db.get(EmailDelivery, i) for i in jobs.emails] if r}
+    receipt = await events.render_email(db, settings, file_storage, rows["receipt"])
+    assert receipt is not None and receipt.html is not None
+    ref = f"#{sub.seq:04d}"
+    assert receipt.subject == f"We received Applications ({ref})"
+    assert receipt.reply_to == "team@example.org"
+    assert "Dear Aminath,\n\nThank you." in receipt.text and "A1" not in receipt.text
+    assert "&lt;b&gt;We&#39;ll be in touch.&lt;/b&gt;" in receipt.html  # plain text, escaped
+    assert "Thank you. We received your response" not in receipt.text  # replaced intro
+    assert f"Reference: {ref}" in receipt.text and "Aminath" in receipt.text
+    owner = await events.render_email(db, settings, file_storage, rows["owner_new"])
+    assert owner is not None and owner.subject == f"New application: Aminath ({ref})"
+    assert owner.reply_to is None and "A1" not in owner.text
+    # Clearing the wording goes back to the built-in text.
+    await client.put(f"{url}/owner_email", json={"enabled": True, "subject": "  "})
+    owner = await events.render_email(db, settings, file_storage, rows["owner_new"])
+    assert owner is not None and owner.subject == f"New response to Applications ({ref})"
+
+
+async def test_send_test_emails(
+    client: AsyncClient,
+    db: AsyncSession,
+    settings: Settings,
+    queue: RecordingQueue,
+    file_storage: Storage,
+) -> None:
+    pub, _me = await _setup(client, db, settings, queue)
+    url = f"/api/v1/forms/{pub.id}/notifications"
+    assert (await client.post(f"{url}/test")).status_code == 409  # no SMTP
+    settings.smtp_host = "smtp.example.org"
+    await client.put(
+        f"{url}/owner_email",
+        json={"enabled": True, "recipients": ["office@example.org"], "includeAnswers": True},
+    )
+    await client.put(
+        f"{url}/respondent_receipt",
+        json={
+            "enabled": True,
+            "emailField": "email",
+            "subject": "Thanks, {answer:name} ({reference})",
+            "replyTo": "team@example.org",
+        },
+    )
+    queue.jobs.clear()
+    res = await client.post(f"{url}/test")
+    assert res.status_code == 202, res.text
+    # Both go to the person asking, never to the recipients or a submission.
+    rows = list(await db.scalars(select(EmailDelivery).where(EmailDelivery.kind.like("test_%"))))
+    assert sorted((r.kind, r.to_address, r.submission_id) for r in rows) == [
+        ("test_owner_new", "admin@example.org", None),
+        ("test_receipt", "admin@example.org", None),
+    ]
+    assert [j[0] for j in queue.jobs] == ["send_form_email", "send_form_email"]
+    msgs = {r.kind: await events.render_email(db, settings, file_storage, r) for r in rows}
+    owner, receipt = msgs["test_owner_new"], msgs["test_receipt"]
+    assert owner is not None and owner.subject == "[Test] New response to Applications (#0000)"
+    assert "[Full name]" in owner.text and "National ID" not in owner.text
+    assert receipt is not None and receipt.subject == "[Test] Thanks, [Full name] (#0000)"
+    assert receipt.reply_to == "team@example.org" and receipt.attachments == []
+    log = (await client.get(url)).json()["recent"]
+    assert {e["kind"] for e in log} == {"test_owner_new", "test_receipt"}

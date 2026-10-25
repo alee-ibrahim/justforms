@@ -111,7 +111,10 @@ comments, an activity log and export to Excel. Sensitive answers are masked.
 
 ## Emails and webhooks
 
-- Email to the form's owners and a receipt for the respondent.
+- Email to the form's owners or up to 10 other addresses, and a receipt for the respondent
+  (to their confirmed email or an email question), optionally with the signed PDF.
+- Custom subject, message and Reply-To per email, with placeholders such as `{reference}` and
+  `{answer:question_key}`, and a "Send test emails" button that sends both to you with sample answers.
 - Signed **webhooks** with retries. Outbound URLs are resolved, checked against private ranges
   and pinned. Events, payloads and verifiers: [webhooks.md](webhooks.md).
 

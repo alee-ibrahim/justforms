@@ -4,7 +4,9 @@ import { CheckIcon, MailWarningIcon, XIcon } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { EmailWording } from '@/components/settings/email-wording'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Field,
@@ -21,14 +23,17 @@ import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
-import { api, type EmailLogEntry, type FormSummary, type NotificationRule, type Notifications, type RuleType } from '@/lib/api'
+import { api, ApiError, type EmailLogEntry, type FormSummary, type NotificationRule, type Notifications, type RuleType } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
 import { contentProps } from '@/schema/language'
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const CONFIRMED = '__confirmed__'
+const MAX_RECIPIENTS = 10
 
 function logTitle(e: EmailLogEntry): string {
+  if (e.kind === 'test_owner_new') return `Test notification to ${e.to}`
+  if (e.kind === 'test_receipt') return `Test receipt to ${e.to}`
   if (e.kind === 'receipt') return `Receipt to ${e.to}`
   if (e.kind === 'webhook_disabled') return `Webhook warning to ${e.to}`
   if (e.kind === 'approval_request') return `Approval request to ${e.to}`
@@ -73,7 +78,23 @@ export function NotificationsCard({ form, canManage }: { form: FormSummary; canM
       queryClient.setQueryData(key, next)
       toast('Saved')
     },
-    onError: () => toast.error("Couldn't save. Try again."),
+    // 422s (a bad placeholder or address) are shown next to the field instead.
+    onError: (e) => {
+      if (!(e instanceof ApiError && e.status === 422)) toast.error("Couldn't save. Try again.")
+    },
+  })
+  const test = useMutation({
+    mutationFn: () => api.sendTestEmails(form.id),
+    onSuccess: (next) => {
+      queryClient.setQueryData(key, next)
+      toast('Test emails are on their way to you')
+    },
+    onError: (e) =>
+      toast.error(
+        e instanceof ApiError && e.status === 429
+          ? 'Too many test emails. Try again in an hour.'
+          : "Couldn't send test emails. Try again.",
+      ),
   })
   const [recipients, setRecipients] = useState<string | null>(null)
   const [recipientsError, setRecipientsError] = useState<string | null>(null)
@@ -102,6 +123,7 @@ export function NotificationsCard({ form, canManage }: { form: FormSummary; canM
   const receiptTarget = receipt.emailField ?? (confirmedAvailable ? CONFIRMED : '')
   const receiptPossible = confirmedAvailable || n.emailFields.length > 0
   const put = (type: RuleType, rule: NotificationRule) => save.mutate({ type, rule })
+  const saveRule = (type: RuleType) => (rule: NotificationRule) => save.mutateAsync({ type, rule })
   const recipientsText = recipients ?? owner.recipients.join(', ')
 
   return (
@@ -157,12 +179,17 @@ export function NotificationsCard({ form, canManage }: { form: FormSummary; canM
                       .filter(Boolean)
                     if (list.some((x) => !EMAIL.test(x)))
                       return setRecipientsError('Enter email addresses like name@example.org, separated by commas')
+                    if (new Set(list).size > MAX_RECIPIENTS)
+                      return setRecipientsError(`Enter up to ${MAX_RECIPIENTS} addresses`)
                     setRecipientsError(null)
                     setRecipients(null)
                     if (list.join(',') !== owner.recipients.join(',')) put('owner_email', { ...owner, recipients: list })
                   }}
                 />
-                <FieldDescription>Leave empty to email the form's owners.</FieldDescription>
+                <FieldDescription>
+                  Up to {MAX_RECIPIENTS} addresses, inside or outside your organisation. Leave empty to email the form's
+                  owners.
+                </FieldDescription>
                 {recipientsError && <FieldError>{recipientsError}</FieldError>}
               </Field>
               <Field orientation="horizontal">
@@ -177,6 +204,14 @@ export function NotificationsCard({ form, canManage }: { form: FormSummary; canM
                   onCheckedChange={(on) => put('owner_email', { ...owner, includeAnswers: on })}
                 />
               </Field>
+              <EmailWording
+                idPrefix="notify"
+                rule={owner}
+                defaultSubject="New response to {form_title} ({reference})"
+                messageHelp="Shown above the link to the submission."
+                disabled={disabled}
+                save={saveRule('owner_email')}
+              />
             </FieldGroup>
           )}
           <FieldSeparator />
@@ -247,9 +282,32 @@ export function NotificationsCard({ form, canManage }: { form: FormSummary; canM
                   onCheckedChange={(on) => put('respondent_receipt', { ...receipt, attachPdf: on })}
                 />
               </Field>
+              <EmailWording
+                idPrefix="receipt"
+                rule={receipt}
+                defaultSubject="Your response to {form_title} ({reference})"
+                messageHelp="Replaces the opening thank-you (or the form's success message). The reference and their answers follow."
+                replyTo
+                disabled={disabled}
+                save={saveRule('respondent_receipt')}
+              />
             </FieldGroup>
           )}
         </FieldGroup>
+        {form.role === 'owner' && n.smtpEnabled && (owner.enabled || receipt.enabled) && (
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldLabel htmlFor="notify-test">Send test emails</FieldLabel>
+              <FieldDescription>
+                Both emails, filled with sample answers and marked [Test], go to you only. No PDF is attached.
+              </FieldDescription>
+            </FieldContent>
+            <Button id="notify-test" variant="outline" disabled={test.isPending} onClick={() => test.mutate()}>
+              {test.isPending && <Spinner data-icon="inline-start" />}
+              Send to me
+            </Button>
+          </Field>
+        )}
         {form.role === 'owner' && (
           <div className="flex flex-col gap-2">
             <h3 className="text-sm font-medium">Recent emails</h3>

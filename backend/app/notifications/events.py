@@ -53,6 +53,34 @@ log = logging.getLogger(__name__)
 
 PDF_FAILED = "pdf_failed"  # internal: the receipt goes out without the PDF
 
+# "Send test emails": each rule's email rendered with sample answers, to the person asking.
+TEST_KINDS = {"test_owner_new": RuleType.OWNER_EMAIL, "test_receipt": RuleType.RESPONDENT_RECEIPT}
+TEST_PREFIX = "[Test] "
+
+
+def _submitted_text(when: datetime, tz: Any) -> str:
+    return when.astimezone(tz).strftime("%d %b %Y %H:%M %Z")
+
+
+def wording(
+    rule: NotificationRule | None,
+    *,
+    title: str,
+    reference: str,
+    submitted: str,
+    answers: dict[str, str],
+    test: bool = False,
+) -> emails.Wording:
+    """The rule's custom subject and message with the placeholders filled in."""
+    if rule is None:
+        return emails.Wording()
+    values = {"reference": reference, "form_title": title, "submitted": submitted}
+    subject = emails.one_line(emails.fill(rule.subject, values, answers)) if rule.subject else None
+    message = emails.fill(rule.message, values, answers).strip() if rule.message else None
+    if test and subject:
+        subject = TEST_PREFIX + subject
+    return emails.Wording(subject=subject, message=message or None, reply_to=rule.reply_to)
+
 
 @dataclass
 class Jobs:
@@ -203,6 +231,8 @@ async def render_email(
             failures=20,
             settings_url=emails.settings_url(settings, form.id),
         )
+    if row.kind in TEST_KINDS:
+        return await _test_message(db, settings, form, row.kind, org_name, eb)
     sub = await db.get(Submission, row.submission_id) if row.submission_id else None
     if sub is None or sub.deleted_at is not None:
         return None
@@ -212,6 +242,16 @@ async def render_email(
     rules = await rules_for(db, form.id)
     reference = f"#{sub.seq:04d}"
     title = schema.settings.title or form.title
+
+    def words(rule: NotificationRule | None) -> emails.Wording:
+        return wording(
+            rule,
+            title=title,
+            reference=reference,
+            submitted=_submitted_text(sub.submitted_at, settings.tz),
+            answers=emails.placeholder_answers(schema, sub.data),
+        )
+
     if row.kind == "owner_new":
         rule = rules.get(RuleType.OWNER_EMAIL)
         include = bool(rule and rule.include_answers)
@@ -226,6 +266,7 @@ async def render_email(
             url=submission_url(settings, sub),
             respondent=sub.respondent_email,
             answers=emails.answers_for_email(schema, sub.data) if include else None,
+            wording=words(rule),
         )
     if row.kind == "approval_request":
         return await _approval_request(
@@ -279,8 +320,82 @@ async def render_email(
             tz=settings.tz,
             answers=emails.answers_for_email(schema, sub.data),
             pdf=pdf,
+            wording=words(rule),
         )
     return None
+
+
+async def latest_schema(db: AsyncSession, form: FormRecord) -> Form:
+    """The live version's schema; the draft when the form was never published."""
+    if form.current_version_id is not None:
+        version = await db.get(FormVersion, form.current_version_id)
+        if version is not None:
+            return Form.model_validate(version.schema)
+    return Form.model_validate(form.draft_schema)
+
+
+def sample_answers(form: Form) -> list[emails.Answer]:
+    """Stand-ins for the answers in a test email: each question's label in brackets."""
+    return [
+        emails.Answer(el.label or key, f"[{el.label or key}]")
+        for key, el in emails.placeholder_fields(form).items()
+    ]
+
+
+async def _test_message(
+    db: AsyncSession,
+    settings: Settings,
+    form: FormRecord,
+    kind: str,
+    org_name: str,
+    brand: emails.EmailBrand | None,
+) -> emails.Message:
+    """A rule's email rendered with sample answers. Nothing is read from submissions."""
+    schema = await latest_schema(db, form)
+    rule = (await rules_for(db, form.id)).get(TEST_KINDS[kind])
+    title = schema.settings.title or form.title
+    reference = "#0000"
+    now = datetime.now(UTC)
+    words = wording(
+        rule,
+        title=title,
+        reference=reference,
+        submitted=_submitted_text(now, settings.tz),
+        answers={
+            key: f"[{el.label or key}]" for key, el in emails.placeholder_fields(schema).items()
+        },
+        test=True,
+    )
+    if kind == "test_owner_new":
+        msg = emails.owner_message(
+            org_name=org_name,
+            brand=brand,
+            form=schema,
+            title=title,
+            reference=reference,
+            submitted=now,
+            tz=settings.tz,
+            url=f"{settings.public_origin}/forms/{form.id}/submissions",
+            respondent=None,
+            answers=sample_answers(schema) if rule is not None and rule.include_answers else None,
+            wording=words,
+        )
+    else:
+        msg = emails.receipt_message(
+            org_name=org_name,
+            brand=brand,
+            form=schema,
+            title=title,
+            reference=reference,
+            submitted=now,
+            tz=settings.tz,
+            answers=sample_answers(schema),
+            pdf=None,
+            wording=words,
+        )
+    if not msg.subject.startswith(TEST_PREFIX):
+        msg.subject = TEST_PREFIX + msg.subject
+    return msg
 
 
 async def _approval_request(

@@ -11,22 +11,23 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import EmailStr, Field, StringConstraints
 from sqlalchemy import select
 
+from app import ratelimit
 from app.api.v1.common import ApiModel
-from app.auth.deps import DbDep, SettingsDep
+from app.auth.deps import DbDep, RedisDep, SettingsDep
 from app.ids import uuid7
 from app.logic.index import FormIndex
 from app.models import (
     DeliveryStatus,
     EmailDelivery,
     EmailStatus,
-    FormVersion,
     NotificationRule,
     RuleType,
     Webhook,
     WebhookDelivery,
 )
+from app.notifications import emails
 from app.notifications import webhooks as wh
-from app.notifications.events import email_fields
+from app.notifications.events import TEST_KINDS, email_fields, latest_schema
 from app.notifications.ssrf import UrlRefused, check_static
 from app.permissions import FormAccess, FormOwner, FormViewer
 from app.queue import JobQueue, get_queue
@@ -48,20 +49,35 @@ EventName = Literal[
 # -- email notifications --------------------------------------------------------------------
 
 
+MAX_RECIPIENTS = 10
+
+
 class RuleOut(ApiModel):
     enabled: bool = False
     recipients: list[str] = Field(default_factory=list)
     include_answers: bool = False
     attach_pdf: bool = False
     email_field: str | None = None
+    subject: str | None = None
+    message: str | None = None
+    reply_to: str | None = None
+
+
+Subject = Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]
+Message = Annotated[str, StringConstraints(strip_whitespace=True, max_length=5000)]
 
 
 class RuleIn(ApiModel):
     enabled: bool
-    recipients: list[EmailStr] = Field(default_factory=list, max_length=20)
+    recipients: list[EmailStr] = Field(default_factory=list, max_length=MAX_RECIPIENTS)
     include_answers: bool = False
     attach_pdf: bool = False
     email_field: Annotated[str, StringConstraints(max_length=63)] | None = None
+    # Custom wording: plain text with {reference}, {form_title}, {submitted} and
+    # {answer:<question key>}; empty or missing = the built-in text.
+    subject: Subject | None = None
+    message: Message | None = None
+    reply_to: EmailStr | None = None
 
 
 class EmailFieldOut(ApiModel):
@@ -97,12 +113,7 @@ def mask_email(email: str) -> str:
 
 
 async def _latest_schema(db: DbDep, access: FormAccess) -> Form:
-    form = access.form
-    if form.current_version_id is not None:
-        version = await db.get(FormVersion, form.current_version_id)
-        if version is not None:
-            return Form.model_validate(version.schema)
-    return Form.model_validate(form.draft_schema)
+    return await latest_schema(db, access.form)
 
 
 def _rule_out(rule: NotificationRule | None) -> RuleOut:
@@ -114,6 +125,9 @@ def _rule_out(rule: NotificationRule | None) -> RuleOut:
         include_answers=rule.include_answers,
         attach_pdf=rule.attach_pdf,
         email_field=rule.email_field,
+        subject=rule.subject,
+        message=rule.message,
+        reply_to=rule.reply_to,
     )
 
 
@@ -155,7 +169,7 @@ async def _notifications(db: DbDep, settings: SettingsDep, access: FormAccess) -
                 kind=e.kind,
                 to=(
                     mask_email(e.to_address)
-                    if e.kind in ("receipt", "approval_outcome")
+                    if e.kind in ("receipt", "approval_outcome", "test_receipt")
                     else e.to_address
                 ),
                 status=e.status,
@@ -189,10 +203,20 @@ async def put_notification(
     if rule is None:
         rule = NotificationRule(form_id=form.id, type=rule_type)
         db.add(rule)
+    schema = await _latest_schema(db, access)
     if rule_type == RuleType.RESPONDENT_RECEIPT and body.email_field is not None:
-        ids = {f.id for f in email_fields(await _latest_schema(db, access))}
+        ids = {f.id for f in email_fields(schema)}
         if body.email_field not in ids:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "unknown_email_field")
+    if body.subject and ("\n" in body.subject or "\r" in body.subject):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "subject_one_line")
+    for text in (body.subject, body.message):
+        bad = emails.unknown_placeholder(text or "", schema)
+        if bad is not None:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                {"code": "unknown_placeholder", "placeholder": bad},
+            )
     rule.enabled = body.enabled
     rule.recipients = (
         list(dict.fromkeys(str(r).lower() for r in body.recipients))
@@ -202,6 +226,9 @@ async def put_notification(
     rule.include_answers = body.include_answers if rule_type == RuleType.OWNER_EMAIL else False
     rule.attach_pdf = body.attach_pdf if rule_type == RuleType.RESPONDENT_RECEIPT else False
     rule.email_field = body.email_field if rule_type == RuleType.RESPONDENT_RECEIPT else None
+    rule.subject = body.subject or None
+    rule.message = body.message or None
+    rule.reply_to = str(body.reply_to).lower() if body.reply_to else None
     await audit(
         db,
         "form.notifications",
@@ -212,6 +239,48 @@ async def put_notification(
         meta={"type": rule_type.value, "enabled": body.enabled},
     )
     await db.commit()
+    return await _notifications(db, settings, access)
+
+
+@router.post(
+    "/forms/{form_id}/notifications/test",
+    response_model=NotificationsOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def send_test_emails(
+    db: DbDep,
+    settings: SettingsDep,
+    redis: RedisDep,
+    queue: QueueDep,
+    access: FormOwner,
+) -> NotificationsOut:
+    """Send both emails, with sample answers and "[Test]" in the subject, to the person
+    asking (never to the configured recipients). Nothing is read from real submissions."""
+    if not settings.smtp_enabled:
+        raise HTTPException(status.HTTP_409_CONFLICT, "smtp_not_configured")
+    await ratelimit.enforce(redis, settings, "notify_test", str(access.user.id))
+    rows = [
+        EmailDelivery(
+            id=uuid.uuid4(),
+            form_id=access.form.id,
+            submission_id=None,
+            kind=kind,
+            to_address=access.user.email,
+        )
+        for kind in TEST_KINDS
+    ]
+    db.add_all(rows)
+    await audit(
+        db,
+        "form.notifications_test",
+        org_id=access.form.org_id,
+        actor_id=access.user.id,
+        target_type="form",
+        target_id=access.form.id,
+    )
+    await db.commit()
+    for row in rows:
+        await queue.enqueue("send_form_email", email_id=str(row.id))
     return await _notifications(db, settings, access)
 
 

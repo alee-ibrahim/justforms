@@ -45,6 +45,7 @@ async def send_email(
     html: str | None = None,
     attachments: list[tuple[str, bytes, str]] | None = None,
     from_name: str | None = None,
+    reply_to: str | None = None,
 ) -> bool:
     """Send one message (text, optional HTML alternative, optional attachments). Returns
     False when SMTP is not configured; raises on delivery errors so the job can retry."""
@@ -55,6 +56,8 @@ async def send_email(
     msg["From"] = sender(settings.smtp_from, from_name)
     msg["To"] = to
     msg["Subject"] = subject
+    if reply_to:
+        msg["Reply-To"] = reply_to
     msg.set_content(text)
     if html:
         msg.add_alternative(html, subtype="html")

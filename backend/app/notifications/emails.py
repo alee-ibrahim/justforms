@@ -11,6 +11,7 @@ Sensitive answers are never emailed.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -24,6 +25,8 @@ from app.logic.index import FormIndex
 from app.schemas.form import (
     DateField,
     EmailField,
+    FieldElement,
+    FileField,
     Form,
     NumberField,
     PhoneField,
@@ -93,13 +96,16 @@ _TEMPLATES = {
     "owner.html": """{% extends "layout.html" %}{% block body %}
 <p style="margin:0 0 4px;color:#5A6380">New response</p>
 <h1 style="margin:0 0 16px;font-size:20px{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
-<p style="margin:0 0 16px">Reference <strong>{{ reference }}</strong>, submitted {{ submitted }}{% if respondent %} by <bdi>{{ respondent }}</bdi>{% endif %}.</p>
+{% if message %}<p style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message }}</p>
+{% endif %}<p style="margin:0 0 16px">Reference <strong>{{ reference }}</strong>, submitted {{ submitted }}{% if respondent %} by <bdi>{{ respondent }}</bdi>{% endif %}.</p>
 <p style="margin:0 0 20px"><a href="{{ url }}" style="display:inline-block;background:{{ brand.button_bg }};color:{{ brand.button_fg }};text-decoration:none;padding:10px 16px;border-radius:6px">Open the submission</a></p>
 {% if answers %}{% include "answers.html" %}{% else %}<p style="color:#5A6380;margin:0">Answers are not included in this email. Open the submission to read them.</p>{% endif %}
 {% endblock %}""",
     "owner.txt": """New response to {{ title }}
 
-Reference {{ reference }}, submitted {{ submitted }}{% if respondent %} by {{ respondent }}{% endif %}.
+{% if message %}{{ message }}
+
+{% endif %}Reference {{ reference }}, submitted {{ submitted }}{% if respondent %} by {{ respondent }}{% endif %}.
 
 Open the submission: {{ url }}
 {% if answers %}
@@ -111,7 +117,8 @@ Answers are not included in this email.
 {% endif %}""",
     "receipt.html": """{% extends "layout.html" %}{% block body %}
 <h1 style="margin:0 0 12px;font-size:20px{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
-{% if success %}<p style="margin:0 0 16px;white-space:pre-wrap{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ success }}</p>
+{% if message %}<p style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message }}</p>
+{% elif success %}<p style="margin:0 0 16px;white-space:pre-wrap{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ success }}</p>
 {% else %}<p style="margin:0 0 16px">{{ w.receipt_intro }}</p>
 {% endif %}
 <p style="margin:0 0 4px">{{ w.reference }}: <strong>{{ reference }}</strong></p>
@@ -121,7 +128,7 @@ Answers are not included in this email.
 {% endblock %}""",
     "receipt.txt": """{{ title }}
 
-{{ success or w.receipt_intro }}
+{{ message or success or w.receipt_intro }}
 
 {{ w.reference }}: {{ reference }}
 {{ w.submitted }}: {{ submitted }}
@@ -225,6 +232,8 @@ class Message:
     attachments: list[tuple[str, bytes, str]] = field(default_factory=list)
     # Display name in the From header ("Example Office" <address from JUSTFORMS_SMTP_FROM>).
     from_name: str | None = None
+    # Where replies go (the rule's Reply-To address).
+    reply_to: str | None = None
 
 
 @dataclass(frozen=True)
@@ -264,6 +273,75 @@ class Answer:
     value: str
     # Latin data (email, phone, number, date, time) and Yes / No: kept left to right.
     ltr: bool = False
+
+
+@dataclass(frozen=True)
+class Wording:
+    """An owner's custom subject and opening text (placeholders already filled) and the
+    Reply-To address. ``None`` keeps the built-in wording."""
+
+    subject: str | None = None
+    message: str | None = None
+    reply_to: str | None = None
+
+
+# Placeholders in custom wording (DESIGN 11.1): {reference}, {form_title}, {submitted} and
+# {answer:<question key>}. Anything else is left as typed (and refused when saving).
+PLACEHOLDER = re.compile(r"\{([a-z_]+)(?::([A-Za-z0-9_]+))?\}")
+PLACEHOLDERS = ("reference", "form_title", "submitted")
+
+
+def placeholder_fields(form: Form) -> dict[str, FieldElement]:
+    """Questions an ``{answer:key}`` placeholder may name: not in a repeater, not sensitive,
+    not a signature or file."""
+    out: dict[str, FieldElement] = {}
+    for info in FormIndex.build(form).elements.values():
+        el = info.element
+        if info.kind != "field" or info.repeater_id is not None:
+            continue
+        if getattr(el, "sensitive", False) or isinstance(el, (SignatureField, FileField)):
+            continue
+        out[info.id] = el  # type: ignore[assignment]
+    return out
+
+
+def unknown_placeholder(text: str, form: Form) -> str | None:
+    """The first placeholder ``text`` uses that can't be filled, or None."""
+    fields = placeholder_fields(form)
+    for m in PLACEHOLDER.finditer(text):
+        name, key = m.groups()
+        if key is None and name in PLACEHOLDERS:
+            continue
+        if name == "answer" and key in fields:
+            continue
+        return m.group(0)
+    return None
+
+
+def fill(text: str, values: dict[str, str], answers: dict[str, str]) -> str:
+    def one(m: re.Match[str]) -> str:
+        name, key = m.groups()
+        if key is None and name in values:
+            return values[name]
+        if name == "answer" and key is not None:
+            return answers.get(key, "")
+        return m.group(0)
+
+    return PLACEHOLDER.sub(one, text)
+
+
+def placeholder_answers(form: Form, data: dict[str, Any]) -> dict[str, str]:
+    language = form.settings.language
+    return {
+        key: answer_text(el, data.get(key), language, display=True)
+        for key, el in placeholder_fields(form).items()
+    }
+
+
+def one_line(text: str, limit: int = 250) -> str:
+    """A filled subject: one line (answers can hold newlines), within ``limit``."""
+    line = " ".join(text.split())
+    return line if len(line) <= limit else line[: limit - 1] + "…"
 
 
 # Thaana face for Dhivehi answers (CLAUDE.md "Fonts"); mail clients without it fall back.
@@ -344,10 +422,13 @@ def owner_message(
     url: str,
     respondent: str | None,
     answers: list[Answer] | None,
+    wording: Wording | None = None,
 ) -> Message:
     lang = form.settings.language
-    subject = f"New response to {_iso(title, lang)} ({reference})"
+    wording = wording or Wording()
+    subject = wording.subject or f"New response to {_iso(title, lang)} ({reference})"
     ctx: dict[str, Any] = {
+        "message": wording.message,
         "subject": subject,
         "org_name": org_name,
         "brand": _brand(brand, org_name),
@@ -359,12 +440,14 @@ def owner_message(
         "answers": answers or [],
         **_content(lang),
     }
-    return _message(
+    msg = _message(
         ctx["brand"],
         subject,
         _env.get_template("owner.txt").render(ctx),
         _env.get_template("owner.html").render(ctx),
     )
+    msg.reply_to = wording.reply_to
+    return msg
 
 
 def receipt_message(
@@ -378,11 +461,16 @@ def receipt_message(
     tz: Any,
     answers: list[Answer],
     pdf: tuple[str, bytes] | None,
+    wording: Wording | None = None,
 ) -> Message:
     lang = form.settings.language
     w = WORDS
-    subject = w["receipt_subject"].format(title=_iso(title, lang), reference=reference)
+    wording = wording or Wording()
+    subject = wording.subject or w["receipt_subject"].format(
+        title=_iso(title, lang), reference=reference
+    )
     ctx: dict[str, Any] = {
+        "message": wording.message,
         "subject": subject,
         "org_name": org_name,
         "brand": _brand(brand, org_name),
@@ -401,6 +489,7 @@ def receipt_message(
         _env.get_template("receipt.txt").render(ctx),
         _env.get_template("receipt.html").render(ctx),
     )
+    msg.reply_to = wording.reply_to
     if pdf is not None:
         msg.attachments.append((pdf[0], pdf[1], "application/pdf"))
     return msg

@@ -43,6 +43,11 @@ class NotificationRule(IdMixin, TimestampMixin, Base):
     attach_pdf: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     # Receipt: the email question to send to; None = the confirmed (OTP/staff) address.
     email_field: Mapped[str | None] = mapped_column(String(63))
+    # Custom wording (plain text with placeholders, DESIGN 11.1); None = the built-in text.
+    subject: Mapped[str | None] = mapped_column(String(200))
+    message: Mapped[str | None] = mapped_column(Text)
+    # Where replies go (a Reply-To header); None = replies go to the sender address.
+    reply_to: Mapped[str | None] = mapped_column(String(320))
 
 
 class EmailStatus(StrEnum):

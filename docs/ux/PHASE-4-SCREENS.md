@@ -105,6 +105,10 @@ webhook row wraps (URL on its own line, truncated with the full URL in `title`).
     email the form's owners." Error: "Enter email addresses like name@example.org,
     separated by commas".
   - "Include answers" `Switch`, description "Sensitive answers are never emailed."
+  - "Subject" `Input` (placeholder: the built-in subject) and "Message" `Textarea`, both
+    `dir="auto"`, saved on blur; descriptions list the placeholders (`{reference}`,
+    `{form_title}`, `{submitted}`, `{answer:question_key}`). An unknown placeholder shows a
+    `FieldError` under the field. Up to 10 recipients ("Enter up to 10 addresses").
 - Respondent receipt:
   - "Send to" `NativeSelect`: "The confirmed email" (only when access is "People who
     confirm their email"), then one option per email question, label in the form's language
@@ -113,6 +117,12 @@ webhook row wraps (URL on its own line, truncated with the full URL in `title`).
     their email, to send receipts."
   - "Attach the signed PDF" `Switch`, description "Only for forms with a signature. The
     receipt waits until the PDF is ready."
+  - "Subject", "Message" (replaces the opening thank-you) and "Reply-to address" (`Input`,
+    `dir="ltr"`), saved on blur.
+- "Send test emails" (owners, only with SMTP and a rule on): horizontal `Field` with an outline
+  `Button` "Send to me"; toast "Test emails are on their way to you". Both emails go to the
+  signed-in person with sample answers and "[Test]" in the subject; the log lists them as
+  "Test notification to ..." / "Test receipt to ...".
 - "Recent emails" (owners only): `ItemGroup` of up to 10 `Item size="sm"`: icon (check for
   sent, x in stamp for failed, spinner for queued), `ItemTitle` "Receipt to {masked email}"
   / "New response to {email}", `ItemDescription` the error for failures ("Couldn't send:

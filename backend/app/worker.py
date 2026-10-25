@@ -146,6 +146,7 @@ async def send_form_email(ctx: dict[str, Any], *, email_id: str) -> bool:
                 html=msg.html,
                 attachments=msg.attachments,
                 from_name=msg.from_name,
+                reply_to=msg.reply_to,
             )
         except Exception as exc:
             return await _email_failed(db, email_id, exc, tries)
