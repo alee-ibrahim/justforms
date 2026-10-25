@@ -15,6 +15,7 @@ DESIGN 14.1-14.2.
 from __future__ import annotations
 
 import hmac
+import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
@@ -28,6 +29,7 @@ from sqlalchemy import func, select
 from app import captcha, ratelimit
 from app.answers import search_text
 from app.api.v1.common import ApiModel
+from app.api.v1.sharing import page_head
 from app.approvals import service as approvals
 from app.auth import respondent as otp
 from app.auth.deps import DbDep, RedisDep, SettingsDep, StorageDep, check_origin
@@ -62,6 +64,8 @@ from app.storage import FileTooLargeError
 from app.theme.resolve import form_email_brand, page_brand
 from app.uploads import service as uploads
 from app.validation.answers import validate_submission
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -348,19 +352,26 @@ async def verify_code(
 
 
 @router.get("/frame-ancestors", status_code=status.HTTP_204_NO_CONTENT)
-async def frame_ancestors(db: DbDep, x_original_uri: Annotated[str, Header()] = "") -> Response:
-    """Used by nginx (``auth_request``) to set the public form's CSP ``frame-ancestors`` from
-    the form's allowed websites (DESIGN 14.4). No list: any site may embed the form."""
+async def frame_ancestors(
+    db: DbDep, settings: SettingsDep, x_original_uri: Annotated[str, Header()] = ""
+) -> Response:
+    """Asked by nginx (``auth_request``) for every public form page: the CSP
+    ``frame-ancestors`` from the form's allowed websites (DESIGN 14.4; no list: any site may
+    embed the form), and the page's ``<head>`` tags for link previews (title, description,
+    Open Graph and Twitter cards; :func:`app.api.v1.sharing.page_head`), which nginx puts in
+    place of the page's placeholder title. Without the tags header the page keeps its own."""
     value = "'self'"
     parts = [unquote(p) for p in urlsplit(x_original_uri).path.split("/") if p]
     form = await form_by_slug(db, parts[0]) if len(parts) == 1 else None
     if form is not None:
         origins = [o for o in (form.settings or {}).get("embedOrigins", []) if o]
         value = " ".join(["'self'", *origins]) if origins else "*"
-    return Response(
-        status_code=status.HTTP_204_NO_CONTENT,
-        headers={"X-JustForms-Frame-Ancestors": value, "Cache-Control": "no-store"},
-    )
+    headers = {"X-JustForms-Frame-Ancestors": value, "Cache-Control": "no-store"}
+    try:
+        headers["X-JustForms-Head"] = await page_head(db, settings, form)
+    except Exception:  # the page still works with its generic title
+        log.exception("link preview tags failed for %s", x_original_uri[:200])
+    return Response(status_code=status.HTTP_204_NO_CONTENT, headers=headers)
 
 
 @router.post(

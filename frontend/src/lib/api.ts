@@ -261,6 +261,23 @@ export interface ThemeFont {
   cssUrl: string | null
 }
 
+/** Form › Settings › Sharing preview (docs/ux/SHARING-PREVIEW-SCREENS.md). */
+export interface SharingOut {
+  title: string | null
+  description: string | null
+  effectiveTitle: string
+  effectiveDescription: string
+  defaultTitle: string
+  defaultDescription: string
+  siteName: string
+  url: string
+  language: FormLanguage
+  imageUrl: string
+  customImage: { width: number; height: number } | null
+  published: boolean
+  canEdit: boolean
+}
+
 export interface ThemeOut {
   theme: FormTheme
   canEdit: boolean
@@ -691,6 +708,11 @@ export const api = {
     request<ThemeReport>('POST', '/themes/preview', body),
   uploadFormLogo: (formId: string, file: File) => upload<ThemeOut>(`/forms/${formId}/logo`, file),
   deleteFormLogo: (formId: string) => request<ThemeOut>('DELETE', `/forms/${formId}/logo`),
+  sharing: (formId: string) => request<SharingOut>('GET', `/forms/${formId}/sharing`),
+  saveSharing: (formId: string, body: { title: string | null; description: string | null }) =>
+    request<SharingOut>('PUT', `/forms/${formId}/sharing`, body),
+  uploadSharingImage: (formId: string, file: File) => upload<SharingOut>(`/forms/${formId}/sharing/image`, file),
+  deleteSharingImage: (formId: string) => request<SharingOut>('DELETE', `/forms/${formId}/sharing/image`),
   uploadThemeImage: (orgId: string, file: File) =>
     upload<{ ref: string; url: string; width: number; height: number }>(`/orgs/${orgId}/theme-images`, file),
   checkSlug: (slug: string, formId?: string) => {

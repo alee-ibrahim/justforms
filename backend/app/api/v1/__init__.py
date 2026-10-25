@@ -14,6 +14,7 @@ from app.api.v1 import (
     orgs,
     people,
     public,
+    sharing,
     submissions,
     themes,
     verify,
@@ -41,3 +42,5 @@ router.include_router(branding.public)
 router.include_router(branding.site)
 router.include_router(themes.router)
 router.include_router(themes.public)
+router.include_router(sharing.router)
+router.include_router(sharing.public)

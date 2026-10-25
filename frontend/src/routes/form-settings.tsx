@@ -1,6 +1,6 @@
 /**
- * Settings (PHASE-4-SCREENS 1, APPROVALS-SCREENS 1, FORM-THEME-SCREENS 3.3, SAVED-PROGRESS-SCREENS 3):
- * appearance, who can respond and saved progress, spam protection, emails, approvals, webhooks,
+ * Settings (PHASE-4-SCREENS 1, APPROVALS-SCREENS 1, FORM-THEME-SCREENS 3.3, SAVED-PROGRESS-SCREENS 3,
+ * SHARING-PREVIEW-SCREENS 3): appearance, the link's sharing preview, who can respond and saved progress, spam protection, emails, approvals, webhooks,
  * retention.
  *
  * One section at a time (REVIEW P2-12): a section list at the start edge on desktop, a select on
@@ -16,6 +16,7 @@ import { NotificationsCard } from '@/components/settings/notifications-card'
 import { ProgressCard } from '@/components/settings/progress-card'
 import { RespondentsCard } from '@/components/settings/respondents-card'
 import { RetentionCard } from '@/components/settings/retention-card'
+import { SharingCard } from '@/components/settings/sharing-card'
 import { SpamCard } from '@/components/settings/spam-card'
 import { WebhooksCard } from '@/components/settings/webhooks-card'
 import { Button } from '@/components/ui/button'
@@ -31,6 +32,7 @@ interface Section {
 
 const SECTIONS: Section[] = [
   { id: 'appearance', label: 'Appearance', render: (form) => <FormAppearanceCard form={form} /> },
+  { id: 'sharing', label: 'Sharing preview', render: (form) => <SharingCard form={form} /> },
   {
     id: 'access',
     label: 'Access',

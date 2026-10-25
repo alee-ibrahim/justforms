@@ -207,6 +207,18 @@ Each form can change any of these on its Settings page; everything it doesn't ch
 the organisation. Both pages have a live preview of an English and a Dhivehi sample on a phone
 or desktop. The theme also colours email buttons and the title rule and headings of signed PDFs.
 
+## Link previews
+
+Every published form has its own link card for chat apps and social sites: the page sends the
+form's title, description, address and an image in its HTML (Open Graph and Twitter card tags),
+so a pasted link shows a proper preview. The image (1200 × 630) is generated from the form's
+title and description, the organisation's or form's logo and the form theme's colours, in
+Dhivehi right to left for Dhivehi forms, and is made again whenever any of those change. On
+the form's **Settings › Sharing preview** editors can set a different share title and
+description, upload their own image (cropped to the card's shape) or go back to the generated
+one, with a preview of the card in a chat app, a social feed and a short post. Links to
+unpublished or unknown forms show only the site's name.
+
 ## Running it
 
 - Docker Compose for one server, a Helm chart for Kubernetes: see [Deployment](deployment.md).

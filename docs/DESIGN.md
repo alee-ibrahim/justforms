@@ -1070,7 +1070,7 @@ All endpoints are JSON. OpenAPI is served at `/api/v1/openapi.json`, and the TS 
 **Public (respondent; no cookies)**
 - `GET /public/forms/{slug}` → live version schema, settings, upload nonce, captcha config. Returns 410 if closed. (Slugs are unique across the install; the public page is `/{slug}`.)
 - `POST /public/forms/{...}/otp/request`, `POST /public/forms/{...}/otp/verify`; for email-code forms the form `GET` returns the title and language but `schema: null` until a respondent token is sent
-- `GET /public/forms/{...}/captcha` (fresh proof-of-work challenge), `GET /public/frame-ancestors` (used by nginx for the per-form CSP)
+- `GET /public/forms/{...}/captcha` (fresh proof-of-work challenge), `GET /public/frame-ancestors` (used by nginx for the per-form CSP and the link-preview tags, §18.4)
 - `POST /public/forms/{...}/uploads`
 - `POST /public/forms/{...}/submissions` with `{versionId, data, signatures, uploadNonce, captchaToken?}` → `{seq, receiptAvailable}`. A 409 is returned if the live version changed mid-fill, and the client re-fetches and re-validates while keeping compatible answers.
 
@@ -1083,6 +1083,10 @@ All endpoints are JSON. OpenAPI is served at `/api/v1/openapi.json`, and the TS 
 - `PATCH /auth/me` with `{appearance}`
 - `GET|PUT /orgs/{orgId}/form-theme` (members read, admins change), `GET|PUT /forms/{formId}/theme` (viewers read, editors change), `POST /themes/preview` (unsaved values → tokens, fonts, options, adjustments), `PUT /orgs/{orgId}/theme-images` (raw PNG/JPEG/WebP body)
 - Public: `GET /public/forms/{slug}/theme.css`, `GET /public/theme-images/{orgId}/{ref}`
+
+**Link previews** (§18.4)
+- `GET|PUT /forms/{formId}/sharing` (viewers read, editors change: `{title, description}`), `PUT|DELETE /forms/{formId}/sharing/image` (raw PNG/JPEG/WebP body), `GET /forms/{formId}/sharing/image?v=` (current image for the studio)
+- Public: `GET /public/forms/{slug}/og.png?v=` (`og.jpg` for an uploaded image), `GET /public/og/site.png?v=`; the page tags travel in `X-JustForms-Head` on `GET /public/frame-ancestors`
 
 **AI (studio; feature-flagged)**
 - `POST /forms/{formId}/ai/sessions` with `{fresh?}`: the person's current chat on the form (or a new one); `GET /forms/{formId}/ai/sessions/{id}` (transcript and suggestion)
@@ -1245,6 +1249,37 @@ Screens and copy: [ux/FORM-THEME-SCREENS.md](ux/FORM-THEME-SCREENS.md).
   show it; form emails use a PNG form logo (an SVG falls back to the organisation's email
   header); signed PDFs print it at the chosen size and position (Hidden prints none). Duplicated
   forms don't copy it; a stored key that isn't under the form's own id is ignored.
+
+### 18.4 Link previews (Open Graph)
+
+Screens, layout and copy: [ux/SHARING-PREVIEW-SCREENS.md](ux/SHARING-PREVIEW-SCREENS.md).
+
+- **Page tags.** Crawlers don't run scripts, so the public form page's HTML carries the title,
+  description, canonical link, Open Graph (`og:type/site_name/title/description/url/locale/image`
+  with type, size and alt) and `twitter:card=summary_large_image` tags. nginx already asks
+  `GET /public/frame-ancestors` for every `/{slug}` page; the answer also carries the tags in
+  `X-JustForms-Head` (`app/sharing/meta.py`: HTML-escaped, non-ASCII as character references,
+  so one ASCII header line), and `sub_filter` puts them in place of the placeholder
+  `<title>Form</title>`. No header: the placeholder stays; the API unreachable: the plain page
+  (`error_page` fallback). Unknown, unpublished and archived addresses get the site's tags only
+  (default organisation's name and card), nothing about the form. Studio pages are unchanged.
+- **Image** (`app/sharing/image.py`). 1200 × 630 PNG drawn with fpdf2 + HarfBuzz like the signed
+  PDFs and rasterised with pdfium (Pillow has no raqm/FriBiDi in slim images): logo and
+  organisation name, the title at the largest size that fits three lines, up to two lines of
+  description, the address, a band in the theme's primary colour; mirrored and shaped right to
+  left for dv forms (Noto Sans Thaana; Latin always Atkinson Hyperlegible Next). Colours are the
+  form theme's light values.
+- **Cache** (`app/sharing/service.py`). `version` hashes everything drawn; the file lives at
+  `og/{form_id}/{version}.png` in `app.storage`, made on first request and the previous one
+  deleted, so publishing, branding, theme and share-text changes give a new image at a new URL.
+  `GET /public/forms/{slug}/og.png?v=` (and `og.jpg` for uploads) answers with a year's
+  immutable cache for the current version, otherwise 5 minutes, an `ETag`/304,
+  `Cross-Origin-Resource-Policy: cross-origin` and a sandbox CSP.
+- **Overrides.** `forms.settings["sharing"]` (no migration): share title (≤ 120) and description
+  (≤ 300), and an uploaded image (PNG/JPEG/WebP ≤ 5 MB, decoded, centre-cropped to 1.91:1, scaled
+  to ≤ 1200 × 630, re-encoded as JPEG under ~300 KB, stored at
+  `og/{form_id}/custom-{sha16}.jpg`). Viewers read, editors change, in form Settings › Sharing
+  preview, with a live link-card preview. Not copied by Duplicate.
 
 ---
 

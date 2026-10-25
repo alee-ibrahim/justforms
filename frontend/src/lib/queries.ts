@@ -36,6 +36,9 @@ export const orgThemeQuery = (orgId: string) =>
 export const formThemeQuery = (formId: string) =>
   queryOptions({ queryKey: ['form-theme', formId], queryFn: () => api.formTheme(formId) })
 
+export const sharingQuery = (formId: string) =>
+  queryOptions({ queryKey: ['sharing', formId], queryFn: () => api.sharing(formId) })
+
 export const formsQuery = (orgId: string) =>
   queryOptions({ queryKey: ['forms', orgId], queryFn: () => api.listForms(orgId) })
 
