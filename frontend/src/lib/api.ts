@@ -511,6 +511,8 @@ export interface AccessList {
   /** Owners who are organisation admins can invite people from outside. */
   canInvite: boolean
   orgName: string
+  /** "Notify by email" needs email to be set up on the server. */
+  smtpEnabled: boolean
 }
 
 // -- people (docs/ux/PEOPLE-SCREENS.md) -----------------------------------------------------
@@ -626,6 +628,7 @@ export interface EmailLogEntry {
     | 'approval_outcome'
     | 'test_owner_new'
     | 'test_receipt'
+    | 'form_shared'
   to: string
   status: 'queued' | 'sent' | 'failed'
   attempts: number
@@ -775,8 +778,12 @@ export const api = {
   startExport: (formId: string, filters: ListFilters) => request<ExportJob>('POST', `/forms/${formId}/exports`, filters),
   getExport: (id: string) => request<ExportJob>('GET', `/exports/${id}`),
   getAccess: (formId: string) => request<AccessList>('GET', `/forms/${formId}/permissions`),
-  putAccess: (formId: string, grants: { email: string; role: FormRole }[]) =>
-    request<AccessList>('PUT', `/forms/${formId}/permissions`, { grants }),
+  /** `notify` emails the people who get a role or a higher one, with the optional `message`. */
+  putAccess: (
+    formId: string,
+    grants: { email: string; role: FormRole }[],
+    options: { notify?: boolean; message?: string } = {},
+  ) => request<AccessList>('PUT', `/forms/${formId}/permissions`, { grants, ...options }),
   inviteAndShare: (formId: string, email: string, role: FormRole) =>
     request<AccessList>('POST', `/forms/${formId}/permissions/invite`, { email, role }),
   removePendingAccess: (formId: string, invitationId: string) =>

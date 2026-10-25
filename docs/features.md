@@ -169,6 +169,8 @@ The full mapping is in [DESIGN.md §13](DESIGN.md#13-import-from-jotform).
   them). An organisation always keeps at least one admin.
 - Sharing a form with someone who isn't in the organisation yet: admins invite them and share
   in one step; they get the form role when they accept.
+- Sharing a form with a member, or giving them a higher role, can email them ("Notify by
+  email", on by default) with an optional note; replies go to the person who shared it.
 - Superadmins can do all of this in every organisation.
 
 ## Branding

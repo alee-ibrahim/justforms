@@ -5,6 +5,9 @@ owners); any role on the form may read it. ``PUT`` replaces the explicit grants 
 Only existing members of the form's organisation can be granted a role, and a form always
 keeps at least one explicit owner.
 
+With ``notify`` the people who get a role, or a higher one, are emailed (with the owner's
+optional ``message``) through the worker; removals and the owner themselves never are.
+
 Someone outside the organisation can be invited and given the form role in one step
 (``POST .../permissions/invite``): only organisation admins may invite, because it brings
 the person into the whole organisation (docs/ux/PEOPLE-SCREENS.md 6). Their pending access is
@@ -13,11 +16,12 @@ listed under ``pending`` until they accept.
 
 from __future__ import annotations
 
+import re
 import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Request, status
-from pydantic import EmailStr, Field
+from pydantic import EmailStr, Field, field_validator
 from sqlalchemy import delete, select
 
 from app.api.v1.common import ApiModel
@@ -34,8 +38,10 @@ from app.models import (
     User,
 )
 from app.net import client_ip
-from app.permissions import FormAccess, FormOwner, FormViewer, org_role
-from app.queue import QueueDep
+from app.notifications.events import form_shared_row
+from app.permissions import FORM_ROLE_RANK, FormAccess, FormOwner, FormViewer, org_role
+from app.queue import JobQueue, QueueDep
+from app.ratelimit import take, too_many
 from app.services import invitations
 from app.services.users import audit, normalize_email
 
@@ -67,6 +73,8 @@ class AccessList(ApiModel):
     # Owners who are also organisation admins can invite people from outside.
     can_invite: bool = False
     org_name: str = ""
+    # "Notify by email" needs SMTP; without it the Share page turns the option off.
+    smtp_enabled: bool = False
 
 
 class InviteGrant(ApiModel):
@@ -79,8 +87,27 @@ class Grant(ApiModel):
     role: FormRole
 
 
+MESSAGE_MAX = 500
+# Control characters other than tab and newline (the note is plain text).
+_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
 class AccessPut(ApiModel):
     grants: Annotated[list[Grant], Field(max_length=500)]
+    # Email the people who get a role (or a higher one). Off for older clients.
+    notify: bool = False
+    # An optional plain-text note from the owner, shown in that email.
+    message: Annotated[str | None, Field(max_length=MESSAGE_MAX + 100)] = None
+
+    @field_validator("message")
+    @classmethod
+    def _plain(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        text = _CONTROL.sub("", v.replace("\r\n", "\n").replace("\r", "\n")).strip()
+        if len(text) > MESSAGE_MAX:
+            raise ValueError(f"at most {MESSAGE_MAX} characters")
+        return text or None
 
 
 async def _list(db: DbDep, form_id: uuid.UUID, org_id: uuid.UUID) -> list[AccessEntry]:
@@ -147,7 +174,7 @@ async def _pending(db: DbDep, form_id: uuid.UUID, org_id: uuid.UUID) -> list[Pen
     return out
 
 
-async def access_list(db: DbDep, access: FormAccess) -> AccessList:
+async def access_list(db: DbDep, settings: SettingsDep, access: FormAccess) -> AccessList:
     form = access.form
     org = await db.get(Organization, form.org_id)
     owner = access.role == FormRole.OWNER
@@ -157,18 +184,27 @@ async def access_list(db: DbDep, access: FormAccess) -> AccessList:
         can_manage=owner,
         can_invite=owner and await org_role(db, access.user, form.org_id) == OrgRole.ADMIN,
         org_name=org.name if org else "",
+        smtp_enabled=settings.smtp_enabled,
     )
 
 
 @router.get("/forms/{form_id}/permissions", response_model=AccessList)
-async def get_access(db: DbDep, access: FormViewer) -> AccessList:
-    return await access_list(db, access)
+async def get_access(db: DbDep, settings: SettingsDep, access: FormViewer) -> AccessList:
+    return await access_list(db, settings, access)
 
 
 @router.put("/forms/{form_id}/permissions", response_model=AccessList)
-async def put_access(body: AccessPut, db: DbDep, access: FormOwner) -> AccessList:
+async def put_access(
+    body: AccessPut,
+    db: DbDep,
+    redis: RedisDep,
+    settings: SettingsDep,
+    queue: QueueDep,
+    access: FormOwner,
+) -> AccessList:
     form = access.form
     wanted: dict[uuid.UUID, FormRole] = {}
+    users: dict[uuid.UUID, User] = {}
     for g in body.grants:
         email = normalize_email(str(g.email))
         user = await db.scalar(
@@ -182,6 +218,7 @@ async def put_access(body: AccessPut, db: DbDep, access: FormOwner) -> AccessLis
                 {"code": "not_a_member", "email": email},
             )
         wanted[user.id] = g.role
+        users[user.id] = user
     admins = set(
         (
             await db.scalars(
@@ -201,6 +238,20 @@ async def put_access(body: AccessPut, db: DbDep, access: FormOwner) -> AccessLis
             wanted[p.user_id] = p.role
     if FormRole.OWNER not in wanted.values() and not admins:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, {"code": "owner_required"})
+    # Who to email: people who get a role or a higher one. Never the owner making the change,
+    # nor organisation admins (they already act as owners); never for removals.
+    notify = [
+        (users[uid], uid in before)
+        for uid, role in wanted.items()
+        if uid in users
+        and uid != access.user.id
+        and uid not in admins
+        and (uid not in before or FORM_ROLE_RANK[role] > FORM_ROLE_RANK[before[uid]])
+    ]
+    if not (body.notify and settings.smtp_enabled):
+        notify = []
+    if notify:
+        await _limit_notify(redis, settings, access.user, form.org_id, len(notify))
     await db.execute(delete(FormPermission).where(FormPermission.form_id == form.id))
     for user_id, role in wanted.items():
         db.add(FormPermission(form_id=form.id, user_id=user_id, role=role))
@@ -216,8 +267,44 @@ async def put_access(body: AccessPut, db: DbDep, access: FormOwner) -> AccessLis
             "after": {str(k): v.value for k, v in wanted.items()},
         },
     )
+    rows = [
+        form_shared_row(form.id, user, sharer=access.user, upgraded=upgraded, note=body.message)
+        for user, upgraded in notify
+    ]
+    db.add_all(rows)
+    if rows:
+        await audit(
+            db,
+            "form.permissions_notify",
+            org_id=form.org_id,
+            actor_id=access.user.id,
+            target_type="form",
+            target_id=form.id,
+            meta={
+                "user_ids": [str(user.id) for user, _ in notify],
+                "with_message": body.message is not None,
+            },
+        )
     await db.commit()
-    return await access_list(db, access)
+    await _send_share_emails(queue, [r.id for r in rows])
+    return await access_list(db, settings, access)
+
+
+async def _limit_notify(
+    redis: RedisDep, settings: SettingsDep, user: User, org_id: uuid.UUID, n: int
+) -> None:
+    """``n`` people emailed at once: per sharer, then per organisation (all or nothing, as for
+    invitations). Over the limit nothing is saved; the owner can save without emailing."""
+    wait = await take(redis, settings, "share_notify_user", str(user.id), n)
+    if wait is None:
+        wait = await take(redis, settings, "share_notify_org", str(org_id), n)
+    if wait is not None:
+        raise too_many(wait)
+
+
+async def _send_share_emails(queue: JobQueue, ids: list[uuid.UUID]) -> None:
+    for email_id in ids:
+        await queue.enqueue("send_form_email", email_id=str(email_id))
 
 
 @router.post("/forms/{form_id}/permissions/invite", response_model=AccessList)
@@ -252,13 +339,15 @@ async def invite_and_share(
         raise HTTPException(status.HTTP_409_CONFLICT, "already_member")
     await db.commit()
     await send_invitation(queue, result.invitation)
-    return await access_list(db, access)
+    return await access_list(db, settings, access)
 
 
 @router.delete(
     "/forms/{form_id}/permissions/invitations/{invitation_id}", response_model=AccessList
 )
-async def remove_pending(invitation_id: uuid.UUID, db: DbDep, access: FormOwner) -> AccessList:
+async def remove_pending(
+    invitation_id: uuid.UUID, db: DbDep, settings: SettingsDep, access: FormOwner
+) -> AccessList:
     """Take this form out of a pending invitation (the invitation itself stays)."""
     inv = await db.get(OrgInvitation, invitation_id)
     if (
@@ -278,4 +367,4 @@ async def remove_pending(invitation_id: uuid.UUID, db: DbDep, access: FormOwner)
         meta={"invitation_id": str(inv.id), "email": inv.email},
     )
     await db.commit()
-    return await access_list(db, access)
+    return await access_list(db, settings, access)

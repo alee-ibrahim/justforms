@@ -273,6 +273,80 @@ When an owner adds an email that isn't in the organisation:
   (x button, "Remove the invited access for {email}"), which only drops this form from the
   invitation.
 
+### 6.1 Notify by email
+
+Adding a member to a form used to be silent; only invitations sent email. Now the owner can
+email the person, with an optional note, when they get a role or a higher one.
+
+**Add someone by email.** Under the email/role/Add row:
+
+```
+Add someone by email
+[ name@example.org              ] [ Submissions viewer v ] [ Add ]
+[x] Notify by email
+    Message (optional)
+    [ Add a note to the email                                  ]
+    Plain text. Replies come to your email address.      0/500
+A submissions viewer can view and export submissions, ...
+```
+
+Phone (390): the row wraps (email full width, then role and Add); the checkbox, message and
+counter stack full width below it. Nothing scrolls sideways.
+
+- `Checkbox` + `FieldLabel` "Notify by email" in a horizontal `Field`, **ticked by default**.
+  The `Textarea` "Message (optional)" (2 rows, `maxLength` 500) shows only while it is ticked.
+  `FieldDescription`: "Plain text. Replies come to your email address." with a live
+  "{n}/500" counter (`tabular-nums`) at the end.
+- The choice stays ticked after Add; the message clears after a successful save.
+- Toast after Add: "Added {email} and emailed them" when an email was queued, else
+  "Access updated". Adding someone already listed with the same or a lower role emails nobody.
+
+**Raising someone's role.** Choosing a higher role in a row's `Select` (viewer to editor,
+editor to owner) opens a `Dialog` instead of saving straight away:
+
+```
+Make Ibrahim Naseer an editor?
+Can edit and publish the form and change submission status.
+[x] Notify by email
+    Message (optional)  [ ...                         ]  0/500
+                                     [ Cancel ] [ Change role ]
+```
+
+- Cancel (or Escape) keeps the old role; the `Select` shows it again.
+- Lowering a role, removing someone and changing your own role save at once and never email
+  (removing your own owner role keeps its confirmation).
+- Toast: "Changed the role of {name} and emailed them" or "Access updated".
+
+**Email not set up** (`smtpEnabled: false`): the checkbox is disabled and unticked, with the
+description "Email is not set up on this server."; no message box; role changes save at once
+without the dialog.
+
+**Errors.** Too many emails (429): toast "You've emailed a lot of people. Try again later, or
+untick Notify by email." Nothing is saved in that case.
+
+**The email** (worker, organisation branding, From = organisation name, Reply-To = the
+sharer's address), English:
+
+- Subject: "{sharer} shared “{form title}” with you"; for a raised role "{sharer} changed your
+  access to “{form title}”". The title is isolated (FSI/PDI) when the form is Dhivehi.
+- Body: muted "Shared with you" (or "Access changed"), the form title as the heading in the
+  form's language and direction, then "{sharer} shared this form with you. You're now {an
+  editor: you can edit the form and manage submissions | a submissions viewer: you can view
+  and export submissions | an owner: you can edit the form, manage submissions and decide who
+  has access}." The note, when given: muted "{sharer} wrote:" and the text (escaped, line
+  breaks kept, `dir="auto"`, a hairline start border). Button "Open the form" (editors and
+  owners, the builder) or "Open the submissions" (viewers). Muted footer: "You're getting this
+  email because {sharer} changed who has access to this form. Replies go to them."
+- Never sent to the sharer, to organisation admins (already owners), for removals or lower
+  roles. The role is read when the email is sent: if access was removed meanwhile, nothing goes
+  out.
+
+Self-critique: the first idea was a single "Share" dialog with people chips (the Google Drive
+pattern). Changed: the card already has an inline add row that works on phones; the checkbox
+and note slot under it without a new surface. The note is hidden while unticked so the card
+stays short. A dialog for raised roles was chosen over an inline checkbox in the row, which
+would not fit at 320 px and would be easy to miss.
+
 ## 7. Studio changes for members
 
 - Forms page for a **member**: no "Create form" or "Import from Jotform" buttons. Empty state:

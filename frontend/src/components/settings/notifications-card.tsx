@@ -38,6 +38,7 @@ function logTitle(e: EmailLogEntry): string {
   if (e.kind === 'webhook_disabled') return `Webhook warning to ${e.to}`
   if (e.kind === 'approval_request') return `Approval request to ${e.to}`
   if (e.kind === 'approval_outcome') return `Approval outcome to ${e.to}`
+  if (e.kind === 'form_shared') return `Shared with ${e.to}`
   return `New response to ${e.to}`
 }
 

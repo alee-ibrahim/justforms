@@ -208,6 +208,28 @@ Accept the invitation: {{ url }}
 {{ how }}
 The link works until {{ until }}. If you weren't expecting this, you can ignore this email.
 """,
+    "form_shared.html": """{% extends "layout.html" %}{% block body %}
+<p style="margin:0 0 4px;color:#5A6380">{{ kicker }}</p>
+<h1 style="margin:0 0 16px;font-size:20px{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
+<p style="margin:0 0 16px">{{ body }}</p>
+{% if note %}<p style="margin:0 0 4px;color:#5A6380"><bdi dir="auto">{{ sharer }}</bdi> wrote:</p>
+<p style="margin:0 0 20px;padding:4px 0 4px 12px;border-left:3px solid #DCE0EA;white-space:pre-wrap" dir="auto">{{ note }}</p>
+{% endif %}<p style="margin:0 0 20px"><a href="{{ url }}" style="display:inline-block;background:{{ brand.button_bg }};color:{{ brand.button_fg }};text-decoration:none;padding:10px 16px;border-radius:6px">{{ button }}</a></p>
+<p style="margin:0;color:#5A6380">You're getting this email because <bdi dir="auto">{{ sharer }}</bdi> changed who has access to this form. Replies go to them.</p>
+{% endblock %}""",
+    "form_shared.txt": """{{ title_text }}
+
+{{ body_text }}
+{% if note %}
+
+{{ sharer }} wrote:
+{{ note }}
+{% endif %}
+
+{{ button }}: {{ url }}
+
+You're getting this email because {{ sharer }} changed who has access to this form. Replies go to them.
+""",
     "webhook_disabled.txt": """A webhook for "{{ title }}" was turned off
 
 JustForms stopped sending to {{ url }} after {{ failures }} failed deliveries in a row.
@@ -686,6 +708,67 @@ def invitation_message(
         _env.get_template("invitation.txt").render(ctx),
         _env.get_template("invitation.html").render(ctx),
     )
+
+
+# What each form role can do, in the words of the Share page (DESIGN 7).
+FORM_ROLE_WORDS = {
+    "viewer": ("a submissions viewer", "you can view and export submissions"),
+    "editor": ("an editor", "you can edit the form and manage submissions"),
+    "owner": ("an owner", "you can edit the form, manage submissions and decide who has access"),
+}
+
+
+def form_shared_message(
+    *,
+    org_name: str,
+    brand: EmailBrand | None,
+    sharer: str,
+    sharer_email: str | None,
+    title: str,
+    language: str,
+    role: str,
+    upgraded: bool,
+    note: str | None,
+    url: str,
+) -> Message:
+    """The email "{sharer} shared "{title}" with you": an organisation member got a role on a form (or a
+    higher one, ``upgraded``). ``note`` is the sharer's optional plain-text message, escaped in
+    HTML and attributed to them. Replies go to the sharer."""
+    sharer = one_line(sharer, 120) or "A colleague"
+    title = title or "Untitled form"
+    article, can = FORM_ROLE_WORDS.get(role, FORM_ROLE_WORDS["viewer"])
+    quoted = f"“{_iso(one_line(title, 150), language)}”"
+    subject = (
+        f"{sharer} changed your access to {quoted}"
+        if upgraded
+        else f"{sharer} shared {quoted} with you"
+    )
+    action = "changed your access to this form" if upgraded else "shared this form with you"
+    sentence = f"{{sharer}} {action}. You're now {article}: {can}."
+    content = _content(language)
+    ctx: dict[str, Any] = {
+        "subject": subject,
+        "org_name": org_name,
+        "brand": _brand(brand, org_name),
+        "kicker": "Access changed" if upgraded else "Shared with you",
+        "title": title,
+        "title_text": _iso(title, language),
+        "sharer": sharer,
+        "body": _sentence_html(sentence, set(), language, sharer=sharer),
+        "body_text": sentence.format(sharer=sharer),
+        "note": note,
+        "button": "Open the submissions" if role == "viewer" else "Open the form",
+        "url": url,
+        **content,
+    }
+    msg = _message(
+        ctx["brand"],
+        subject,
+        _env.get_template("form_shared.txt").render(ctx),
+        _env.get_template("form_shared.html").render(ctx),
+    )
+    msg.reply_to = sharer_email
+    return msg
 
 
 def webhook_disabled_message(*, title: str, url: str, failures: int, settings_url: str) -> Message:

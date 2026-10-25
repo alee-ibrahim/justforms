@@ -479,6 +479,8 @@ Superadmins act as admins of every organisation. An organisation always keeps at
 
 **Sharing with someone new.** Owners grant form roles only to organisation members. When an owner who is also an org admin adds an address from outside, the Share page offers "Invite and share": an invitation as `member` carrying the form role (`POST /forms/{id}/permissions/invite`), listed as pending access on the form until accepted. Other owners are told to ask an admin; inviting brings someone into the whole organisation, which is an admin decision.
 
+**Notify by email** (docs/ux/PEOPLE-SCREENS.md 6.1). `PUT /forms/{id}/permissions` takes optional `notify` (default false) and `message` (plain text, up to 500 characters; control characters dropped). With `notify` and SMTP set up, each member who gets a role, or a higher one, gets an email (`email_deliveries` kind `form_shared`, sent by the worker after the change is committed): never the owner making the change, organisation admins, removals or lower roles. The email names the sharer (Reply-To is their address), the form and the role in plain words, quotes the note (escaped) and links to the builder (editors, owners) or the submissions (viewers). The role is read when the email is sent, so access removed meanwhile sends nothing; the note is kept in the row only until the email is sent or has failed for good. Limits: 50 people an hour per sharer and 200 a day per organisation (`share_notify_user`, `share_notify_org`); over them the request is refused and nothing changes. Audit entry: `form.permissions_notify` (who was emailed, whether there was a note). The response carries `smtpEnabled` for the Share page.
+
 **Form roles** (granted per form via `form_permissions`; the UI calls `viewer` "Submissions viewer": can view and export submissions, can't edit the form)
 
 | Capability | viewer | editor | owner |
@@ -636,6 +638,7 @@ Antivirus scanning comes later. `scan_status` already exists in the schema. A la
 - **Respondent receipt.** Sent to the verified OTP email, or to the value of a designated `email` question (not in a repeater) if the form opts in; a public form can only use the latter. It can attach the signed PDF, in which case the job waits for the PDF job to finish.
 - **Custom wording.** Each rule can replace the subject and the opening text (plain text, not HTML; the receipt's replaces the thank-you or the form's success message, the owner's goes above the link) and set a Reply-To address. Placeholders: `{reference}`, `{form_title}`, `{submitted}` and `{answer:<question key>}` for a question outside a repeater that isn't sensitive, a signature or a file. Saving refuses any other placeholder; an unanswered question fills in as empty. The reference, the answers and the PDF note stay as they are. The owner writes this text, so it is not system text and may be in any language.
 - **Test emails.** `POST /forms/{formId}/notifications/test` (owners, rate limit `notify_test`, 5 an hour per person) queues both emails rendered with the current settings, sample answers (each question's label in brackets), reference `#0000`, no PDF and "[Test]" before the subject. They go only to the person asking, read no submission and appear in the email log as `test_owner_new` / `test_receipt`.
+- **Form shared.** When an owner shares a form with members and ticks "Notify by email" (§7), each person who gets a role or a higher one is emailed (kind `form_shared`), with the owner's optional note and Reply-To set to the owner.
 - **OTP emails.** These go on a priority queue.
 
 Retries: 5 attempts with exponential backoff starting at 30 seconds. After that the failure is logged and shown on the form's Notifications page.
@@ -917,6 +920,7 @@ A Redis sliding-window limiter is applied as FastAPI dependencies. Limits are co
 | OTP verify | 5 attempts per code; 30/hour per IP |
 | Auth callback / login | 30/min per IP |
 | Invitations | 50 addresses/hour per admin; 200/day per organisation; 3 resends/hour per invitation; invitation page 60/min per IP |
+| Share emails ("Notify by email") | 50 people/hour per sharer; 200/day per organisation |
 | AI chat | 20/min per user, plus the token budget |
 
 The client IP comes from `X-Forwarded-For` only when the request arrives from `JUSTFORMS_TRUSTED_PROXIES`.
@@ -1047,7 +1051,7 @@ All endpoints are JSON. OpenAPI is served at `/api/v1/openapi.json`, and the TS 
 - `POST /forms/{formId}/publish` → new version (validates, cycle check)
 - `GET /forms/{formId}/versions`, `GET /forms/{formId}/versions/{n}`
 - `POST /forms/{formId}/duplicate`
-- `GET|PUT /forms/{formId}/permissions` (any role reads; owners replace the explicit grants with `{grants: [{email, role}]}`; only organisation members can be granted, org admins are listed as implicit owners; the response also lists `pending` invited access and `canInvite`), `POST /forms/{formId}/permissions/invite` (owner who is an org admin), `DELETE /forms/{formId}/permissions/invitations/{id}`
+- `GET|PUT /forms/{formId}/permissions` (any role reads; owners replace the explicit grants with `{grants: [{email, role}], notify?, message?}`; only organisation members can be granted, org admins are listed as implicit owners; the response also lists `pending` invited access and `canInvite`), `POST /forms/{formId}/permissions/invite` (owner who is an org admin), `DELETE /forms/{formId}/permissions/invitations/{id}`
 - `GET /forms/{formId}/notifications` (both rules, the email questions and the last 10 emails), `PUT /forms/{formId}/notifications/{owner_email|respondent_receipt}` (`{enabled, recipients, includeAnswers, attachPdf, emailField, subject, message, replyTo}`), `POST /forms/{formId}/notifications/test`
 - `GET /forms/{formId}/approvals` (any role: settings, issues, email questions), `PUT /forms/{formId}/approvals` (owners)
 - `GET|POST /forms/{formId}/webhooks`, `PATCH|DELETE .../{id}`, `POST .../{id}/rotate-secret`, `POST .../{id}/test`, `GET .../{id}/deliveries?before=`, `POST .../{id}/deliveries/{deliveryId}/redeliver`

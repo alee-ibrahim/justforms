@@ -1,5 +1,6 @@
 /** "People with access" on the Share page (PHASE-3-SCREENS 10): per-form roles, plus people
- * invited to the organisation with this form (PEOPLE-SCREENS 6). */
+ * invited to the organisation with this form (PEOPLE-SCREENS 6), and "Notify by email" when
+ * someone gets a role or a higher one (PEOPLE-SCREENS 6.1). */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { MailIcon, XIcon } from 'lucide-react'
 import { useState } from 'react'
@@ -30,7 +31,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { api, ApiError, type AccessEntry, type AccessList, type FormRole } from '@/lib/api'
 import { FORM_ROLE_LABELS } from '@/lib/labels'
 
+import { NotifyFields, RoleChangeDialog } from './share-notify'
+import { notifyBody, type NotifyChoice } from './share-notify-lib'
+
 const ROLES = FORM_ROLE_LABELS
+const RANK: Record<FormRole, number> = { viewer: 1, editor: 2, owner: 3 }
+
+type Save = { grants: { email: string; role: FormRole }[]; notify?: boolean; message?: string; done: string }
 
 function initials(e: { displayName?: string; email: string }): string {
   const source = e.displayName?.trim() || e.email
@@ -47,6 +54,9 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
   const [confirmSelf, setConfirmSelf] = useState<(() => void) | null>(null)
   // An address outside the organisation, offered "Invite and share" (admins only).
   const [outsider, setOutsider] = useState<{ email: string; role: FormRole } | null>(null)
+  const [choice, setChoice] = useState<NotifyChoice>({ notify: true, message: '' })
+  // A role being raised, waiting for the "Notify by email" dialog.
+  const [raising, setRaising] = useState<{ target: AccessEntry; role: FormRole } | null>(null)
 
   const updated = (next: AccessList, message: string) => {
     queryClient.setQueryData(['access', formId], next)
@@ -76,12 +86,19 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
   })
 
   const save = useMutation({
-    mutationFn: (grants: { email: string; role: FormRole }[]) => api.putAccess(formId, grants),
-    onSuccess: (next) => updated(next, 'Access updated'),
-    onError: (err, grants) => {
+    mutationFn: ({ grants, notify, message }: Save) =>
+      api.putAccess(formId, grants, notify ? { notify, ...(message ? { message } : {}) } : {}),
+    onSuccess: (next, { done }) => {
+      updated(next, done)
+      setChoice((c) => ({ ...c, message: '' }))
+      setRaising(null)
+    },
+    onError: (err, { grants }) => {
       const code = err instanceof ApiError ? (err.detail as { code?: string } | null)?.code : null
       const org = access.data?.orgName || 'your organisation'
-      if (code === 'not_a_member') {
+      if (err instanceof ApiError && err.status === 429)
+        toast.error("You've emailed a lot of people. Try again later, or untick Notify by email.")
+      else if (code === 'not_a_member') {
         const added = grants[grants.length - 1]
         if (access.data?.canInvite && added) setOutsider(added)
         else setError(`${added?.email ?? 'That person'} isn't in ${org} yet. Ask an organisation admin to invite them.`)
@@ -94,16 +111,27 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
   const entries = access.data?.entries ?? []
   const pending = access.data?.pending ?? []
   const manage = access.data?.canManage ?? false
+  const smtp = access.data?.smtpEnabled ?? false
   const grants = entries.filter((e) => !e.orgAdmin)
   const hasAdmin = entries.some((e) => e.orgAdmin)
   const owners = grants.filter((e) => e.role === 'owner')
   const asGrants = (list: AccessEntry[]) => list.map((e) => ({ email: e.email, role: e.role }))
-  const isSelf = (e: AccessEntry) => !!myEmail && e.email === myEmail.toLowerCase()
+  const isSelfEmail = (email: string) => !!myEmail && email === myEmail.toLowerCase()
+  const isSelf = (e: AccessEntry) => isSelfEmail(e.email)
   const lastOwner = (e: AccessEntry) => !hasAdmin && e.role === 'owner' && owners.length === 1
 
+  const name = (e: AccessEntry) => e.displayName || e.email
+  const withRole = (target: AccessEntry, next: FormRole | null) =>
+    asGrants(next === null ? grants.filter((g) => g !== target) : grants.map((g) => (g === target ? { ...g, role: next } : g)))
+
   const change = (target: AccessEntry, next: FormRole | null) => {
-    const list = next === null ? grants.filter((g) => g !== target) : grants.map((g) => (g === target ? { ...g, role: next } : g))
-    const run = () => save.mutate(asGrants(list))
+    if (next === target.role) return
+    // Raising someone else's role asks whether to email them.
+    if (next !== null && smtp && !isSelf(target) && RANK[next] > RANK[target.role]) {
+      setRaising({ target, role: next })
+      return
+    }
+    const run = () => save.mutate({ grants: withRole(target, next), done: 'Access updated' })
     if (isSelf(target) && target.role === 'owner' && next !== 'owner') setConfirmSelf(() => run)
     else run()
   }
@@ -126,11 +154,11 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
                     <AvatarFallback className="text-xs">{initials(e)}</AvatarFallback>
                   </Avatar>
                 </ItemMedia>
-                <ItemContent className="min-w-0">
+                <ItemContent className="min-w-40">
                   <ItemTitle className="max-w-full truncate">{e.displayName || e.email}</ItemTitle>
                   {e.displayName && <ItemDescription className="truncate">{e.email}</ItemDescription>}
                 </ItemContent>
-                <ItemActions>
+                <ItemActions className="ms-auto">
                   {e.orgAdmin ? (
                     <span className="text-sm text-muted-foreground">Owner (organisation admin)</span>
                   ) : manage ? (
@@ -177,7 +205,7 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
                     <AvatarFallback className="text-xs">{initials(p)}</AvatarFallback>
                   </Avatar>
                 </ItemMedia>
-                <ItemContent className="min-w-0">
+                <ItemContent className="min-w-40">
                   <ItemTitle className="max-w-full truncate">
                     <bdi dir="ltr">{p.email}</bdi>
                   </ItemTitle>
@@ -188,7 +216,7 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
                     </Badge>
                   </ItemDescription>
                 </ItemContent>
-                <ItemActions>
+                <ItemActions className="ms-auto">
                   <span className="text-sm">{ROLES[p.role]}</span>
                   {manage && (
                     <Tooltip>
@@ -219,7 +247,15 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
               const value = email.trim().toLowerCase()
               if (!value) return setError('Enter an email address like name@example.org')
               const others = grants.filter((g) => g.email !== value)
-              save.mutate([...asGrants(others), { email: value, role }])
+              const known = grants.find((g) => g.email === value)
+              const emailing = notifyBody(choice, smtp)
+              // Only people who get a role or a higher one are emailed.
+              const emailed = emailing.notify && !isSelfEmail(value) && (!known || RANK[role] > RANK[known.role])
+              save.mutate({
+                grants: [...asGrants(others), { email: value, role }],
+                ...emailing,
+                done: emailed ? `Added ${value} and emailed them` : 'Access updated',
+              })
             }}
           >
             <Field>
@@ -259,6 +295,7 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
                 </Button>
               </div>
               {error && <FieldError id="access-email-error">{error}</FieldError>}
+              <NotifyFields id="access" smtpEnabled={smtp} value={choice} onChange={setChoice} />
               {outsider && (
                 <Alert>
                   <AlertDescription className="flex flex-col gap-2">
@@ -289,6 +326,21 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
           access.data && <p className="text-sm text-muted-foreground">Only owners can change who has access.</p>
         )}
       </CardContent>
+      <RoleChangeDialog
+        change={raising && { name: name(raising.target), role: raising.role }}
+        smtpEnabled={smtp}
+        pending={save.isPending}
+        onCancel={() => setRaising(null)}
+        onConfirm={(c) => {
+          if (!raising) return
+          const emailing = notifyBody(c, smtp)
+          save.mutate({
+            grants: withRole(raising.target, raising.role),
+            ...emailing,
+            done: emailing.notify ? `Changed the role of ${name(raising.target)} and emailed them` : 'Access updated',
+          })
+        }}
+      />
       <AlertDialog open={confirmSelf !== null} onOpenChange={(o) => !o && setConfirmSelf(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

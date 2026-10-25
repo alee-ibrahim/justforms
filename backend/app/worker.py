@@ -124,12 +124,18 @@ async def send_form_email(ctx: dict[str, Any], *, email_id: str) -> bool:
             msg = await notify.render_email(db, settings, get_storage(), row)
             if msg is None:
                 row.status = EmailStatus.FAILED
-                row.last_error = "Nothing to send any more: the submission was deleted or moved on."
+                row.last_error = (
+                    "Nothing to send any more: the access was removed or the form deleted."
+                    if row.kind == notify.FORM_SHARED
+                    else "Nothing to send any more: the submission was deleted or moved on."
+                )
+                notify.forget_note(row)
                 await db.commit()
                 return False
             if not settings.smtp_enabled:
                 row.status = EmailStatus.FAILED
                 row.last_error = "Email isn't set up on this install."
+                notify.forget_note(row)
                 await db.commit()
                 return False
             await db.commit()  # the approver link (if any) is live before the email is sent
@@ -174,6 +180,7 @@ async def _email_failed(
             row.last_error = error
             if final:
                 row.status = EmailStatus.FAILED
+                notify.forget_note(row)
             await db.commit()
     except Exception:
         await db.rollback()

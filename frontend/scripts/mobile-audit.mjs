@@ -473,7 +473,20 @@ function scenarios(d) {
     ],
   ], { fullPage: true })
   add('preview', `${formPath}/preview`)
-  add('share', `${formPath}/share`)
+  add('share', `${formPath}/share`, [
+    ['', null],
+    [
+      // Raising a submissions viewer opens the "Notify by email" dialog (PEOPLE-SCREENS 6.1).
+      // Only when email is set up: otherwise the change would save at once.
+      'raise-role',
+      async (page) => {
+        await closeOverlays(page)
+        if (await page.locator('#access-notify[disabled]').count()) return
+        const select = page.locator('[role=combobox][aria-label^="Role of "]', { hasText: 'Submissions viewer' })
+        if (await clickIf(page, select)) await clickIf(page, page.getByRole('option', { name: 'Editor' }))
+      },
+    ],
+  ], { fullPage: true })
   add('settings', `${formPath}/settings`, [
     ['', null],
     [

@@ -12,6 +12,8 @@ while the PDF is pending, and the PDF job dispatches ``submission.pdf_ready`` (o
 
 from __future__ import annotations
 
+import contextlib
+import json
 import logging
 import uuid
 from dataclasses import dataclass, field
@@ -56,6 +58,8 @@ PDF_FAILED = "pdf_failed"  # internal: the receipt goes out without the PDF
 # "Send test emails": each rule's email rendered with sample answers, to the person asking.
 TEST_KINDS = {"test_owner_new": RuleType.OWNER_EMAIL, "test_receipt": RuleType.RESPONDENT_RECEIPT}
 TEST_PREFIX = "[Test] "
+# A member got a role on a form (Share page, "Notify by email").
+FORM_SHARED = "form_shared"
 
 
 def _submitted_text(when: datetime, tz: Any) -> str:
@@ -233,6 +237,8 @@ async def render_email(
         )
     if row.kind in TEST_KINDS:
         return await _test_message(db, settings, form, row.kind, org_name, eb)
+    if row.kind == FORM_SHARED:
+        return await _form_shared(db, settings, form, row, org_name, eb)
     sub = await db.get(Submission, row.submission_id) if row.submission_id else None
     if sub is None or sub.deleted_at is not None:
         return None
@@ -398,6 +404,71 @@ async def _test_message(
     return msg
 
 
+def share_detail(row: EmailDelivery) -> dict[str, Any]:
+    try:
+        detail = json.loads(row.detail or "{}")
+    except ValueError:
+        return {}
+    return detail if isinstance(detail, dict) else {}
+
+
+def form_shared_row(
+    form_id: uuid.UUID,
+    to: User,
+    *,
+    sharer: User,
+    upgraded: bool,
+    note: str | None,
+) -> EmailDelivery:
+    """A queued "form shared" email. The recipient's role is read when it is sent (so a role
+    changed or removed in the meantime is respected); the note is kept until then."""
+    row = _email(form_id, None, FORM_SHARED, to.email)
+    detail: dict[str, Any] = {"by": str(sharer.id), "user": str(to.id), "upgraded": upgraded}
+    if note:
+        detail["note"] = note
+    row.detail = json.dumps(detail, ensure_ascii=False)
+    return row
+
+
+async def _form_shared(
+    db: AsyncSession,
+    settings: Settings,
+    form: FormRecord,
+    row: EmailDelivery,
+    org_name: str,
+    brand: emails.EmailBrand | None,
+) -> emails.Message | None:
+    """Nothing to send when the form was deleted or the person no longer has a role on it."""
+    if form.deleted_at is not None:
+        return None
+    detail = share_detail(row)
+    try:
+        user_id = uuid.UUID(str(detail.get("user")))
+    except ValueError:
+        return None
+    perm = await db.get(FormPermission, (form.id, user_id))
+    if perm is None:
+        return None
+    sharer = None
+    with contextlib.suppress(ValueError):
+        sharer = await db.get(User, uuid.UUID(str(detail.get("by"))))
+    language = str((form.draft_schema.get("settings") or {}).get("language") or "en")
+    page = "submissions" if perm.role == FormRole.VIEWER else "edit"
+    note = detail.get("note")
+    return emails.form_shared_message(
+        org_name=org_name,
+        brand=brand,
+        sharer=(sharer.display_name or sharer.email) if sharer else "",
+        sharer_email=sharer.email if sharer else None,
+        title=form.title,
+        language=language,
+        role=perm.role.value,
+        upgraded=bool(detail.get("upgraded")),
+        note=note if isinstance(note, str) and note else None,
+        url=f"{settings.public_origin}/forms/{form.id}/{page}",
+    )
+
+
 async def _approval_request(
     db: AsyncSession,
     settings: Settings,
@@ -450,6 +521,17 @@ def mark_sent(row: EmailDelivery) -> None:
     row.status = EmailStatus.SENT
     row.sent_at = datetime.now(UTC)
     row.last_error = None
+    forget_note(row)
+
+
+def forget_note(row: EmailDelivery) -> None:
+    """Drop the sharer's personal note once a "form shared" email is done with (sent, or
+    failed for good): the email log never keeps message bodies."""
+    if row.kind != FORM_SHARED or not row.detail:
+        return
+    detail = share_detail(row)
+    if detail.pop("note", None) is not None:
+        row.detail = json.dumps(detail)
 
 
 def email_fields(form: Form) -> list[EmailField]:
