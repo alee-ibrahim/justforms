@@ -377,7 +377,7 @@ export function SubmissionViewPage() {
             <Tabs
               value={tab === 'answers' ? 'details' : tab}
               onValueChange={setTab}
-              className="sticky top-12 max-h-[calc(100svh-3rem)] gap-0 overflow-y-auto"
+              className="sticky top-(--studio-top) max-h-[calc(100dvh-var(--studio-top))] gap-0 overflow-y-auto"
             >
               <TabsList className="mx-4 mt-3">
                 <TabsTrigger value="details">Details</TabsTrigger>

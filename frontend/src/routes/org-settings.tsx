@@ -72,7 +72,7 @@ function SectionNav({ orgId }: { orgId: string }) {
           ))}
         </NativeSelect>
       </Field>
-      <nav aria-label="Settings sections" className="flex flex-col gap-0.5 max-lg:hidden lg:sticky lg:top-16">
+      <nav aria-label="Settings sections" className="flex flex-col gap-0.5 max-lg:hidden lg:sticky lg:top-[calc(var(--studio-top)+1rem)]">
         {SECTIONS.map((s) => (
           <Button
             key={s.to}

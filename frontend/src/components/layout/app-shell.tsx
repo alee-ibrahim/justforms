@@ -1,12 +1,13 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import { CircleHelpIcon, LogOutIcon, MonitorIcon, MoonIcon, SettingsIcon, SunIcon, UserIcon } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 
 import { BrandLogo } from '@/components/brand/brand-parts'
 import { JustFormsLogo } from '@/components/brand/logo'
 import { ShortcutList } from '@/components/layout/shortcuts'
+import { useHeightVar } from '@/components/layout/sticky'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -27,6 +28,7 @@ import { applyBrand, type Brand } from '@/lib/branding'
 import { applyAppearance, rememberAppearance, storedAppearance, type Appearance } from '@/lib/color-scheme'
 import { brandQuery, meQuery, metaQuery } from '@/lib/queries'
 import { markSignedOut } from '@/lib/sso-auto'
+import { cn } from '@/lib/utils'
 import { loadThaanaFont } from '@/lib/thaana-font'
 
 const APPEARANCES: { value: Appearance; label: string; icon: typeof SunIcon }[] = [
@@ -142,8 +144,12 @@ function HeaderBrand({ brand }: { brand: Brand | undefined }) {
   return <JustFormsLogo />
 }
 
+/** Pages inside one form (`/forms/{id}/...`), which carry the form bar. */
+const FORM_PAGE = /^\/forms\/(?!import\/)[^/]+\/./
+
 /** Studio chrome. The studio UI is English and left-to-right; only form content follows
- * the form's language (see `contentProps` in `@/schema`). */
+ * the form's language (see `contentProps` in `@/schema`). On phones a form page shows one
+ * bar, the form bar, so this header steps aside there (STUDIO-HEADER 2). */
 export function AppShell() {
   const meta = useQuery(metaQuery)
   const me = useQuery(meQuery)
@@ -163,10 +169,18 @@ export function AppShell() {
   }, [brand.data])
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const signedIn = !pathname.startsWith('/login')
+  const header = useRef<HTMLElement>(null)
+  useHeightVar(header, '--app-bar-h')
   return (
     <TooltipProvider>
       <div className="flex min-h-svh flex-col">
-        <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b bg-card px-4 print:hidden">
+        <header
+          ref={header}
+          className={cn(
+            'sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b bg-card px-4 print:hidden',
+            FORM_PAGE.test(pathname) && 'max-sm:hidden',
+          )}
+        >
           <Link
             to="/forms"
             aria-label={brand.data?.custom ? brand.data.name : 'JustForms'}

@@ -1,19 +1,25 @@
-/** Second header row inside a form (PHASE-2-SCREENS 2.3): title, save state, undo, nav, publish. */
+/**
+ * The bar inside a form (PHASE-2-SCREENS 2.3, STUDIO-HEADER-MOBILE): title, save state, undo,
+ * the form's pages, publish. Sticky under the app header. Below 1024px it is one compact row
+ * (back, title, save icon, Publish when there is something to publish, one menu); on phones it
+ * is the only bar (the app header steps aside).
+ */
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import {
-  ChevronDownIcon,
   ChevronLeftIcon,
   CircleCheckIcon,
   CloudOffIcon,
   EllipsisIcon,
+  EllipsisVerticalIcon,
+  Redo2Icon,
+  SendIcon,
   SparklesIcon,
   SplitIcon,
-  Redo2Icon,
   TriangleAlertIcon,
   Undo2Icon,
 } from 'lucide-react'
 import { useThaanaKeyboard } from '@yashau/thaana-react'
-import { useRef, useState } from 'react'
+import { type RefObject, useRef, useState } from 'react'
 
 import { useAi, useAiController } from '@/components/ai/controller'
 import { Badge } from '@/components/ui/badge'
@@ -31,27 +37,26 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useHeightVar } from '@/components/layout/sticky'
 import { useMenuTooltip } from '@/components/layout/use-menu-tooltip'
 import type { FormSummary } from '@/lib/api'
 import { MOD_KEY } from '@/lib/shortcuts'
+import { cn } from '@/lib/utils'
 import { contentProps, formLanguage } from '@/schema/language'
 
+import { activeNav, FORM_NAV as NAV, type NavItem } from './form-nav'
 import { LogicOverview } from './logic-overview'
 import { type BuilderStore, useBuilder, useStore } from './store'
-
-const NAV = [
-  { to: '/forms/$formId/edit', label: 'Edit' },
-  { to: '/forms/$formId/preview', label: 'Preview' },
-  { to: '/forms/$formId/share', label: 'Share' },
-  { to: '/forms/$formId/submissions', label: 'Submissions' },
-  { to: '/forms/$formId/settings', label: 'Settings' },
-] as const
 
 function SaveStatus() {
   const store = useStore()
@@ -97,12 +102,27 @@ function SaveStatus() {
   )
 }
 
-/** Opens the AI assistant panel (PHASE-5-SCREENS 1); absent when AI is off. */
-function AiButton({ formId }: { formId: string }) {
+/** Opens or closes the AI assistant panel (PHASE-5-SCREENS 1), going to Edit first; null when AI is off. */
+function useAiToggle(formId: string) {
   const ai = useAiController()
   const open = useAi(ai, (s) => s.open)
   const navigate = useNavigate()
   const editing = useRouterState({ select: (s) => s.location.pathname.endsWith('/edit') })
+  if (!ai) return null
+  return {
+    shown: open && editing,
+    toggle: () => {
+      if (!editing) {
+        void navigate({ to: '/forms/$formId/edit', params: { formId } })
+        ai.setOpen(true)
+      } else ai.setOpen(!open)
+    },
+  }
+}
+
+/** Opens the AI assistant panel (PHASE-5-SCREENS 1); absent when AI is off. */
+function AiButton({ formId }: { formId: string }) {
+  const ai = useAiToggle(formId)
   if (!ai) return null
   return (
     <Tooltip>
@@ -110,21 +130,16 @@ function AiButton({ formId }: { formId: string }) {
         <Button
           variant="outline"
           size="sm"
-          aria-pressed={open && editing}
+          aria-pressed={ai.shown}
           aria-label="AI assistant"
-          className={open && editing ? 'bg-secondary' : undefined}
-          onClick={() => {
-            if (!editing) {
-              void navigate({ to: '/forms/$formId/edit', params: { formId } })
-              ai.setOpen(true)
-            } else ai.setOpen(!open)
-          }}
+          className={ai.shown ? 'bg-secondary' : undefined}
+          onClick={ai.toggle}
         >
           <SparklesIcon />
-          <span className="max-sm:hidden">AI assistant</span>
+          <span className="max-xl:hidden">AI assistant</span>
         </Button>
       </TooltipTrigger>
-      <TooltipContent className="sm:hidden">AI assistant</TooltipContent>
+      <TooltipContent className="xl:hidden">AI assistant</TooltipContent>
     </Tooltip>
   )
 }
@@ -214,10 +229,10 @@ function TitleCrumb({ store }: { store: BuilderStore }) {
       />
     )
   return (
-    <BreadcrumbPage>
+    <BreadcrumbPage className="min-w-0">
       <button
         type="button"
-        className="max-w-64 truncate rounded-sm text-start outline-none pointer-coarse:min-h-11 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="block max-w-64 truncate rounded-sm text-start outline-none pointer-coarse:min-h-11 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
         onClick={() => setEditing(title)}
         title="Rename"
       >
@@ -233,32 +248,221 @@ function TitleCrumb({ store }: { store: BuilderStore }) {
   )
 }
 
-function FormMenu({ formId }: { formId: string }) {
+
+/** Desktop "…" menu. */
+function FormMenu({ onLogic, trigger }: { onLogic: () => void; trigger: RefObject<HTMLButtonElement | null> }) {
   const menuTip = useMenuTooltip()
-  const [logic, setLogic] = useState(false)
-  const trigger = useRef<HTMLButtonElement>(null)
+  return (
+    <DropdownMenu>
+      <Tooltip {...menuTip.tooltip}>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button ref={trigger} variant="ghost" size="icon-sm" aria-label="More form actions">
+              <EllipsisIcon />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>More form actions</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="end" {...menuTip.content}>
+        <DropdownMenuItem onSelect={onLogic}>
+          <SplitIcon />
+          View all logic
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/** The form's title as the draft has it (renames show at once), in the form's language. */
+function DraftTitle() {
+  const schema = useBuilder((s) => s.schema)
+  const title = schema.settings.title
+  return title ? (
+    <bdi dir="auto" lang={formLanguage(schema)}>
+      {title}
+    </bdi>
+  ) : (
+    'Untitled form'
+  )
+}
+
+const SAVE_WORDS = {
+  saved: 'Saved',
+  saving: 'Saving…',
+  offline: 'Offline. Changes will save when you reconnect',
+} as const
+
+/** Save state as one icon, its words for screen readers and as a hover title (compact bar). */
+function SaveIcon() {
+  const store = useStore()
+  const status = useBuilder((s) => s.status)
+  const error = useBuilder((s) => s.error)
+  return (
+    <div role="status" className="flex shrink-0 items-center">
+      {status === 'error' ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-destructive hover:text-destructive"
+          title={error ?? undefined}
+          aria-label="Couldn't save. Retry"
+          onClick={() => void store.flush()}
+        >
+          <TriangleAlertIcon />
+        </Button>
+      ) : (
+        <span
+          className={cn(
+            'flex size-8 items-center justify-center pointer-coarse:size-11 [&_svg]:size-4',
+            status === 'offline' ? 'text-foreground' : 'text-muted-foreground',
+          )}
+          title={SAVE_WORDS[status]}
+        >
+          {status === 'saved' ? (
+            <CircleCheckIcon aria-hidden />
+          ) : status === 'saving' ? (
+            <Spinner aria-hidden />
+          ) : (
+            <CloudOffIcon aria-hidden />
+          )}
+          <span className="sr-only">{SAVE_WORDS[status]}</span>
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** Undo and redo as menu items; choosing one keeps the menu open so it can be repeated. */
+function UndoRedoItems({ store }: { store: BuilderStore }) {
+  const canUndo = useBuilder(() => store.canUndo)
+  const canRedo = useBuilder(() => store.canRedo)
+  const locked = useBuilder((s) => s.locked)
   return (
     <>
-      <DropdownMenu>
-        <Tooltip {...menuTip.tooltip}>
-          <TooltipTrigger asChild>
-            <DropdownMenuTrigger asChild>
-              <Button ref={trigger} variant="ghost" size="icon-sm" aria-label="More form actions">
-                <EllipsisIcon />
-              </Button>
-            </DropdownMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent>More form actions</TooltipContent>
-        </Tooltip>
-        <DropdownMenuContent align="end" {...menuTip.content}>
-          <DropdownMenuItem onSelect={() => setLogic(true)}>
-            <SplitIcon />
-            View all logic
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <LogicOverview open={logic} onOpenChange={setLogic} formId={formId} returnFocus={trigger} />
+      <DropdownMenuItem
+        disabled={locked || !canUndo}
+        onSelect={(e) => {
+          e.preventDefault()
+          void store.undo()
+        }}
+      >
+        <Undo2Icon />
+        Undo
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        disabled={locked || !canRedo}
+        onSelect={(e) => {
+          e.preventDefault()
+          void store.redo()
+        }}
+      >
+        <Redo2Icon />
+        Redo
+      </DropdownMenuItem>
+      {locked && (
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+          Apply or discard the suggestion first
+        </DropdownMenuLabel>
+      )}
     </>
+  )
+}
+
+type CompactProps = {
+  form: FormSummary
+  store: BuilderStore | null
+  nav: readonly NavItem[]
+  active: NavItem
+  canPublish: boolean
+  onPublish?: () => void
+  onLogic: () => void
+  trigger: RefObject<HTMLButtonElement | null>
+}
+
+/** The compact bar's one menu: the form's pages, history, assistant, logic, and Publish with
+ * the reason when there is nothing to publish. */
+function CompactMenu({ form, store, nav, active, canPublish, onPublish, onLogic, trigger }: CompactProps) {
+  const navigate = useNavigate()
+  const ai = useAiToggle(form.id)
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button ref={trigger} variant="ghost" size="icon" className="shrink-0" aria-label="Form menu">
+          <EllipsisVerticalIcon />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-56">
+        <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">Go to</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={active.to}
+          onValueChange={(to) => void navigate({ to: to as NavItem['to'], params: { formId: form.id } })}
+        >
+          {nav.map(({ to, label, icon: Icon }) => (
+            <DropdownMenuRadioItem key={to} value={to}>
+              <Icon />
+              {label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+        {store && (
+          <>
+            <DropdownMenuSeparator />
+            <UndoRedoItems store={store} />
+            {ai && (
+              <DropdownMenuItem onSelect={ai.toggle}>
+                <SparklesIcon />
+                {ai.shown ? 'Close AI assistant' : 'AI assistant'}
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onSelect={onLogic}>
+              <SplitIcon />
+              View all logic
+            </DropdownMenuItem>
+          </>
+        )}
+        {store && onPublish && !canPublish && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled className="flex-col items-start gap-0.5">
+              <span className="flex items-center gap-2">
+                <SendIcon />
+                Publish
+              </span>
+              <span className="text-xs">No changes since version {form.currentVersion}</span>
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/** Below 1024px: one row. Back, the title over the current page's name, save icon, Publish
+ * while there is something to publish, and one menu for the rest. */
+function CompactBar(props: CompactProps) {
+  const { form, store, active, canPublish, onPublish } = props
+  return (
+    <nav aria-label="Form" className="flex h-14 items-center gap-1 ps-1 pe-2 sm:px-3 lg:hidden">
+      <Button asChild variant="ghost" size="icon" className="shrink-0">
+        <Link to="/forms" aria-label="Back to forms">
+          <ChevronLeftIcon />
+        </Link>
+      </Button>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-sm leading-5 font-medium">
+          {store ? <DraftTitle /> : <bdi dir="auto">{form.title || 'Untitled form'}</bdi>}
+        </span>
+        <span className="truncate text-xs leading-4 text-muted-foreground">{active.label}</span>
+      </div>
+      {store && <SaveIcon />}
+      {store && onPublish && canPublish && (
+        <Button size="sm" className="shrink-0" onClick={onPublish}>
+          Publish
+        </Button>
+      )}
+      <CompactMenu {...props} />
+    </nav>
   )
 }
 
@@ -267,99 +471,114 @@ export function FormBar({
   store,
   unpublished,
   onPublish,
+  sticky = true,
 }: {
   form: FormSummary
   store: BuilderStore | null
   unpublished: boolean
   onPublish?: () => void
+  /** Off where the bar heads a full-height layout that scrolls inside (the builder). */
+  sticky?: boolean
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const active = NAV.find((n) => pathname.endsWith(n.to.split('/').pop()!)) ?? NAV[0]
+  const active = activeNav(pathname)
   const nav = store ? NAV : NAV.filter((n) => n.label !== 'Edit' && n.label !== 'Preview')
+  const canPublish = unpublished || form.currentVersion === null
+  const bar = useRef<HTMLDivElement>(null)
+  useHeightVar(bar, '--form-bar-h')
+  const [logic, setLogic] = useState(false)
+  const desktopTrigger = useRef<HTMLButtonElement>(null)
+  const compactTrigger = useRef<HTMLButtonElement>(null)
+  // Focus goes back to whichever menu opened the logic sheet (only one bar is shown).
+  const logicReturn = useRef<HTMLElement | null>(null)
+  const openLogic = () => {
+    logicReturn.current = desktopTrigger.current?.offsetParent ? desktopTrigger.current : compactTrigger.current
+    setLogic(true)
+  }
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b bg-card px-4 py-2 print:hidden">
-      <Breadcrumb className="min-w-0 max-md:hidden">
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <Link to="/forms">Forms</Link>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            {store ? (
-              <TitleCrumb store={store} />
-            ) : (
-              <BreadcrumbPage>
-                <bdi dir="auto">{form.title || 'Untitled form'}</bdi>
-              </BreadcrumbPage>
-            )}
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-      <Button asChild variant="ghost" size="sm" className="md:hidden">
-        <Link to="/forms" aria-label="Back to forms">
-          <ChevronLeftIcon />
-          <bdi dir="auto" className="max-w-40 truncate">
-            {form.title || 'Untitled form'}
-          </bdi>
-        </Link>
-      </Button>
-      {store && <SaveStatus />}
-      <div className="ms-auto flex flex-wrap items-center gap-2">
-        {store && <AiButton formId={form.id} />}
-        {store && <UndoRedo store={store} />}
-        <nav aria-label="Form" className="flex items-center max-md:hidden">
-          {nav.map((n) => (
-            <Button key={n.to} asChild variant="ghost" size="sm">
-              <Link to={n.to} params={{ formId: form.id }} activeProps={{ 'aria-current': 'page', className: 'bg-secondary' }}>
-                {n.label}
-              </Link>
-            </Button>
-          ))}
-        </nav>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="md:hidden">
-              {active.label}
-              <ChevronDownIcon />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+    <div
+      ref={bar}
+      data-form-bar
+      className={cn('z-20 shrink-0 border-b bg-card print:hidden', sticky && 'sticky top-(--app-bar-h,0px)')}
+    >
+      <CompactBar
+        form={form}
+        store={store}
+        nav={nav}
+        active={active}
+        canPublish={canPublish}
+        onPublish={onPublish}
+        onLogic={openLogic}
+        trigger={compactTrigger}
+      />
+      <div className="flex items-center gap-3 px-4 py-2 max-lg:hidden">
+        <Breadcrumb className="min-w-0">
+          <BreadcrumbList className="flex-nowrap">
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/forms">Forms</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem className="min-w-0">
+              {store ? (
+                <TitleCrumb store={store} />
+              ) : (
+                <BreadcrumbPage className="truncate">
+                  <bdi dir="auto">{form.title || 'Untitled form'}</bdi>
+                </BreadcrumbPage>
+              )}
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+        {store && <SaveStatus />}
+        <div className="ms-auto flex shrink-0 items-center gap-2">
+          {store && <AiButton formId={form.id} />}
+          {store && <UndoRedo store={store} />}
+          <nav aria-label="Form" className="flex items-center">
             {nav.map((n) => (
-              <DropdownMenuItem key={n.to} asChild>
-                <Link to={n.to} params={{ formId: form.id }}>
+              <Button key={n.to} asChild variant="ghost" size="sm">
+                <Link
+                  to={n.to}
+                  params={{ formId: form.id }}
+                  aria-current={n === active ? 'page' : undefined}
+                  className={n === active ? 'bg-secondary' : undefined}
+                >
                   {n.label}
                 </Link>
-              </DropdownMenuItem>
+              </Button>
             ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        {store && <FormMenu formId={form.id} />}
-        {unpublished && form.currentVersion !== null && (
-          <Badge variant="secondary" className="max-sm:hidden">
-            Unpublished changes
-          </Badge>
-        )}
-        {store && onPublish && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span tabIndex={!unpublished && form.currentVersion !== null ? 0 : -1} className="rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
-                <Button size="sm" onClick={onPublish} disabled={!unpublished && form.currentVersion !== null}>
-                  Publish
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>
-              {!unpublished && form.currentVersion !== null ? `No changes since version ${form.currentVersion}` : 'Publish'}{' '}
-              <KbdGroup>
-                <Kbd>{MOD_KEY}</Kbd>
-                <Kbd>Enter</Kbd>
-              </KbdGroup>
-            </TooltipContent>
-          </Tooltip>
-        )}
+          </nav>
+          {store && <FormMenu onLogic={openLogic} trigger={desktopTrigger} />}
+          {unpublished && form.currentVersion !== null && (
+            <Badge variant="secondary" className="max-xl:hidden">
+              Unpublished changes
+            </Badge>
+          )}
+          {store && onPublish && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  tabIndex={!canPublish ? 0 : -1}
+                  className="rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  <Button size="sm" onClick={onPublish} disabled={!canPublish}>
+                    Publish
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                {!canPublish ? `No changes since version ${form.currentVersion}` : 'Publish'}{' '}
+                <KbdGroup>
+                  <Kbd>{MOD_KEY}</Kbd>
+                  <Kbd>Enter</Kbd>
+                </KbdGroup>
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       </div>
+      {store && <LogicOverview open={logic} onOpenChange={setLogic} formId={form.id} returnFocus={logicReturn} />}
     </div>
   )
 }

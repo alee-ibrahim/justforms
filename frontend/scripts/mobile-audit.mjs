@@ -13,6 +13,11 @@
  * - hidden-control  an interactive element cut off by a clipping or scrolling box (e.g. a
  *                   table's action menu off to the side); mark intentional scrollers with
  *                   data-scroll-x ("swipe for more columns") to exempt them
+ * - sticky          on a form page scrolled down (touch swipe), the form bar is not pinned
+ *                   right under the app header (top 0 on phones, where it is the only bar), or a
+ *                   control focused by keyboard ends up under it (scroll-padding-top)
+ * - scroll-trap     a box that scrolls vertically by only a few pixels (a hit area or focus ring
+ *                   poking out): a swipe that starts on it moves it, not the page
  * - truncated       (warning only) text shortened with an ellipsis
  *
  * Usage (stack running, e.g. `just dev` + mailpit, or the compose stack with --profile dev):
@@ -184,6 +189,8 @@ function pageAudit({ minTarget, minForm }) {
     if (s.visibility === 'hidden' || s.display === 'none' || Number(s.opacity) === 0) return false
     if (el.closest('[aria-hidden="true"], [inert], .sr-only')) return false
     if (s.position === 'absolute' && s.clip && s.clip.startsWith('rect(0')) return false
+    // Visually hidden text (sr-only, also responsive variants such as max-sm:sr-only).
+    if (s.position === 'absolute' && s.clipPath === 'inset(50%)') return false
     return true
   }
   const label = (el) => {
@@ -241,6 +248,13 @@ function pageAudit({ minTarget, minForm }) {
     } else {
       push('clipped-text', el, overX ? `${el.scrollWidth}px text in ${el.clientWidth}px` : `${el.scrollHeight}px text in ${el.clientHeight}px tall box`)
     }
+  }
+
+  for (const el of all) {
+    const s = css(el)
+    if (!['auto', 'scroll'].includes(s.overflowY) || el === document.scrollingElement || el === document.body) continue
+    const extra = el.scrollHeight - el.clientHeight
+    if (extra >= 1 && extra <= 4) push('scroll-trap', el, `scrolls ${extra}px vertically`)
   }
 
   if (vw >= 320) {
@@ -325,6 +339,54 @@ function pageAudit({ minTarget, minForm }) {
   return { vw, vh, issues: out }
 }
 
+/* Runs in the page after a touch scroll: the form bar must sit right under the app header (which
+   phones hide on form pages, so top 0 there), and keyboard focus must land below the bars. */
+function stickyAudit() {
+  const out = []
+  const bar = document.querySelector('[data-form-bar]')
+  if (!bar || getComputedStyle(bar).position !== 'sticky') return out
+  const header = document.querySelector('header')
+  const headerBottom = header && getComputedStyle(header).display !== 'none' ? header.getBoundingClientRect().bottom : 0
+  const r = bar.getBoundingClientRect()
+  const scrollable = document.documentElement.scrollHeight > window.innerHeight + 100
+  if (scrollable && window.scrollY < 50) out.push({ type: 'sticky', el: 'html', detail: `page did not scroll (scrollY ${Math.round(window.scrollY)})` })
+  if (Math.abs(r.top - headerBottom) > 1)
+    out.push({ type: 'sticky', el: '[data-form-bar]', detail: `top ${Math.round(r.top)}px, expected ${Math.round(headerBottom)}px` })
+  if (document.documentElement.clientWidth < 640 && Math.round(r.top) !== 0)
+    out.push({ type: 'sticky', el: '[data-form-bar]', detail: `phone: top ${Math.round(r.top)}px, expected 0` })
+  // Focus the first focusable control in the content that is above the fold after scrolling,
+  // as Shift+Tab would: it must be scrolled clear of the bars.
+  const main = document.querySelector('main')
+  const target = main && [...main.querySelectorAll('a[href], button:not([disabled]), input:not([type=hidden]), [tabindex="0"]')].find((el) => {
+    const er = el.getBoundingClientRect()
+    return er.height > 0 && er.bottom < r.bottom
+  })
+  if (target) {
+    target.focus()
+    const tr = target.getBoundingClientRect()
+    const cover = bar.getBoundingClientRect().bottom
+    if (tr.top < cover - 1) out.push({ type: 'sticky', el: target.tagName.toLowerCase(), detail: `focused control at ${Math.round(tr.top)}px is under the bar (bottom ${Math.round(cover)}px)` })
+    target.blur()
+  }
+  return out
+}
+
+async function swipeUp(page) {
+  const vp = page.viewportSize()
+  const cdp = await page.context().newCDPSession(page)
+  const x = Math.round(vp.width / 2)
+  const y0 = Math.round(vp.height * 0.8)
+  const y1 = Math.round(vp.height * 0.2)
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: y0 }] })
+  for (let i = 1; i <= 12; i++) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y0 + ((y1 - y0) * i) / 12 }] })
+    await wait(16)
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await cdp.detach()
+  await wait(700)
+}
+
 // -- scenarios ---------------------------------------------------------------------------------
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -400,11 +462,9 @@ function scenarios(d) {
     ],
     ['form-menu', async (page) => {
       await closeOverlays(page)
-      await clickIf(page, page.getByRole('button', { name: 'More form actions' }))
-    }],
-    ['nav-menu', async (page) => {
-      await closeOverlays(page)
-      await clickIf(page, page.getByRole('button', { name: /^Edit$/ }))
+      // The compact bar's one menu (pages, undo/redo, logic, Publish) below 1024px, else "…".
+      if (!(await clickIf(page, page.getByRole('button', { name: 'Form menu' }))))
+        await clickIf(page, page.getByRole('button', { name: 'More form actions' }))
     }],
     ['ai', async (page) => {
       await closeOverlays(page)
@@ -472,7 +532,7 @@ function scenarios(d) {
       },
     ],
   ], { fullPage: true })
-  add('preview', `${formPath}/preview`)
+  add('preview', `${formPath}/preview`, undefined, { scroll: true })
   add('share', `${formPath}/share`, [
     ['', null],
     [
@@ -486,7 +546,7 @@ function scenarios(d) {
         if (await clickIf(page, select)) await clickIf(page, page.getByRole('option', { name: 'Editor' }))
       },
     ],
-  ], { fullPage: true })
+  ], { fullPage: true, scroll: true })
   add('settings', `${formPath}/settings`, [
     ['', null],
     [
@@ -496,7 +556,7 @@ function scenarios(d) {
         await wait(300)
       },
     ],
-  ], { fullPage: true })
+  ], { fullPage: true, scroll: true })
   add('submissions', `${formPath}/submissions?status=all`, [
     ['', null],
     ['filters', async (page) => void (await clickIf(page, page.getByRole('button', { name: /^Filter/ })))],
@@ -504,12 +564,16 @@ function scenarios(d) {
       await closeOverlays(page)
       await clickIf(page, page.getByRole('button', { name: /export/i }))
     }],
+    ['more-actions', async (page) => {
+      await closeOverlays(page)
+      await clickIf(page, page.getByRole('button', { name: 'More submission actions' }))
+    }],
     ['bulk', async (page) => {
       await closeOverlays(page)
       await clickIf(page, page.getByRole('checkbox', { name: /^Select #/ }))
       await clickIf(page, page.getByRole('checkbox', { name: /^Select #/ }).nth(1))
     }],
-  ])
+  ], { scroll: true })
   add('submissions-cards', `${formPath}/submissions?status=all`, [
     ['', async (page) => void (await clickIf(page, page.getByRole('radio', { name: 'Cards' })))],
   ], { fullPage: true })
@@ -526,7 +590,7 @@ function scenarios(d) {
       },
     ],
   ]
-  if (d.submissionId) add('submission-detail', `${formPath}/submissions?open=${d.submissionId}`, viewerSteps, { fullPage: true })
+  if (d.submissionId) add('submission-detail', `${formPath}/submissions?open=${d.submissionId}`, viewerSteps, { fullPage: true, scroll: true })
   if (d.imported)
     add('submission-imported', `/forms/${d.imported.formId}/submissions/${d.imported.seq}`, viewerSteps, { fullPage: true })
   for (const p of d.publicForms) {
@@ -574,7 +638,8 @@ function scenarios(d) {
 const api = await signIn()
 const data = await discover(api)
 await api.dispose()
-const browser = await chromium.launch()
+// Touch events on, so the scroll check swipes like a finger.
+const browser = await chromium.launch({ args: ['--touch-events=enabled'] })
 const report = []
 let errors = 0
 
@@ -605,6 +670,18 @@ for (const deviceName of deviceNames) {
           report.push({ device: deviceName, scheme, state: name, url: page.url().replace(BASE, ''), viewport: res.vw, screenshot: shot, issues: res.issues })
           console.log(`${errs.length ? 'FAIL' : 'ok  '} ${deviceName} ${scheme} ${name}${errs.length ? ` (${errs.length})` : ''}`)
           for (const i of errs) console.log(`       ${i.type}: ${i.el} ${i.detail}`)
+        }
+        if (sc.scroll) {
+          await closeOverlays(page)
+          await page.evaluate(() => window.scrollTo(0, 0))
+          await swipeUp(page)
+          const issues = await page.evaluate(stickyAudit)
+          const name = `${sc.name}-scrolled`
+          if (!args['no-screenshots']) await page.screenshot({ path: path.join(dir, `${name}.png`) })
+          errors += issues.length
+          report.push({ device: deviceName, scheme, state: name, url: page.url().replace(BASE, ''), screenshot: path.join(dir, `${name}.png`), issues })
+          console.log(`${issues.length ? 'FAIL' : 'ok  '} ${deviceName} ${scheme} ${name}${issues.length ? ` (${issues.length})` : ''}`)
+          for (const i of issues) console.log(`       ${i.type}: ${i.el} ${i.detail}`)
         }
       } catch (e) {
         errors++

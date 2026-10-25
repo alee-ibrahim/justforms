@@ -238,7 +238,7 @@ function LinkPreview({ data, title, description }: { data: SharingOut; title: st
   )
   const site = <bdi dir="ltr">{host(data.url)}</bdi>
   return (
-    <Card className="rounded-md border shadow-none ring-0 xl:sticky xl:top-16">
+    <Card className="rounded-md border shadow-none ring-0 xl:sticky xl:top-[calc(var(--studio-top)+1rem)]">
       <CardHeader>
         <CardTitle>Preview</CardTitle>
         <CardDescription>Each app draws the card its own way; these are close to what people see.</CardDescription>

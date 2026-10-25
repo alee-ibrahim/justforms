@@ -117,11 +117,13 @@ function EditorChrome({
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
   }, [dirty])
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const editing = useRouterState({ select: (s) => s.location.pathname.endsWith('/edit') })
   return (
     <PublishedContext.Provider value={published}>
-      <div className={pathname.endsWith('/edit') ? 'flex h-[calc(100svh-3rem)] flex-col overflow-hidden' : 'contents'}>
-        <FormBar form={form} store={store} unpublished={unpublished} onPublish={start} />
+      {/* The builder fills the screen under the app header and scrolls inside; dvh follows the
+          phone's address bar, so no gap opens or content hides when it shows or hides. */}
+      <div className={editing ? 'flex h-[calc(100dvh-var(--app-bar-h,0px))] flex-col overflow-hidden' : 'contents'}>
+        <FormBar form={form} store={store} unpublished={unpublished} onPublish={start} sticky={!editing} />
         {children}
       </div>
       <PublishDialog form={form} mutation={mutation} />

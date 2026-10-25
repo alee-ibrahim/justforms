@@ -21,7 +21,7 @@ export function BrandPreview({ brand, palette }: { brand: Brand; palette: Palett
   const tokens = palette ? (mode === 'dark' ? palette.darkTokens : palette.lightTokens) : undefined
 
   return (
-    <Card className="rounded-md border shadow-none ring-0 lg:sticky lg:top-16">
+    <Card className="rounded-md border shadow-none ring-0 lg:sticky lg:top-[calc(var(--studio-top)+1rem)]">
       <CardHeader className="flex flex-wrap items-center justify-between gap-2">
         <CardTitle>Preview</CardTitle>
         <div className="flex flex-wrap items-center gap-2">

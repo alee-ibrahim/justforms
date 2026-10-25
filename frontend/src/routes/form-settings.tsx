@@ -95,7 +95,7 @@ export function FormSettingsPage() {
         </NativeSelect>
       </Field>
       <div className="grid items-start gap-6 lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-8">
-        <nav aria-label="Settings sections" className="flex flex-col gap-0.5 max-lg:hidden lg:sticky lg:top-16">
+        <nav aria-label="Settings sections" className="flex flex-col gap-0.5 max-lg:hidden lg:sticky lg:top-[calc(var(--studio-top)+1rem)]">
           {SECTIONS.map((s) => (
             <Button
               key={s.id}

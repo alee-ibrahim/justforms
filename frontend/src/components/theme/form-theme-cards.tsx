@@ -107,7 +107,7 @@ function OrgFormTheme({ orgId, data }: { orgId: string; data: ThemeOut }) {
           </CardFooter>
         )}
       </Card>
-      <ThemePreview report={report} className="lg:sticky lg:top-16" />
+      <ThemePreview report={report} className="lg:sticky lg:top-[calc(var(--studio-top)+1rem)]" />
     </div>
   )
 }
@@ -185,7 +185,7 @@ function FormAppearance({ form, data }: { form: FormSummary; data: ThemeOut }) {
           </CardFooter>
         )}
       </Card>
-      <ThemePreview report={report} language={language} className="xl:sticky xl:top-16" />
+      <ThemePreview report={report} language={language} className="xl:sticky xl:top-[calc(var(--studio-top)+1rem)]" />
     </div>
   )
 }

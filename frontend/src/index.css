@@ -389,6 +389,21 @@
   }
 }
 
+/* Tables scroll sideways only. Touch hit areas (checkbox ::after) poke a pixel past the last row;
+   with overflow-y auto the table container then scrolls 1px vertically and a swipe that starts on
+   it latches there instead of scrolling the page (STUDIO-HEADER-MOBILE 3). */
+[data-slot='table-container'] {
+  overflow-y: hidden;
+}
+
+/* Studio sticky bars (STUDIO-HEADER-MOBILE 3): the app header and the form bar publish their
+   heights (--app-bar-h, --form-bar-h, 0 when hidden). --studio-top is where content starts under
+   them; scroll-padding keeps a focused or scrolled-to control out from under the bars. */
+:root {
+  --studio-top: calc(var(--app-bar-h, 0px) + var(--form-bar-h, 0px));
+  scroll-padding-top: calc(var(--studio-top) + 0.5rem);
+}
+
 /* Printing a submission (SUBMISSIONS-VIEWER-SCREENS 1.7): the studio header and form bar are
    print:hidden; the page prints on white. */
 @media print {

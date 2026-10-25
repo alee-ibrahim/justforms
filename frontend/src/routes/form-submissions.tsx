@@ -7,6 +7,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import {
   ChevronDownIcon,
+  EllipsisIcon,
+  FileSearchIcon,
   FileSpreadsheetIcon,
   InboxIcon,
   LayoutGridIcon,
@@ -177,6 +179,8 @@ export function FormSubmissionsPage() {
     }))
   const [exporting, setExporting] = useState<ListFilters | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
+  const [checkOpen, setCheckOpen] = useState(false)
+  const moreActions = useRef<HTMLButtonElement>(null)
   const live = useQuery(versionQuery(form.id, form.currentVersion))
   const versions = useQuery({ ...versionsQuery(form.id), enabled: form.currentVersion !== null })
   const { list, rows, total } = useSubmissionList(form.id, filters, form.currentVersion !== null && pickedTab)
@@ -273,18 +277,24 @@ export function FormSubmissionsPage() {
   const none = stats.data?.all === 0
   return (
     <PageContainer>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Submissions</h1>
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Phones: Export stays, the rest goes in one menu (STUDIO-HEADER-MOBILE 4). */}
+        <div className="flex items-center gap-2">
           {form.role === 'owner' && (
-            <Button variant="outline" size="sm" asChild>
+            <Button variant="outline" size="sm" asChild className="max-sm:hidden">
               <Link to="/forms/$formId/submissions/import" params={{ formId: form.id }}>
                 <UploadIcon />
                 Import responses
               </Link>
             </Button>
           )}
-          <CheckPdfDialog />
+          <CheckPdfDialog
+            open={checkOpen}
+            onOpenChange={setCheckOpen}
+            triggerClassName="max-sm:hidden"
+            returnFocus={moreActions}
+          />
           {!none && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -306,6 +316,27 @@ export function FormSubmissionsPage() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button ref={moreActions} variant="outline" size="icon-sm" className="sm:hidden" aria-label="More submission actions">
+                <EllipsisIcon />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {form.role === 'owner' && (
+                <DropdownMenuItem asChild>
+                  <Link to="/forms/$formId/submissions/import" params={{ formId: form.id }}>
+                    <UploadIcon />
+                    Import responses
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onSelect={() => setCheckOpen(true)}>
+                <FileSearchIcon />
+                Check a PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       {none ? (
@@ -368,7 +399,8 @@ export function FormSubmissionsPage() {
           ) : (
             <div className="flex flex-col gap-2">
               <div className="flex flex-wrap items-center gap-2">
-                <InputGroup className="max-w-xs">
+                {/* Phones: search, Filter and the date range share one row (icon buttons). */}
+                <InputGroup className="max-sm:w-auto max-sm:min-w-0 max-sm:flex-1 sm:max-w-xs">
                   <InputGroupAddon>
                     <SearchIcon />
                   </InputGroupAddon>
@@ -379,7 +411,7 @@ export function FormSubmissionsPage() {
                     value={query}
                     onChange={(e) => onType(e.target.value)}
                   />
-                  <InputGroupAddon align="inline-end">
+                  <InputGroupAddon align="inline-end" className="pointer-coarse:hidden">
                     <Kbd>/</Kbd>
                   </InputGroupAddon>
                 </InputGroup>

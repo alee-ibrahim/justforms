@@ -147,6 +147,8 @@ Autosave is continuous. The builder never has a Save button.
 
 ### 2.3 Form bar (second header row)
 
+Sticky under the app header; below 1024px see [STUDIO-HEADER-MOBILE.md](STUDIO-HEADER-MOBILE.md).
+
 | Piece | Component | Notes |
 |---|---|---|
 | Breadcrumb "Forms / {title}" | `Breadcrumb` [add] | title is click-to-rename (`Input` inline on click, Enter saves, Esc cancels) |
@@ -417,8 +419,9 @@ The builder is a desktop tool, but staff will open it on a phone to fix a typo.
 - < 768px: inspector becomes a `Drawer` that opens when a block is tapped (half height,
   draggable to full). Drag-and-drop is still available via long-press, but the primary path is
   the block menu "Move up/Move down/Move to page…".
-- Form bar collapses: breadcrumb shows title only, nav becomes a `DropdownMenu` ("Edit ▾"),
-  Publish stays visible.
+- Form bar collapses to one compact row (back, title over the page name, save icon, Publish
+  when there is something to publish, one menu); on phones it replaces the app header. See
+  [STUDIO-HEADER-MOBILE.md](STUDIO-HEADER-MOBILE.md); the sketch below is superseded.
 
 ```
 ┌──────────────────────────────┐

@@ -124,7 +124,12 @@ function SourceStep({ orgId, onRead }: { orgId: string; onRead: (p: FormImport) 
               read.reset()
             }}
           >
-            <ScrollArea className="w-full">
+            {/* Sideways only: the focus ring made the viewport scroll 4px vertically, so a swipe
+                starting on the tabs moved them instead of the page. */}
+            <ScrollArea
+              className="w-full [&>[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:hidden [&>[data-slot=scroll-area-viewport]]:overflow-y-hidden!"
+              data-scroll-x
+            >
               <TabsList>
                 <TabsTrigger value="link">Link</TabsTrigger>
                 <TabsTrigger value="source">Source code</TabsTrigger>

@@ -1,7 +1,7 @@
 /** "Check a PDF" (PHASE-3-SCREENS 3): is a JustForms PDF genuine, unchanged and still current? */
 import { useMutation } from '@tanstack/react-query'
 import { FileSearchIcon, ShieldAlertIcon, ShieldCheckIcon, UploadIcon } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { type RefObject, useRef, useState } from 'react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -61,8 +61,22 @@ function Result({ r }: { r: PdfCheck }) {
   )
 }
 
-export function CheckPdfDialog() {
-  const [open, setOpen] = useState(false)
+/** "Check a PDF": its own button, or (`open`/`onOpenChange`) opened from a menu on phones. */
+export function CheckPdfDialog({
+  open: openProp,
+  onOpenChange,
+  triggerClassName,
+  returnFocus,
+}: {
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  triggerClassName?: string
+  /** Where focus goes on close when the dialog's own button is hidden (the phone menu). */
+  returnFocus?: RefObject<HTMLElement | null>
+} = {}) {
+  const [openState, setOpenState] = useState(false)
+  const open = openProp ?? openState
+  const setOpen = onOpenChange ?? setOpenState
   const input = useRef<HTMLInputElement>(null)
   const check = useMutation({ mutationFn: (file: File) => api.checkPdf(file) })
   const pick = (files: FileList | null) => {
@@ -78,12 +92,20 @@ export function CheckPdfDialog() {
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" className={triggerClassName}>
           <FileSearchIcon />
           Check a PDF
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent
+        onCloseAutoFocus={(e) => {
+          const el = returnFocus?.current
+          if (el?.offsetParent) {
+            e.preventDefault()
+            el.focus()
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Check a signed PDF</DialogTitle>
           <DialogDescription>

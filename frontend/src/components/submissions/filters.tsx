@@ -17,6 +17,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { FieldFilter, FilterOp } from '@/lib/api'
 import type { FieldElement, FormLanguage } from '@/schema'
+import { cn } from '@/lib/utils'
 
 type Kind = 'text' | 'number' | 'date' | 'choice' | 'multi' | 'yes_no' | 'presence'
 
@@ -125,9 +126,9 @@ export function AddFilter({
       }}
     >
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" className="max-sm:px-0">
           <ListFilterIcon />
-          Filter
+          <span className="max-sm:sr-only">Filter</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80">
@@ -306,9 +307,10 @@ export function DateRangeFilter({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
+        {/* Phones: an icon while it is "Any time"; a chosen range shows its words. */}
+        <Button variant="outline" size="sm" className={cn(!from && !to && 'max-sm:px-0')}>
           <CalendarIcon />
-          Submitted: {rangeLabel(from, to)}
+          <span className={cn(!from && !to && 'max-sm:sr-only')}>Submitted: {rangeLabel(from, to)}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="flex w-auto flex-col gap-3 sm:flex-row">
