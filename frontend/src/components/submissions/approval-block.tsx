@@ -1,7 +1,8 @@
 /**
- * A submission's approval in the detail sheet (APPROVALS-SCREENS 3.2): one row per step with
- * its state (icon and words, never colour alone), and for editors on the current step "Send
- * the email again" and "Stop approval".
+ * A submission's approval (APPROVALS-SCREENS 3.2, 3.4): one row per step with its state (icon
+ * and words, never colour alone) and who decided it, and for editors on the current step
+ * "Approve", "Reject…", "Send the email again" and "Stop approval". Deciding here counts as the
+ * step's decision: the approver's emailed link then says it's done.
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { BanIcon, CheckIcon, CircleDashedIcon, ClockIcon, TriangleAlertIcon, XIcon } from 'lucide-react'
@@ -18,7 +19,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Field, FieldError, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
@@ -26,6 +27,8 @@ import { api, type ApprovalStepInfo, type StepState, type SubmissionDetail } fro
 import { formatDateTime } from '@/lib/format'
 import { buildIndex } from '@/logic/form-index'
 import { formLanguage } from '@/schema/language'
+
+import { alreadyDecidedMessage, decidableStep } from './approval-lib'
 
 const ICONS: Record<StepState, typeof CheckIcon> = {
   waiting: CircleDashedIcon,
@@ -37,9 +40,18 @@ const ICONS: Record<StepState, typeof CheckIcon> = {
 }
 
 function Who({ s }: { s: ApprovalStepInfo }) {
+  const email = s.decidedEmail ?? s.approverEmail
   return (
     <>
-      <bdi dir="auto">{s.decidedName}</bdi> (<bdi dir="ltr">{s.approverEmail}</bdi>), {s.decidedAt && formatDateTime(s.decidedAt)}
+      <bdi dir="auto">{s.decidedName}</bdi>
+      {email && email !== s.decidedName && (
+        <>
+          {' '}
+          (<bdi dir="ltr">{email}</bdi>)
+        </>
+      )}
+      {s.decidedVia === 'studio' ? ' in the studio' : s.decidedVia === 'email' ? ' by email' : ''}
+      {s.decidedAt && <>, {formatDateTime(s.decidedAt)}</>}
     </>
   )
 }
@@ -83,6 +95,166 @@ function describe(s: ApprovalStepInfo, d: SubmissionDetail): React.ReactNode {
     case 'waiting':
       return 'Not started'
   }
+}
+
+function DecideDialog({
+  d,
+  step,
+  decision,
+  onOpenChange,
+}: {
+  d: SubmissionDetail
+  step: ApprovalStepInfo
+  decision: 'approve' | 'reject' | null
+  onOpenChange: (open: boolean) => void
+}) {
+  const queryClient = useQueryClient()
+  const [comment, setComment] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const a = d.approval!
+  const last = step.step === a.total
+  const next = a.steps.find((x) => x.step === step.step + 1)
+  // Keep the wording of the last choice while the dialog animates closed.
+  const [shown, setShown] = useState(decision)
+  if (decision && decision !== shown) setShown(decision)
+  const reject = (decision ?? shown) === 'reject'
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ['submission', d.id] })
+    void queryClient.invalidateQueries({ queryKey: ['submissions'] })
+  }
+  const decide = useMutation({
+    mutationFn: (chosen: 'approve' | 'reject') =>
+      api.decideApproval(d.id, { step: step.step, decision: chosen, comment: chosen === 'reject' ? comment.trim() : '' }),
+    onSuccess: () => {
+      refresh()
+      onOpenChange(false)
+      setComment('')
+      toast(reject ? 'Rejected' : last ? 'Approved' : 'Approved. Sent to the next step')
+    },
+    onError: (err) => {
+      const already = alreadyDecidedMessage(err)
+      if (already) {
+        refresh()
+        onOpenChange(false)
+        return toast.error(already)
+      }
+      toast.error("Couldn't save the decision. Try again.")
+    },
+  })
+  const language = formLanguage(d.schema)
+  const consequence = reject
+    ? `This ends the approval and the response is Rejected.${a.outcomeTo ? ' The respondent is emailed the outcome with your comment.' : ''}`
+    : last
+      ? `This is the last step, so the response is Approved.${a.outcomeTo ? ' The respondent is emailed the outcome.' : ''}`
+      : 'It goes to the next step'
+  return (
+    <AlertDialog
+      open={decision !== null}
+      onOpenChange={(o) => {
+        if (decide.isPending) return
+        if (!o) setError(null)
+        onOpenChange(o)
+      }}
+    >
+      <AlertDialogContent>
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!decision || decide.isPending) return
+            if (reject && !comment.trim()) return setError("Write why you're rejecting it")
+            setError(null)
+            decide.mutate(decision)
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>{reject ? 'Reject this response?' : 'Approve this response?'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {consequence}
+              {!reject && !last && next && (
+                <>
+                  ,{' '}
+                  <bdi dir="auto" lang={language}>
+                    {next.name}
+                  </bdi>
+                </>
+              )}
+              {!reject && !last && '.'} You decide step {step.step} (
+              <bdi dir="auto" lang={language}>
+                {step.name}
+              </bdi>
+              ) in place of the approver. The emailed link will show it's done.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {reject && (
+            <Field data-invalid={error ? true : undefined}>
+              <FieldLabel htmlFor="decide-comment">Comment</FieldLabel>
+              <Textarea
+                id="decide-comment"
+                rows={3}
+                maxLength={2000}
+                value={comment}
+                autoFocus
+                aria-invalid={error ? true : undefined}
+                aria-describedby="decide-comment-hint"
+                onChange={(e) => setComment(e.target.value)}
+              />
+              <FieldDescription id="decide-comment-hint">
+                Needed to reject.{a.outcomeTo ? ' The respondent sees it.' : ''}
+              </FieldDescription>
+              {error && <FieldError>{error}</FieldError>}
+            </Field>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button" disabled={decide.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <Button type="submit" variant={reject ? 'destructive' : 'default'} disabled={decide.isPending}>
+              {decide.isPending && <Spinner />}
+              {reject ? 'Reject' : 'Approve'}
+            </Button>
+          </AlertDialogFooter>
+        </form>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+/**
+ * "Approve" / "Reject…" for the step waiting now, shown in the submission header in place of
+ * the (locked) status control. Renders nothing when the person can't decide.
+ */
+export function ApprovalDecision({ d }: { d: SubmissionDetail }) {
+  const [decision, setDecision] = useState<'approve' | 'reject' | null>(null)
+  const step = decidableStep(d)
+  if (!step) return null
+  return (
+    <>
+      <Button size="sm" onClick={() => setDecision('approve')}>
+        <CheckIcon />
+        Approve
+      </Button>
+      <Button size="sm" variant="outline" className="text-destructive" onClick={() => setDecision('reject')}>
+        <XIcon />
+        Reject…
+      </Button>
+      <p className="order-last basis-full text-sm text-muted-foreground">
+        {d.approval!.total > 1 && <>Step {step.step} of {d.approval!.total}, </>}
+        <bdi dir="auto" lang={formLanguage(d.schema)}>
+          {step.name}
+        </bdi>
+        :{' '}
+        {step.state === 'pending' ? (
+          <>
+            waiting for <bdi dir="ltr">{step.approverEmail}</bdi>. You can decide it here instead.
+          </>
+        ) : (
+          'no approver. Decide it here or stop the approval.'
+        )}
+      </p>
+      <DecideDialog d={d} step={step} decision={decision} onOpenChange={(o) => !o && setDecision(null)} />
+    </>
+  )
 }
 
 function StopDialog({ id, open, onOpenChange }: { id: string; open: boolean; onOpenChange: (o: boolean) => void }) {
@@ -141,6 +313,7 @@ function StopDialog({ id, open, onOpenChange }: { id: string; open: boolean; onO
 
 export function ApprovalBlock({ d }: { d: SubmissionDetail }) {
   const [stopping, setStopping] = useState(false)
+  const [decision, setDecision] = useState<'approve' | 'reject' | null>(null)
   const resend = useMutation({
     mutationFn: () => api.resendApproval(d.id),
     onSuccess: () => toast('Email sent again'),
@@ -150,11 +323,22 @@ export function ApprovalBlock({ d }: { d: SubmissionDetail }) {
   if (!a) return null
   const running = a.state === 'pending'
   const language = formLanguage(d.schema)
+  const decidable = decidableStep(d)
+  const progress = running
+    ? `Step ${a.step} of ${a.total}`
+    : a.state === 'approved'
+      ? 'Approved'
+      : a.state === 'rejected'
+        ? 'Rejected'
+        : 'Stopped'
   return (
     <section aria-labelledby="approval-heading" className="flex flex-col gap-1 rounded-md border bg-card px-3 py-2">
-      <h3 id="approval-heading" className="text-sm font-medium">
-        Approval
-      </h3>
+      <div className="flex items-baseline gap-2">
+        <h3 id="approval-heading" className="text-sm font-medium">
+          Approval
+        </h3>
+        <span className="ms-auto text-xs text-muted-foreground tabular-nums">{progress}</span>
+      </div>
       <ItemGroup className="gap-0">
         {a.steps.map((s) => {
           const Icon = ICONS[s.state]
@@ -181,6 +365,16 @@ export function ApprovalBlock({ d }: { d: SubmissionDetail }) {
                 )}
                 {current && d.canEdit && (
                   <div className="flex flex-wrap gap-2 pt-1">
+                    {decidable?.step === s.step && (
+                      <>
+                        <Button size="sm" onClick={() => setDecision('approve')}>
+                          Approve
+                        </Button>
+                        <Button variant="outline" size="sm" className="text-destructive" onClick={() => setDecision('reject')}>
+                          Reject…
+                        </Button>
+                      </>
+                    )}
                     {s.state === 'pending' && (
                       <Button variant="outline" size="sm" disabled={resend.isPending} onClick={() => resend.mutate()}>
                         {resend.isPending && <Spinner />}
@@ -197,6 +391,9 @@ export function ApprovalBlock({ d }: { d: SubmissionDetail }) {
           )
         })}
       </ItemGroup>
+      {decidable && (
+        <DecideDialog d={d} step={decidable} decision={decision} onOpenChange={(o) => !o && setDecision(null)} />
+      )}
       <StopDialog id={d.id} open={stopping} onOpenChange={setStopping} />
     </section>
   )

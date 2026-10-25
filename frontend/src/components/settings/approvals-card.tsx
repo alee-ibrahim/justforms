@@ -1,10 +1,11 @@
 /**
  * "Approvals" (APPROVALS-SCREENS 1): up to three ordered approval steps, each with a name and
- * an approver taken from an email question or a fixed address, plus the outcome email.
+ * an approver taken from an email question or a fixed address, the wording of the approver's
+ * email, and the outcome email.
  * Edited locally and saved together ("Save approvals"), because a step is several fields.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDownIcon, ChevronUpIcon, PlusIcon, Trash2Icon, TriangleAlertIcon } from 'lucide-react'
+import { ChevronDownIcon, ChevronUpIcon, MailIcon, PlusIcon, Trash2Icon, TriangleAlertIcon } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
@@ -28,6 +29,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   api,
@@ -39,6 +41,8 @@ import {
   type FormSummary,
 } from '@/lib/api'
 import { contentProps } from '@/schema/language'
+
+import { PLACEHOLDER_HELP } from './email-wording'
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const MAX_STEPS = 3
@@ -60,6 +64,69 @@ function localErrors(c: ApprovalConfig): Map<number, string> {
       out.set(i + 1, 'Enter an email address like name@example.org')
   })
   return out
+}
+
+type WordingKey = 'requestSubject' | 'requestMessage' | 'outcomeApprovedMessage' | 'outcomeRejectedMessage' | 'outcomeReplyTo'
+
+/** Server issue fields (snake_case) to the settings they belong to. */
+const ISSUE_FIELDS: Record<string, WordingKey> = {
+  request_subject: 'requestSubject',
+  request_message: 'requestMessage',
+  outcome_approved_message: 'outcomeApprovedMessage',
+  outcome_rejected_message: 'outcomeRejectedMessage',
+  outcome_reply_to: 'outcomeReplyTo',
+}
+
+/** A wording setting of the approval emails: plain text, saved with the rest of the card. */
+function WordingField({
+  id,
+  label,
+  description,
+  value,
+  placeholder,
+  multiline,
+  email,
+  disabled,
+  error,
+  onChange,
+}: {
+  id: string
+  label: string
+  description: string
+  value: string | null | undefined
+  placeholder?: string
+  multiline?: boolean
+  email?: boolean
+  disabled: boolean
+  error?: string
+  onChange: (next: string) => void
+}) {
+  const common = {
+    id,
+    value: value ?? '',
+    placeholder,
+    disabled,
+    'aria-invalid': error ? true : undefined,
+  }
+  return (
+    <Field data-invalid={error ? true : undefined}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      {multiline ? (
+        <Textarea {...common} dir="auto" rows={3} maxLength={5000} onChange={(e) => onChange(e.target.value)} />
+      ) : (
+        <Input
+          {...common}
+          type="text"
+          dir={email ? 'ltr' : 'auto'}
+          inputMode={email ? 'email' : undefined}
+          maxLength={email ? 320 : 200}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
+      <FieldDescription>{description}</FieldDescription>
+      {error && <FieldError>{error}</FieldError>}
+    </Field>
+  )
 }
 
 function IconAction({ label, onClick, disabled, children }: { label: string; onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
@@ -224,6 +291,20 @@ export function ApprovalsCard({ form, canManage }: { form: FormSummary; canManag
   const data = useQuery({ queryKey: key, queryFn: () => api.getApprovals(form.id) })
   const [edit, setEdit] = useState<ApprovalConfig | null>(null)
   const [errors, setErrors] = useState<Map<number, string>>(new Map())
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<WordingKey, string>>>({})
+  const test = useMutation({
+    mutationFn: () => api.testApprovals(form.id),
+    onSuccess: (res) => {
+      void queryClient.invalidateQueries({ queryKey: ['notifications', form.id] })
+      toast(`Test emails sent to ${res.to}`)
+    },
+    onError: (err) =>
+      toast.error(
+        err instanceof ApiError && err.status === 429
+          ? 'You sent test emails a few times already. Try again in an hour.'
+          : "Couldn't send the test emails. Try again.",
+      ),
+  })
   const save = useMutation({
     mutationFn: (c: ApprovalConfig) => api.putApprovals(form.id, c),
     onSuccess: (next) => {
@@ -231,12 +312,21 @@ export function ApprovalsCard({ form, canManage }: { form: FormSummary; canManag
       void queryClient.invalidateQueries({ queryKey: ['approval-problems', form.id] })
       setEdit(null)
       setErrors(new Map())
+      setFieldErrors({})
       toast('Approvals saved')
     },
     onError: (err) => {
       const issues = err instanceof ApiError ? (err.body as { issues?: ApprovalIssue[] } | null)?.issues : undefined
-      if (issues?.length) setErrors(new Map(issues.map((i) => [i.step, i.message])))
-      else toast.error("Couldn't save. Try again.")
+      if (err instanceof ApiError && err.status === 422 && !issues?.length) {
+        // A malformed Reply-To address is refused by the request model itself.
+        return setFieldErrors({ outcomeReplyTo: 'Enter an email address like name@example.org' })
+      }
+      if (!issues?.length) return toast.error("Couldn't save. Try again.")
+      const byField = Object.fromEntries(
+        issues.filter((i) => i.field && ISSUE_FIELDS[i.field]).map((i) => [ISSUE_FIELDS[i.field!], i.message]),
+      )
+      setFieldErrors(byField)
+      setErrors(new Map(issues.filter((i) => !i.field).map((i) => [i.step, i.message])))
     },
   })
 
@@ -270,7 +360,9 @@ export function ApprovalsCard({ form, canManage }: { form: FormSummary; canManag
   const set = (next: ApprovalConfig) => {
     setEdit(next)
     setErrors(new Map())
+    setFieldErrors({})
   }
+  const setText = (key: WordingKey) => (value: string) => set({ ...c, [key]: value })
   const setStep = (i: number, s: ApprovalStepConfig) => set({ ...c, steps: c.steps.map((x, j) => (j === i ? s : x)) })
   const move = (i: number, by: -1 | 1) => {
     const steps = [...c.steps]
@@ -333,6 +425,46 @@ export function ApprovalsCard({ form, canManage }: { form: FormSummary; canManag
               {errors.get(0) && <FieldError>{errors.get(0)}</FieldError>}
             </div>
             <FieldSeparator />
+            <FieldSet className="gap-4">
+              <FieldLegend variant="label">The approver's email</FieldLegend>
+              <FieldDescription>
+                It has Approve and Reject buttons. Each opens the response with that choice made; the approver confirms
+                their email with a code and then their decision, so opening the email alone changes nothing.
+              </FieldDescription>
+              <WordingField
+                id="approvals-request-subject"
+                label="Subject"
+                description={`Leave empty for "Approval needed: {form_title} ({reference})". ${PLACEHOLDER_HELP}`}
+                placeholder="Approval needed: {form_title} ({reference})"
+                value={c.requestSubject}
+                disabled={disabled}
+                error={fieldErrors.requestSubject}
+                onChange={setText('requestSubject')}
+              />
+              <WordingField
+                id="approvals-request-message"
+                label="Message"
+                description={`Shown above the buttons, for example who applied. Plain text. ${PLACEHOLDER_HELP}`}
+                value={c.requestMessage}
+                multiline
+                disabled={disabled}
+                error={fieldErrors.requestMessage}
+                onChange={setText('requestMessage')}
+              />
+              <Field orientation="horizontal">
+                <FieldContent>
+                  <FieldLabel htmlFor="approvals-request-answers">Include answers</FieldLabel>
+                  <FieldDescription>Sensitive answers are never emailed.</FieldDescription>
+                </FieldContent>
+                <Switch
+                  id="approvals-request-answers"
+                  checked={c.requestIncludeAnswers ?? false}
+                  disabled={disabled}
+                  onCheckedChange={(on) => set({ ...c, requestIncludeAnswers: on })}
+                />
+              </Field>
+            </FieldSet>
+            <FieldSeparator />
             <FieldGroup className="gap-4">
               <Field orientation="horizontal" data-disabled={!outcomePossible ? true : undefined}>
                 <FieldContent>
@@ -379,6 +511,41 @@ export function ApprovalsCard({ form, canManage }: { form: FormSummary; canManag
                   </NativeSelect>
                 </Field>
               )}
+              {c.notifyRespondent && outcomePossible && (
+                <FieldGroup className="gap-4 ps-4">
+                  <WordingField
+                    id="approvals-outcome-approved"
+                    label="Message when approved"
+                    description={`Leave empty for "Your response {reference} was approved." The reference follows. Plain text. ${PLACEHOLDER_HELP}`}
+                    value={c.outcomeApprovedMessage}
+                    multiline
+                    disabled={disabled}
+                    error={fieldErrors.outcomeApprovedMessage}
+                    onChange={setText('outcomeApprovedMessage')}
+                  />
+                  <WordingField
+                    id="approvals-outcome-rejected"
+                    label="Message when not approved"
+                    description={`Leave empty for "Your response {reference} was not approved." The reference and the approver's comment follow. Plain text. ${PLACEHOLDER_HELP}`}
+                    value={c.outcomeRejectedMessage}
+                    multiline
+                    disabled={disabled}
+                    error={fieldErrors.outcomeRejectedMessage}
+                    onChange={setText('outcomeRejectedMessage')}
+                  />
+                  <WordingField
+                    id="approvals-outcome-reply-to"
+                    label="Reply-to address"
+                    description="Replies to the outcome email go here. Leave empty to use the sender address."
+                    placeholder="team@example.org"
+                    value={c.outcomeReplyTo}
+                    email
+                    disabled={disabled}
+                    error={fieldErrors.outcomeReplyTo}
+                    onChange={setText('outcomeReplyTo')}
+                  />
+                </FieldGroup>
+              )}
             </FieldGroup>
           </>
         )}
@@ -393,9 +560,17 @@ export function ApprovalsCard({ form, canManage }: { form: FormSummary; canManag
               onClick={() => {
                 const local = localErrors(c)
                 if (local.size) return setErrors(local)
+                const replyTo = c.outcomeReplyTo?.trim().toLowerCase() || null
+                if (replyTo && !EMAIL.test(replyTo))
+                  return setFieldErrors({ outcomeReplyTo: 'Enter an email address like name@example.org' })
                 save.mutate({
                   ...c,
                   steps: c.steps.map((s) => ({ ...s, name: s.name.trim(), email: s.email?.trim() || null })),
+                  requestSubject: c.requestSubject?.trim() || null,
+                  requestMessage: c.requestMessage?.trim() || null,
+                  outcomeApprovedMessage: c.outcomeApprovedMessage?.trim() || null,
+                  outcomeRejectedMessage: c.outcomeRejectedMessage?.trim() || null,
+                  outcomeReplyTo: replyTo,
                 })
               }}
             >
@@ -403,6 +578,21 @@ export function ApprovalsCard({ form, canManage }: { form: FormSummary; canManag
               Save approvals
             </Button>
           </div>
+        )}
+        {canManage && a.smtpEnabled && a.config.enabled && a.config.steps.length > 0 && !dirty && (
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldLabel htmlFor="approvals-test">Try the emails</FieldLabel>
+              <FieldDescription>
+                Sends the approver's email{a.config.notifyRespondent ? ' and both outcome emails' : ''} to you only, with
+                sample answers and [Test] in the subject. The buttons in the test open the submissions.
+              </FieldDescription>
+            </FieldContent>
+            <Button id="approvals-test" type="button" variant="outline" size="sm" disabled={test.isPending} onClick={() => test.mutate()}>
+              {test.isPending ? <Spinner /> : <MailIcon />}
+              Send test emails
+            </Button>
+          </Field>
         )}
         {form.status === 'live' && c.enabled && (
           <p className="text-sm text-muted-foreground">

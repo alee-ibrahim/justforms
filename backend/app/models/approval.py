@@ -61,3 +61,11 @@ class ApprovalStep(IdMixin, TimestampMixin, Base):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     decided_name: Mapped[str | None] = mapped_column(String(200))
     comment: Mapped[str | None] = mapped_column(Text)
+    # How the step was decided: "email" (the approver's link) or "studio" (a staff member with
+    # edit rights on the form, ``decided_by_id``). ``decided_email`` is the address of whoever
+    # decided: the approver's for a link decision, the staff member's for a studio one.
+    decided_via: Mapped[str | None] = mapped_column(String(10))
+    decided_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    decided_email: Mapped[str | None] = mapped_column(String(320))

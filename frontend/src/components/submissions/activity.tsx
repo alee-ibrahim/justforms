@@ -88,6 +88,7 @@ function title(ev: SubmissionEvent): React.ReactNode {
       return (
         <>
           <bdi dir="auto">{String(ev.payload.approverName)}</bdi> {ev.payload.decision === 'rejected' ? 'rejected' : 'approved'}
+          {ev.payload.decidedVia === 'studio' ? ' in the studio' : ''}
           {stepOf(ev)}
         </>
       )

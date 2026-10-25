@@ -70,6 +70,21 @@ everyone else sees it disabled (same rule as the rest of Settings).
 - "Email the respondent the outcome" `Switch`, then "Send to" `NativeSelect` (as the
   receipt: "The confirmed email" for email-code and staff forms, then email questions) and
   the description "The email has the final signed PDF attached."
+- **The approver's email** (`FieldSet`, legend "The approver's email", between the steps and
+  the outcome): description "It has Approve and Reject buttons. Each opens the response with
+  that choice made; the approver confirms their email with a code and then their decision, so
+  opening the email alone changes nothing." Fields "Subject" (placeholder and empty value =
+  "Approval needed: {form_title} ({reference})"), "Message" (`Textarea`, "Shown above the
+  buttons, for example who applied.") and an "Include answers" `Switch` ("Sensitive answers are
+  never emailed."). Placeholder help as on the Notifications card.
+- Under "Send to", indented: "Message when approved", "Message when not approved" (each
+  replaces the built-in sentence; the reference, and for a rejection the comment, follow) and
+  "Reply-to address" (`dir="ltr"`). Server errors (an unknown placeholder, a two-line subject)
+  show under their field.
+- "Try the emails" row (owners, email set up, saved and on, nothing unsaved): outline button
+  "Send test emails" with the description "Sends the approver's email and both outcome emails to
+  you only, with sample answers and [Test] in the subject. The buttons in the test open the
+  submissions." Toast "Test emails sent to {email}".
 - Editing is local until "Save approvals" (primary) — several inputs change together, so
   per-field saving would store half-made steps. "Discard" (ghost) appears while there are
   unsaved changes. Toast "Approvals saved". Server errors map to the step field.
@@ -129,7 +144,50 @@ the sheet header stays short on phones), not in the header as first sketched.
   before; changing it records a status change but never edits the approval record.
 - Activity tab gains: "Approval requested from {email} (step {n}, {name})", "{who} approved
   (step {n}, {name})", "{who} rejected (step {n}, {name})" + comment, "{who} stopped the
-  approval" + reason, "Approval waiting: no approver for step {n}".
+  approval" + reason, "Approval waiting: no approver for step {n}". A studio decision reads
+  "{who} approved in the studio (step {n}, {name})".
+
+### 3.4 Deciding a step in the studio
+
+Built. Editors and owners (organisation admins act as owners) decide the waiting step without
+the emailed link. Viewers see the steps but no buttons.
+
+```
+ #0042  ◐ In review  Step 1 of 1
+ Submitted 25 Oct 2026 10:02, version 3
+ [✓ Approve] [✕ Reject…]  [Print] [Download PDF] [Comment]
+ Step 1 of 1, Review: waiting for approver@example.org. You can decide it here instead.
+```
+
+- In the submission header the locked status control is replaced by `Button size="sm"`
+  "Approve" (primary, check icon) and "Reject…" (outline, destructive text, x icon), with a muted
+  line under the actions: "Step {n} of {N}, {step name}: waiting for {email}. You can decide it
+  here instead." (or "no approver. Decide it here or stop the approval.").
+- The Approval block (Details) shows "Step {n} of {N}" (or the outcome) next to its heading, and
+  the same two buttons on the current step before "Send the email again" and "Stop approval".
+  Decided steps say how: "Approved by {name} ({email}) by email, {time}" or "… in the studio,
+  {time}" (the staff member's name and address).
+- Both open one `AlertDialog`: "Approve this response?" / "Reject this response?" with what
+  happens next ("It goes to the next step, {name}." / "This is the last step, so the response is
+  Approved. The respondent is emailed the outcome." / "This ends the approval and the response
+  is Rejected. The respondent is emailed the outcome with your comment.") and "You decide step
+  {n} ({name}) in place of the approver. The emailed link will show it's done." Reject has a
+  required `Textarea` "Comment" ("Needed to reject. The respondent sees it."); empty: "Write why
+  you're rejecting it". Toasts "Approved", "Approved. Sent to the next step", "Rejected".
+- Someone decided first (409): the dialog closes, the page refreshes and an error toast says
+  "Already approved by {name} through the emailed link on {time}." (or "in the studio").
+
+### 3.5 Bulk decisions
+
+- With selected rows that wait at a step, the selection bar shows a `ButtonGroup` "Approve" /
+  "Reject…". One `AlertDialog`: "Approve 3 submissions?" / "Reject 3 submissions?", "Each one is
+  approved at its current step and moves to its next step, or is approved when that was the
+  last." (reject: "Each one is rejected at its current step, which ends its approval."), "Your
+  decision replaces the approvers' and their emailed links will show it's done." and, when some
+  selected rows aren't waiting, "2 submissions not waiting for approval are left as they are."
+  Reject needs one "Comment" for all ("The same comment goes on each one.").
+- Each submission is decided on its own. The result is one toast: "Approved 3 submissions", or
+  a warning toast listing the rest: "#0004: already decided by {name}".
 
 ### 3.3 Staff audit details
 
@@ -198,6 +256,17 @@ lazily from the verify entry so the public form bundle is untouched.
   doesn't work" / "Ask the person who sent it for a new one." ; rate limited "Too many
   tries. Wait a few minutes and try again."
 - Focus moves to each step heading; "Code sent" is announced.
+- **From the email's buttons** (`?decision=approve|reject`): step 1 adds "You chose Approve.
+  Confirm it's you, then confirm your decision." (or Reject, "… with a comment"). After the code
+  the decision comes first, in a bordered block: heading "Approve this response" / "Reject this
+  response", what happens next, "Your name" (remembered on the device for the next approval),
+  "Comment" ("Optional." / "Needed to reject. The respondent may see it.") and one full-width
+  (phones) button "Approve" (primary) or "Reject" (destructive) that decides without a second
+  dialog — the email click was the first step. A link button "Reject instead" / "Approve
+  instead" switches. "The response" follows with the answers. Without `?decision` the page is
+  as above.
+- Decided already (by the approver or in the studio): "This approval is done" / "Approved by
+  {name} on {date}. You can close this page." (or Rejected).
 
 ## 5. Verify page (`/v/{token}`)
 
@@ -275,15 +344,20 @@ components (`Button`, `Alert`), no router, no query cache, no renderer.
 
 ## 7. Emails
 
-- **Approval request** (to the approver, English; title and step name in the form's language): subject "Approval needed: {title}
-  ({ref})"; body: "{step name}: please approve or reject response {ref} to {title}. It was
-  submitted on {date}." button "Open the response" (the `/a/{token}` link), then "You'll
-  confirm your email with a code first. The link works for {days} days." No answers in the
-  email.
+- **Approval request** (to the approver, English; title and step name in the form's language): kicker "Approval needed",
+  subject "Approval needed: {title} ({ref})" or the form's own subject; the form's message if
+  set; "{step name}: please approve or reject response {ref} to {title}. It was submitted on
+  {date and time}." and, with more than one step, "Step {n} of {N}."; two buttons side by side, "Approve" (brand colour)
+  and "Reject" (white with a red border and text), linking to `/a/{token}?decision=approve` and
+  `…=reject`; the link "Or open the response to read it first" (`/a/{token}`); the
+  non-sensitive answers when the form turns that on; then "Each button opens the response.
+  You'll confirm your email with a code, then confirm your decision there. The link works for
+  {days} days." The text part lists the three links.
 - **Outcome** (to the respondent, English; title in the form's language): subject "Approved: {title} ({ref})" /
   "Not approved: {title} ({ref})"; body "Your response {ref} was approved." / "Your response
   {ref} was not approved." plus "Comment: {comment}" for a rejection, and "The signed PDF is
-  attached." when it is.
+  attached." when it is. The form's own message for the outcome replaces the sentence and is
+  followed by "Reference: {ref}"; Reply-To is the form's outcome Reply-To when set.
 
 ## 8. Copy glossary additions
 
@@ -308,3 +382,6 @@ components (`Button`, `Alert`), no router, no query cache, no renderer.
 | Status set by hand while an approval runs | Two sources of truth for Approved | Status is locked while running; "Stop approval" hands control back |
 | Footer text "Verified ✓" with a green tick on the PDF | A printed tick proves nothing; anyone can print one | The footer says it is digitally signed and where to check |
 | Verify page listing the form title | Can reveal what someone applied for | Issuer, reference, dates and approval outcome only |
+| Approve / Reject links in the email that decide on click | Mail scanners and link previews open every link: responses would be approved by a robot, and anyone the email is forwarded to could decide | The buttons only choose the decision; the code check and one confirmation on the page still decide |
+| Studio decisions through "Change status" | Two sources of truth again, and the approver's link would still work | A decision of the current step, recorded as the staff member, with the link then saying it's done |
+| Last write wins when the approver and staff act together | Two decisions, two emails, two PDFs | Row lock plus a conditional update; the second person is told who decided first |

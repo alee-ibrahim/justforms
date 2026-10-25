@@ -13,7 +13,8 @@ import { useFormSummary } from '@/components/builder/form-context'
 import { ActivityList, CommentBox } from '@/components/submissions/activity'
 import { useLogic } from '@/components/submissions/answer-logic'
 import { Answers } from '@/components/submissions/answers'
-import { ApprovalBlock } from '@/components/submissions/approval-block'
+import { ApprovalBlock, ApprovalDecision } from '@/components/submissions/approval-block'
+import { decidableStep } from '@/components/submissions/approval-lib'
 import { AuditDetails } from '@/components/submissions/audit-details'
 import { IntegrityBadge, PdfButton } from '@/components/submissions/integrity'
 import {
@@ -286,7 +287,9 @@ export function SubmissionViewPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 print:hidden">
-            {d.canEdit ? (
+            {decidableStep(d) ? (
+              <ApprovalDecision d={d} />
+            ) : d.canEdit ? (
               <StatusControl d={d} />
             ) : (
               <p className="self-center text-sm text-muted-foreground">You can view submissions. Ask an owner to change status.</p>

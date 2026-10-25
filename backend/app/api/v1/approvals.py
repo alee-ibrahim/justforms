@@ -15,7 +15,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
-from pydantic import StringConstraints
+from pydantic import Field, StringConstraints
 from sqlalchemy import select
 
 from app import ratelimit
@@ -24,7 +24,14 @@ from app.api.v1.files import content_disposition
 from app.api.v1.notify import mask_email
 from app.approvals import service as approvals
 from app.approvals import tokens
-from app.approvals.config import ApprovalConfig, check_config, email_questions, load_config
+from app.approvals.config import (
+    MAX_STEPS,
+    ApprovalConfig,
+    active,
+    check_config,
+    email_questions,
+    load_config,
+)
 from app.auth import respondent as codes
 from app.auth.deps import CurrentUser, DbDep, RedisDep, SettingsDep, StorageDep
 from app.branding.service import resolve as resolve_brand
@@ -32,6 +39,7 @@ from app.logic.index import FormIndex
 from app.models import (
     ApprovalState,
     ApprovalStep,
+    EmailDelivery,
     FileRecord,
     FileState,
     FormRecord,
@@ -41,9 +49,11 @@ from app.models import (
     Signature,
     StepState,
     Submission,
+    User,
 )
 from app.net import client_ip
 from app.notifications.emails import code_message
+from app.notifications.events import APPROVAL_TEST_KINDS
 from app.permissions import FormOwner, FormViewer, effective_form_role, has_form_role
 from app.queue import JobQueue, get_queue
 from app.schemas.form import FileField, Form, SignatureField
@@ -115,7 +125,18 @@ async def put_approvals(
         )
         for s in body.steps
     ]
-    config = body.model_copy(update={"steps": steps})
+    config = body.model_copy(
+        update={
+            "steps": steps,
+            "request_subject": body.request_subject or None,
+            "request_message": body.request_message or None,
+            "outcome_approved_message": body.outcome_approved_message or None,
+            "outcome_rejected_message": body.outcome_rejected_message or None,
+            "outcome_reply_to": str(body.outcome_reply_to).lower()
+            if body.outcome_reply_to
+            else None,
+        }
+    )
     draft, live = await _schemas(db, form)
     errors = [i for i in check_config(config, draft, live) if i.level == "error"]
     if errors:
@@ -136,6 +157,44 @@ async def put_approvals(
     )
     await db.commit()
     return await _approvals_out(db, settings, form)
+
+
+@router.post("/forms/{form_id}/approvals/test", status_code=status.HTTP_202_ACCEPTED)
+async def send_approval_tests(
+    db: DbDep, settings: SettingsDep, redis: RedisDep, queue: QueueDep, access: FormOwner
+) -> dict[str, Any]:
+    """Send the approver's email (and the outcome emails, when they are on) with sample
+    answers and "[Test]" in the subject to the person asking, never to the approvers."""
+    if not settings.smtp_enabled:
+        raise HTTPException(status.HTTP_409_CONFLICT, "smtp_not_configured")
+    config = load_config(access.form.settings)
+    if not active(config):
+        raise HTTPException(status.HTTP_409_CONFLICT, "approvals_off")
+    await ratelimit.enforce(redis, settings, "notify_test", str(access.user.id))
+    kinds = list(APPROVAL_TEST_KINDS if config.notify_respondent else APPROVAL_TEST_KINDS[:1])
+    rows = [
+        EmailDelivery(
+            id=uuid.uuid4(),
+            form_id=access.form.id,
+            submission_id=None,
+            kind=kind,
+            to_address=access.user.email,
+        )
+        for kind in kinds
+    ]
+    db.add_all(rows)
+    await audit(
+        db,
+        "form.approvals_test",
+        org_id=access.form.org_id,
+        actor_id=access.user.id,
+        target_type="form",
+        target_id=access.form.id,
+    )
+    await db.commit()
+    for row in rows:
+        await queue.enqueue("send_form_email", email_id=str(row.id))
+    return {"kinds": kinds, "to": access.user.email}
 
 
 # -- a running approval (studio) ------------------------------------------------------------
@@ -193,6 +252,178 @@ async def stop_approval(
     await db.commit()
     await approvals.enqueue(queue, sub, change)
     return {"status": "stopped"}
+
+
+class DecideIn(ApiModel):
+    # The step the person saw; a decision for a step that has moved on is refused.
+    step: Annotated[int, Field(ge=1, le=MAX_STEPS)]
+    decision: Literal["approve", "reject"]
+    comment: Annotated[str, StringConstraints(max_length=2000, strip_whitespace=True)] = ""
+
+
+class BulkDecideItem(ApiModel):
+    id: uuid.UUID
+    step: Annotated[int, Field(ge=1, le=MAX_STEPS)]
+
+
+class BulkDecideIn(ApiModel):
+    items: Annotated[list[BulkDecideItem], Field(min_length=1, max_length=200)]
+    decision: Literal["approve", "reject"]
+    comment: Annotated[str, StringConstraints(max_length=2000, strip_whitespace=True)] = ""
+
+
+class BulkDecideResult(ApiModel):
+    id: uuid.UUID
+    seq: int | None
+    # "approved" / "rejected": decided now; "already_decided": the step was decided (or the
+    # approval ended) first; "not_found": not a submission of this form.
+    result: Literal["approved", "rejected", "already_decided", "not_found"]
+    decided_name: str | None = None
+
+
+class BulkDecideOut(ApiModel):
+    results: list[BulkDecideResult]
+
+
+def _staff_name(user: User) -> str:
+    return (user.display_name or "").strip() or user.email
+
+
+async def _decide_in_studio(
+    db: DbDep,
+    queue: JobQueue,
+    sub: Submission,
+    form: FormRecord,
+    user: User,
+    step_no: int,
+    approve: bool,
+    comment: str,
+) -> ApprovalStep:
+    """Decide the current step as ``user`` (the caller checked their role). Raises
+    :class:`approvals.AlreadyDecided` when the step isn't the one waiting any more."""
+    await approvals.lock(db, sub)
+    step = await approvals.current_step(db, sub)
+    # A step with no approver (the answer with the address was empty) can be decided here too.
+    if (
+        step is None
+        or step.step != step_no
+        or step.state not in (StepState.PENDING, StepState.NO_APPROVER)
+    ):
+        raise approvals.AlreadyDecided
+    change = await approvals.decide(
+        db,
+        sub,
+        step,
+        approve=approve,
+        name=_staff_name(user),
+        comment=comment,
+        via="studio",
+        actor_id=user.id,
+        email=user.email,
+    )
+    meta: dict[str, Any] = {
+        "step": step.step,
+        "name": step.name,
+        "decision": "approved" if approve else "rejected",
+        "via": "studio",
+    }
+    if comment:
+        meta["comment"] = comment
+    await audit(
+        db,
+        "submission.approval_decide",
+        org_id=form.org_id,
+        actor_id=user.id,
+        target_type="submission",
+        target_id=sub.id,
+        meta=meta,
+    )
+    await db.commit()
+    await approvals.enqueue(queue, sub, change)
+    return step
+
+
+async def _decided_by(db: DbDep, submission_id: uuid.UUID, step_no: int) -> dict[str, Any]:
+    step = await db.scalar(
+        select(ApprovalStep).where(
+            ApprovalStep.submission_id == submission_id, ApprovalStep.step == step_no
+        )
+    )
+    return {
+        "code": "approval_done",
+        "state": step.state.value if step else None,
+        "decidedName": step.decided_name if step else None,
+        "decidedAt": step.decided_at.isoformat() if step and step.decided_at else None,
+        "decidedVia": step.decided_via if step else None,
+    }
+
+
+@router.post("/submissions/{submission_id}/approval/decide")
+async def decide_approval(
+    submission_id: uuid.UUID, body: DecideIn, db: DbDep, user: CurrentUser, queue: QueueDep
+) -> dict[str, Any]:
+    """Approve or reject the current step from the studio (editors, owners, admins). It
+    counts as that step's decision: the approver's link then only says it's done."""
+    sub = await _editable(db, user, submission_id)
+    if body.decision == "reject" and not body.comment:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "comment_required")
+    form = await db.get(FormRecord, sub.form_id)
+    assert form is not None
+    try:
+        step = await _decide_in_studio(
+            db, queue, sub, form, user, body.step, body.decision == "approve", body.comment
+        )
+    except approvals.AlreadyDecided:
+        await db.commit()  # nothing was written; ends the transaction and its lock
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, await _decided_by(db, submission_id, body.step)
+        ) from None
+    return {
+        "state": step.state.value,
+        "status": sub.status.value,
+        "approval": await approvals.detail(db, sub),
+    }
+
+
+@router.post("/forms/{form_id}/submissions/approval/decide", response_model=BulkDecideOut)
+async def bulk_decide(
+    body: BulkDecideIn, db: DbDep, access: FormViewer, queue: QueueDep
+) -> BulkDecideOut:
+    """Decide the current step of several submissions with one comment. Each one is its own
+    change, so one already decided elsewhere doesn't stop the rest."""
+    if not has_form_role(access.role, FormRole.EDITOR):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "insufficient_form_role")
+    if body.decision == "reject" and not body.comment:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "comment_required")
+    form, user = access.form, access.user
+    results: list[BulkDecideResult] = []
+    for item in body.items:
+        sub = await db.get(Submission, item.id)
+        if sub is None or sub.form_id != form.id or sub.deleted_at is not None:
+            results.append(BulkDecideResult(id=item.id, seq=None, result="not_found"))
+            continue
+        seq = sub.seq
+        try:
+            await _decide_in_studio(
+                db, queue, sub, form, user, item.step, body.decision == "approve", body.comment
+            )
+        except approvals.AlreadyDecided:
+            await db.commit()  # nothing was written; ends the transaction and its lock
+            who = await _decided_by(db, item.id, item.step)
+            results.append(
+                BulkDecideResult(
+                    id=item.id, seq=seq, result="already_decided", decided_name=who["decidedName"]
+                )
+            )
+            continue
+        results.append(
+            BulkDecideResult(
+                id=item.id,
+                seq=seq,
+                result="approved" if body.decision == "approve" else "rejected",
+            )
+        )
+    return BulkDecideOut(results=results)
 
 
 # -- the approver page (public) -------------------------------------------------------------
@@ -265,6 +496,9 @@ async def approver_link(
         "stepName": step.name,
         "maskedEmail": mask_email(step.approver_email or ""),
         "decidedAt": step.decided_at.isoformat() if step.decided_at else None,
+        # Who decided (the name they gave, or the staff member's) and how: "email" or "studio".
+        "decidedName": step.decided_name,
+        "decidedVia": step.decided_via,
         "codeMinutes": settings.respondent_code_ttl_seconds // 60,
         "thaanaFontCssUrl": settings.thaana_font_css_url,
     }
@@ -480,14 +714,17 @@ async def approver_decision(
     if body.decision == "reject" and not body.comment:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "comment_required")
     # Serialise decisions on this submission, then re-read the step under the lock.
-    await db.execute(select(Submission.id).where(Submission.id == sub.id).with_for_update())
-    await db.refresh(sub)
+    await approvals.lock(db, sub)
     await db.refresh(step)
     if _state(step, sub) != "pending":
         raise HTTPException(status.HTTP_409_CONFLICT, "approval_done")
-    change = await approvals.decide(
-        db, sub, step, approve=body.decision == "approve", name=body.name, comment=body.comment
-    )
+    try:
+        change = await approvals.decide(
+            db, sub, step, approve=body.decision == "approve", name=body.name, comment=body.comment
+        )
+    except approvals.AlreadyDecided:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "approval_done") from None
     await db.commit()
     await approvals.enqueue(queue, sub, change)
     return JSONResponse(

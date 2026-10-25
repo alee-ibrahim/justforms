@@ -58,6 +58,8 @@ PDF_FAILED = "pdf_failed"  # internal: the receipt goes out without the PDF
 # "Send test emails": each rule's email rendered with sample answers, to the person asking.
 TEST_KINDS = {"test_owner_new": RuleType.OWNER_EMAIL, "test_receipt": RuleType.RESPONDENT_RECEIPT}
 TEST_PREFIX = "[Test] "
+# Approvals' "Send test emails": the approver's email and both outcomes, to the person asking.
+APPROVAL_TEST_KINDS = ("test_approval_request", "test_approval_approved", "test_approval_rejected")
 # A member got a role on a form (Share page, "Notify by email").
 FORM_SHARED = "form_shared"
 
@@ -84,6 +86,42 @@ def wording(
     if test and subject:
         subject = TEST_PREFIX + subject
     return emails.Wording(subject=subject, message=message or None, reply_to=rule.reply_to)
+
+
+def approval_wording(
+    form: FormRecord,
+    kind: str,
+    *,
+    title: str,
+    reference: str,
+    submitted: str,
+    answers: dict[str, str],
+    test: bool = False,
+) -> emails.Wording:
+    """The form's custom wording for an approval email (``kind``: request, approved or
+    rejected) with the placeholders filled in. Read when the email is sent."""
+    from app.approvals.config import load_config
+
+    config = load_config(form.settings)
+    values = {"reference": reference, "form_title": title, "submitted": submitted}
+    subject = None
+    reply_to = None
+    if kind == "request":
+        raw_subject, raw_message = config.request_subject, config.request_message
+    else:
+        raw_subject = None
+        raw_message = (
+            config.outcome_approved_message
+            if kind == "approved"
+            else config.outcome_rejected_message
+        )
+        reply_to = str(config.outcome_reply_to) if config.outcome_reply_to else None
+    if raw_subject:
+        subject = emails.one_line(emails.fill(raw_subject, values, answers))
+        if test:
+            subject = TEST_PREFIX + subject
+    message = emails.fill(raw_message, values, answers).strip() if raw_message else None
+    return emails.Wording(subject=subject, message=message or None, reply_to=reply_to)
 
 
 @dataclass
@@ -237,6 +275,8 @@ async def render_email(
         )
     if row.kind in TEST_KINDS:
         return await _test_message(db, settings, form, row.kind, org_name, eb)
+    if row.kind in APPROVAL_TEST_KINDS:
+        return await _approval_test_message(db, settings, form, row.kind, org_name, eb)
     if row.kind == FORM_SHARED:
         return await _form_shared(db, settings, form, row, org_name, eb)
     sub = await db.get(Submission, row.submission_id) if row.submission_id else None
@@ -276,7 +316,7 @@ async def render_email(
         )
     if row.kind == "approval_request":
         return await _approval_request(
-            db, settings, row, sub, schema, org_name, title, reference, eb
+            db, settings, row, sub, schema, org_name, title, reference, eb, form
         )
     if row.kind == "approval_outcome":
         pdf_file: tuple[str, bytes] | None = None
@@ -305,6 +345,14 @@ async def render_email(
             approved=not rejected,
             comment=reason,
             pdf=pdf_file,
+            wording=approval_wording(
+                form,
+                "rejected" if rejected else "approved",
+                title=title,
+                reference=reference,
+                submitted=_submitted_text(sub.submitted_at, settings.tz),
+                answers=emails.placeholder_answers(schema, sub.data),
+            ),
         )
     if row.kind == "receipt":
         rule = rules.get(RuleType.RESPONDENT_RECEIPT)
@@ -404,6 +452,69 @@ async def _test_message(
     return msg
 
 
+async def _approval_test_message(
+    db: AsyncSession,
+    settings: Settings,
+    form: FormRecord,
+    kind: str,
+    org_name: str,
+    brand: emails.EmailBrand | None,
+) -> emails.Message:
+    """An approval email rendered with sample answers and the current settings. Nothing is
+    read from submissions and no approver link is made: the buttons open the submissions."""
+    from app.approvals.config import load_config
+
+    schema = await latest_schema(db, form)
+    config = load_config(form.settings)
+    title = schema.settings.title or form.title
+    reference = "#0000"
+    now = datetime.now(UTC)
+    sample = {key: f"[{el.label or key}]" for key, el in emails.placeholder_fields(schema).items()}
+    words = approval_wording(
+        form,
+        kind.removeprefix("test_approval_"),
+        title=title,
+        reference=reference,
+        submitted=_submitted_text(now, settings.tz),
+        answers=sample,
+        test=True,
+    )
+    if kind == "test_approval_request":
+        step = config.steps[0].name if config.steps else "Approval"
+        msg = emails.approval_request_message(
+            org_name=org_name,
+            brand=brand,
+            form=schema,
+            title=title,
+            reference=reference,
+            submitted=now,
+            tz=settings.tz,
+            step_name=step,
+            step=1,
+            total=max(1, len(config.steps)),
+            url=f"{settings.public_origin}/forms/{form.id}/submissions",
+            days=settings.approval_link_days,
+            wording=words,
+            answers=sample_answers(schema) if config.request_include_answers else None,
+        )
+    else:
+        rejected = kind == "test_approval_rejected"
+        msg = emails.outcome_message(
+            org_name=org_name,
+            brand=brand,
+            form=schema,
+            title=title,
+            reference=reference,
+            approved=not rejected,
+            comment="[The approver's comment]" if rejected else None,
+            pdf=None,
+            wording=words,
+        )
+    if not msg.subject.startswith(TEST_PREFIX):
+        msg.subject = TEST_PREFIX + msg.subject
+    return msg
+
+
 def share_detail(row: EmailDelivery) -> dict[str, Any]:
     try:
         detail = json.loads(row.detail or "{}")
@@ -479,6 +590,7 @@ async def _approval_request(
     title: str,
     reference: str,
     brand: emails.EmailBrand | None = None,
+    form: FormRecord | None = None,
 ) -> emails.Message | None:
     """The approver's email. Its link is minted now, so each email (and each "send again")
     carries a new link and older ones stop working."""
@@ -488,6 +600,21 @@ async def _approval_request(
     if step is None or step.state != StepState.PENDING or step.submission_id != sub.id:
         return None
     url = mint_link(settings, step)
+    from app.approvals.config import load_config
+
+    config = load_config(form.settings if form is not None else None)
+    words = (
+        approval_wording(
+            form,
+            "request",
+            title=title,
+            reference=reference,
+            submitted=_submitted_text(sub.submitted_at, settings.tz),
+            answers=emails.placeholder_answers(schema, sub.data),
+        )
+        if form is not None
+        else None
+    )
     return emails.approval_request_message(
         org_name=org_name,
         brand=brand,
@@ -501,6 +628,10 @@ async def _approval_request(
         total=await step_count(db, sub),
         url=url,
         days=settings.approval_link_days,
+        wording=words,
+        answers=(
+            emails.answers_for_email(schema, sub.data) if config.request_include_answers else None
+        ),
     )
 
 

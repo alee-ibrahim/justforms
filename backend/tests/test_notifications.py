@@ -482,7 +482,8 @@ def test_dv_approval_emails_isolate_form_content() -> None:
     assert msg.subject == "Approval needed: \u2068ފޯމު\u2069 (#0007)"
     assert msg.html is not None
     assert '<bdi lang="dv" dir="rtl">ވެރިޔާ</bdi>: please approve or reject response #0007' in msg.html
-    assert "Step 1 of 2." in msg.text and "Open the response" in msg.html
+    assert "Step 1 of 2." in msg.text and "Or open the response" in msg.html
+    assert "https://forms.example/a/x?decision=approve" in msg.html
     out = emails.outcome_message(
         org_name="Example",
         form=form,

@@ -96,9 +96,14 @@ How signing keys work and how to check a PDF:
 
 ## Approvals
 
-Up to three **approval steps** per form. Approvers get an emailed link and need no account;
-the link works for `JUSTFORMS_APPROVAL_LINK_DAYS` (14 by default). The outcome is part of the
-signed PDF's approval record and shows on the verify page.
+Up to three **approval steps** per form. Approvers get an email with **Approve** and **Reject**
+buttons and need no account: a button opens the response with that choice made, they confirm
+their email with a code and then their decision. The link works for
+`JUSTFORMS_APPROVAL_LINK_DAYS` (14 by default). Editors and owners can also approve or reject the
+waiting step in the studio, one submission or a selection at a time; the approver's link then
+says who decided. The request and outcome emails' wording (and the outcome's Reply-To) can be
+set per form, with test emails to yourself. The outcome is part of the signed PDF's approval
+record and shows on the verify page.
 
 ## Submissions and export
 

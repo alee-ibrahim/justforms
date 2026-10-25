@@ -21,6 +21,8 @@ MAX_STEPS = 3
 
 StepName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
 FieldId = Annotated[str, StringConstraints(max_length=63)]
+Subject = Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]
+Message = Annotated[str, StringConstraints(strip_whitespace=True, max_length=5000)]
 
 
 class ApiModel(BaseModel):
@@ -48,6 +50,14 @@ class ApprovalConfig(ApiModel):
     notify_respondent: bool = True
     # The email question to send the outcome to; None = the confirmed (email code/staff) address.
     respondent_email_field: FieldId | None = None
+    # Custom wording (plain text with the notification placeholders, DESIGN 11.1); empty or
+    # missing = the built-in text. The request email can also list the non-sensitive answers.
+    request_subject: Subject | None = None
+    request_message: Message | None = None
+    request_include_answers: bool = False
+    outcome_approved_message: Message | None = None
+    outcome_rejected_message: Message | None = None
+    outcome_reply_to: EmailStr | None = None
 
 
 def load_config(form_settings: dict[str, Any] | None) -> ApprovalConfig:
@@ -72,6 +82,8 @@ class StepIssue:
     code: str
     level: Literal["error", "warning"]
     message: str
+    # The setting the issue is about, for issues that aren't about a step's approver.
+    field: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -188,6 +200,43 @@ def check_config(config: ApprovalConfig, form: Form, live: Form | None = None) -
                     "outcome_field_missing",
                     "error",
                     "The question for the outcome email isn't in the form. Choose another.",
+                )
+            )
+    issues += _wording_issues(config, form)
+    return issues
+
+
+WORDING_FIELDS = (
+    "request_subject",
+    "request_message",
+    "outcome_approved_message",
+    "outcome_rejected_message",
+)
+
+
+def _wording_issues(config: ApprovalConfig, form: Form) -> list[StepIssue]:
+    """Custom wording may only use placeholders that can be filled (DESIGN 11.1)."""
+    from app.notifications.emails import unknown_placeholder
+
+    issues: list[StepIssue] = []
+    for name in WORDING_FIELDS:
+        text = getattr(config, name) or ""
+        if name == "request_subject" and ("\n" in text or "\r" in text):
+            issues.append(
+                StepIssue(0, "subject_one_line", "error", "Keep the subject on one line.", name)
+            )
+            continue
+        bad = unknown_placeholder(text, form)
+        if bad is not None:
+            issues.append(
+                StepIssue(
+                    0,
+                    "unknown_placeholder",
+                    "error",
+                    f"{bad} can't be filled in. You can use {{reference}}, {{form_title}}, "
+                    "{submitted} and {answer:question_key}. Sensitive, signature and file "
+                    "questions can't be used.",
+                    name,
                 )
             )
     return issues

@@ -355,6 +355,10 @@ export interface ApprovalStepInfo {
   requestedAt: string | null
   decidedAt: string | null
   decidedName: string | null
+  /** Who decided: the approver's address (link) or the staff member's (studio). */
+  decidedEmail?: string | null
+  /** `email`: through the approver's link; `studio`: by a staff member in the studio. */
+  decidedVia?: 'email' | 'studio' | null
   comment: string | null
 }
 
@@ -375,6 +379,14 @@ export interface ApprovalConfig {
   steps: ApprovalStepConfig[]
   notifyRespondent: boolean
   respondentEmailField: string | null
+  /** Custom wording (placeholders like {reference}); null = the built-in text. */
+  requestSubject?: string | null
+  requestMessage?: string | null
+  /** List the non-sensitive answers in the approver's email. */
+  requestIncludeAnswers?: boolean
+  outcomeApprovedMessage?: string | null
+  outcomeRejectedMessage?: string | null
+  outcomeReplyTo?: string | null
 }
 
 export interface ApprovalIssue {
@@ -383,6 +395,8 @@ export interface ApprovalIssue {
   code: string
   level: 'error' | 'warning'
   message: string
+  /** The setting it is about, for issues that aren't about a step (e.g. `request_subject`). */
+  field?: string | null
 }
 
 export interface Approvals {
@@ -628,6 +642,9 @@ export interface EmailLogEntry {
     | 'approval_outcome'
     | 'test_owner_new'
     | 'test_receipt'
+    | 'test_approval_request'
+    | 'test_approval_approved'
+    | 'test_approval_rejected'
     | 'form_shared'
   to: string
   status: 'queued' | 'sent' | 'failed'
@@ -635,6 +652,22 @@ export interface EmailLogEntry {
   error: string | null
   createdAt: string
   sentAt: string | null
+}
+
+/** 409 from a studio decision: someone decided the step first. */
+export interface AlreadyDecided {
+  code: 'approval_done'
+  state: StepState | null
+  decidedName: string | null
+  decidedAt: string | null
+  decidedVia: 'email' | 'studio' | null
+}
+
+export interface BulkDecideResult {
+  id: string
+  seq: number | null
+  result: 'approved' | 'rejected' | 'already_decided' | 'not_found'
+  decidedName: string | null
 }
 
 export interface Notifications {
@@ -845,6 +878,18 @@ export const api = {
   resendApproval: (id: string) => request<{ status: string }>('POST', `/submissions/${id}/approval/resend`),
   stopApproval: (id: string, reason: string) =>
     request<{ status: string }>('POST', `/submissions/${id}/approval/stop`, { reason }),
+  decideApproval: (id: string, body: { step: number; decision: 'approve' | 'reject'; comment?: string }) =>
+    request<{ state: StepState; status: SubmissionStatus; approval: ApprovalDetail | null }>(
+      'POST',
+      `/submissions/${id}/approval/decide`,
+      body,
+    ),
+  bulkDecideApproval: (
+    formId: string,
+    body: { items: { id: string; step: number }[]; decision: 'approve' | 'reject'; comment?: string },
+  ) => request<{ results: BulkDecideResult[] }>('POST', `/forms/${formId}/submissions/approval/decide`, body),
+  testApprovals: (formId: string) =>
+    request<{ kinds: string[]; to: string }>('POST', `/forms/${formId}/approvals/test`),
   getVersion: (formId: string, n: number) =>
     request<Version & { schema: Form }>('GET', `/forms/${formId}/versions/${n}`),
 }

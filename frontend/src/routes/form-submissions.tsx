@@ -393,6 +393,11 @@ export function FormSubmissionsPage() {
               formId={form.id}
               ids={[...selected]}
               canDelete={canDelete}
+              approvalItems={rows.flatMap((r) =>
+                selected.has(r.id) && r.approval?.state === 'pending' && r.approval.step
+                  ? [{ id: r.id, step: r.approval.step }]
+                  : [],
+              )}
               onClear={() => setSelected(new Set())}
               onExport={() => exportWith({ ids: [...selected] })}
             />

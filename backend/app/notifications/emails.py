@@ -54,12 +54,17 @@ WORDS: dict[str, str] = {
     "It was submitted on {date}.",
     "approval_step_of": "Step {n} of {total}.",
     "approval_button": "Open the response",
-    "approval_note": "You'll confirm your email with a code first. The link works for {days} days.",
+    "approval_approve": "Approve",
+    "approval_reject": "Reject",
+    "approval_open": "Or open the response to read it first",
+    "approval_note": "Each button opens the response. You'll confirm your email with a code, "
+    "then confirm your decision there. The link works for {days} days.",
     "outcome_subject_approved": "Approved: {title} ({reference})",
     "outcome_subject_rejected": "Not approved: {title} ({reference})",
     "outcome_approved": "Your response {reference} was approved.",
     "outcome_rejected": "Your response {reference} was not approved.",
     "outcome_comment": "Comment",
+    "outcome_reference": "Reference",
     "outcome_pdf": "The signed PDF is attached.",
 }
 
@@ -153,32 +158,55 @@ Answers are not included in this email.
 {{ w.code_ignore }}
 """,
     "approval_request.html": """{% extends "layout.html" %}{% block body %}
+<p style="margin:0 0 4px;color:#5A6380">{{ kicker }}</p>
 <h1 style="margin:0 0 12px;font-size:20px{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
-<p style="margin:0 0 8px">{{ body }}</p>
-<p style="margin:0 0 20px;color:#5A6380">{{ step_of }}</p>
-<p style="margin:0 0 20px"><a href="{{ url }}" style="display:inline-block;background:{{ brand.button_bg }};color:{{ brand.button_fg }};text-decoration:none;padding:10px 16px;border-radius:6px">{{ w.approval_button }}</a></p>
-<p style="margin:0;color:#5A6380">{{ note }}</p>
+{% if message %}<p style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message }}</p>
+{% endif %}<p style="margin:0 0 {{ '8' if step_of else '20' }}px">{{ body }}</p>
+{% if step_of %}<p style="margin:0 0 20px;color:#5A6380">{{ step_of }}</p>
+{% endif %}
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 12px;border-collapse:separate"><tr>
+<td style="padding:0 8px 8px 0"><a href="{{ approve_url }}" style="display:inline-block;min-width:96px;text-align:center;background:{{ brand.button_bg }};color:{{ brand.button_fg }};border:1px solid {{ brand.button_bg }};text-decoration:none;font-weight:bold;padding:10px 18px;border-radius:6px">{{ w.approval_approve }}</a></td>
+<td style="padding:0 0 8px 0"><a href="{{ reject_url }}" style="display:inline-block;min-width:96px;text-align:center;background:#FFFFFF;color:#B42318;border:1px solid #B42318;text-decoration:none;font-weight:bold;padding:10px 18px;border-radius:6px">{{ w.approval_reject }}</a></td>
+</tr></table>
+<p style="margin:0 0 20px"><a href="{{ url }}" style="color:{{ brand.button_bg }}">{{ w.approval_open }}</a></p>
+{% if answers %}{% include "answers.html" %}<div style="height:16px"></div>
+{% endif %}<p style="margin:0;color:#5A6380">{{ note }}</p>
 {% endblock %}""",
     "approval_request.txt": """{{ title }}
 
-{{ body_text }}
-{{ step_of }}
+{% if message %}{{ message }}
 
-{{ w.approval_button }}: {{ url }}
+{% endif %}{{ body_text }}
+{% if step_of %}{{ step_of }}
+{% endif %}
+{{ w.approval_approve }}: {{ approve_url }}
+{{ w.approval_reject }}: {{ reject_url }}
+{{ w.approval_open }}: {{ url }}
+{% if answers %}
+{% for a in answers %}
+{{ a.label }}
+{{ a.value }}
+{% endfor %}{% endif %}
 
 {{ note }}
 """,
     "outcome.html": """{% extends "layout.html" %}{% block body %}
 <h1 style="margin:0 0 12px;font-size:20px{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
-<p style="margin:0 0 16px">{{ body }}</p>
+{% if message %}<p style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message }}</p>
+<p style="margin:0 0 16px">{{ w.outcome_reference }}: <strong>{{ reference }}</strong></p>
+{% else %}<p style="margin:0 0 16px">{{ body }}</p>
+{% endif %}
 {% if comment %}<p style="margin:0 0 4px;color:#5A6380">{{ w.outcome_comment }}</p>
 <p style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ comment }}</p>{% endif %}
 {% if pdf %}<p style="margin:0">{{ w.outcome_pdf }}</p>{% endif %}
 {% endblock %}""",
     "outcome.txt": """{{ title }}
 
-{{ body_text }}
-{% if comment %}
+{% if message %}{{ message }}
+
+{{ w.outcome_reference }}: {{ reference }}
+{% else %}{{ body_text }}
+{% endif %}{% if comment %}
 {{ w.outcome_comment }}:
 {{ comment }}
 {% endif %}{% if pdf %}
@@ -575,13 +603,26 @@ def approval_request_message(
     total: int,
     url: str,
     days: int,
+    wording: Wording | None = None,
+    answers: list[Answer] | None = None,
 ) -> Message:
+    """The approver's email: what to decide, an Approve and a Reject button and the plain
+    link. Both buttons only open the approver page with that decision chosen (``?decision=``):
+    the approver still confirms their email with a code and then the decision, so a mail
+    scanner opening the links changes nothing."""
     lang = form.settings.language
     w = WORDS
-    date = submitted.astimezone(tz).strftime("%d %b %Y")
+    wording = wording or Wording()
+    date = submitted.astimezone(tz).strftime("%d %b %Y %H:%M %Z").strip()
     values = {"step": step_name, "reference": reference, "title": title, "date": date}
+    subject = wording.subject or w["approval_subject"].format(
+        title=_iso(title, lang), reference=reference
+    )
+    sep = "&" if "?" in url else "?"
     ctx: dict[str, Any] = {
-        "subject": w["approval_subject"].format(title=_iso(title, lang), reference=reference),
+        "subject": subject,
+        "kicker": "Approval needed",
+        "message": wording.message,
         "org_name": org_name,
         "brand": _brand(brand, org_name),
         "title": title,
@@ -589,18 +630,24 @@ def approval_request_message(
         "body_text": w["approval_body"].format(
             **values | {"step": _iso(step_name, lang), "title": _iso(title, lang)}
         ),
-        "step_of": w["approval_step_of"].format(n=step, total=total),
+        # One step needs no "Step 1 of 1."
+        "step_of": w["approval_step_of"].format(n=step, total=total) if total > 1 else "",
         "note": w["approval_note"].format(days=days),
         "url": url,
+        "approve_url": f"{url}{sep}decision=approve",
+        "reject_url": f"{url}{sep}decision=reject",
+        "answers": answers or [],
         "w": w,
         **_content(lang),
     }
-    return _message(
+    msg = _message(
         ctx["brand"],
-        ctx["subject"],
+        subject,
         _env.get_template("approval_request.txt").render(ctx),
         _env.get_template("approval_request.html").render(ctx),
     )
+    msg.reply_to = wording.reply_to
+    return msg
 
 
 def outcome_message(
@@ -613,8 +660,13 @@ def outcome_message(
     approved: bool,
     comment: str | None,
     pdf: tuple[str, bytes] | None,
+    wording: Wording | None = None,
 ) -> Message:
+    """The outcome for the respondent. ``wording.message`` (the form's own text for this
+    outcome) replaces the built-in sentence; the reference, a rejection's comment and the PDF
+    note stay. Replies go to ``wording.reply_to`` when set."""
     lang = form.settings.language
+    wording = wording or Wording()
     w = WORDS
     key = "approved" if approved else "rejected"
     subject = w[f"outcome_subject_{key}"].format(title=_iso(title, lang), reference=reference)
@@ -626,16 +678,19 @@ def outcome_message(
         "body": _sentence_html(w[f"outcome_{key}"], set(), lang, reference=reference),
         "body_text": w[f"outcome_{key}"].format(reference=reference),
         "comment": comment if not approved else None,
+        "message": wording.message,
+        "reference": reference,
         "pdf": pdf is not None,
         "w": w,
         **_content(lang),
     }
     msg = _message(
         ctx["brand"],
-        subject,
+        wording.subject or subject,
         _env.get_template("outcome.txt").render(ctx),
         _env.get_template("outcome.html").render(ctx),
     )
+    msg.reply_to = wording.reply_to
     if pdf is not None:
         msg.attachments.append((pdf[0], pdf[1], "application/pdf"))
     return msg

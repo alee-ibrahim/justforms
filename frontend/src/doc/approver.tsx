@@ -53,6 +53,8 @@ interface LinkInfo {
   stepName: string
   maskedEmail: string
   decidedAt: string | null
+  decidedName?: string | null
+  decidedVia?: 'email' | 'studio' | null
   codeMinutes: number
   thaanaFontCssUrl: string
 }
@@ -65,6 +67,31 @@ interface ApproverView {
   signatures: string[]
   steps: { step: number; name: string; state: string; decidedName: string | null; decidedAt: string | null }[]
   current: number
+}
+
+type Decision = 'approve' | 'reject'
+
+/** The decision chosen with the email's Approve / Reject button (`?decision=`), if any. */
+function intentFromUrl(search: string): Decision | null {
+  const v = new URLSearchParams(search).get('decision')
+  return v === 'approve' || v === 'reject' ? v : null
+}
+
+/** The approver's name, remembered on this device for the next approval. */
+const NAME_KEY = 'justforms:approver-name'
+function rememberedName(): string {
+  try {
+    return window.localStorage.getItem(NAME_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+function rememberName(name: string) {
+  try {
+    window.localStorage.setItem(NAME_KEY, name)
+  } catch {
+    // Storage may be off; the name is only a convenience.
+  }
 }
 
 type Stage =
@@ -160,11 +187,13 @@ function StepIntro({ info, headingRef }: { info: LinkInfo; headingRef?: React.Re
 function CodeStep({
   token,
   info,
+  intent,
   onVerified,
   onDone,
 }: {
   token: string
   info: LinkInfo
+  intent: Decision | null
   onVerified: (bearer: string) => void
   onDone: () => void
 }) {
@@ -232,6 +261,7 @@ function CodeStep({
           }}
         >
           <StepIntro info={info} headingRef={heading} />
+          {intent && <p className="font-medium">{intent === 'approve' ? msgs.intentApprove : msgs.intentReject}</p>}
           <p>
             <Msg t={msgs.confirmIntro} params={{ email: info.maskedEmail }} />
           </p>
@@ -481,6 +511,7 @@ function Review({
   info,
   bearer,
   view,
+  initialIntent,
   onDecided,
   onGone,
 }: {
@@ -488,11 +519,14 @@ function Review({
   info: LinkInfo
   bearer: string
   view: ApproverView
+  initialIntent: Decision | null
   onDecided: (approved: boolean) => void
   onGone: () => void
 }) {
   const language = info.language
-  const [name, setName] = useState('')
+  // Chosen with the email's button: the decision comes first and needs one confirm.
+  const [intent, setIntent] = useState<Decision | null>(initialIntent)
+  const [name, setName] = useState(rememberedName)
   const [comment, setComment] = useState('')
   const [errors, setErrors] = useState<{ name?: string; comment?: string; form?: string }>({})
   const [confirm, setConfirm] = useState<'approve' | 'reject' | null>(null)
@@ -503,24 +537,30 @@ function Review({
   const earlier = view.steps.filter((s) => s.step < view.current && s.state === 'approved')
   const last = view.current === view.steps.length
 
-  const ask = (decision: 'approve' | 'reject') => {
+  const check = (decision: Decision) => {
     const next: typeof errors = {}
     if (!name.trim()) next.name = msgs.nameRequired
     if (decision === 'reject' && !comment.trim()) next.comment = msgs.commentRequired
     setErrors(next)
-    if (!next.name && !next.comment) setConfirm(decision)
+    return !next.name && !next.comment
   }
-  const decide = async () => {
-    if (!confirm) return
+  const ask = (decision: Decision) => {
+    if (check(decision)) setConfirm(decision)
+  }
+  const decide = async (decision: Decision | null = confirm) => {
+    if (!decision) return
     setBusy(true)
     try {
       const res = await call(
         token,
         '/decision',
-        { method: 'POST', body: JSON.stringify({ decision: confirm, name: name.trim(), comment: comment.trim() }) },
+        { method: 'POST', body: JSON.stringify({ decision, name: name.trim(), comment: comment.trim() }) },
         bearer,
       )
-      if (res.ok) return onDecided(confirm === 'approve')
+      if (res.ok) {
+        rememberName(name.trim())
+        return onDecided(decision === 'approve')
+      }
       if (res.status === 409 || res.status === 401 || res.status === 404) return onGone()
       setErrors({ form: res.status === 429 ? msgs.tooMany : msgs.decisionFailed })
     } catch {
@@ -531,9 +571,92 @@ function Review({
     }
   }
 
+  const nameField = (
+    <Field data-invalid={errors.name ? true : undefined}>
+      <FieldLabel htmlFor="approver-name" className="text-lg">
+        {msgs.yourName}
+      </FieldLabel>
+      <Input
+        id="approver-name"
+        autoComplete="name"
+        className="h-12 text-base"
+        maxLength={200}
+        value={name}
+        aria-invalid={errors.name ? true : undefined}
+        onChange={(e) => setName(e.target.value)}
+      />
+      {errors.name && <FieldError>{errors.name}</FieldError>}
+    </Field>
+  )
+  const commentField = (hint: string) => (
+    <Field data-invalid={errors.comment ? true : undefined}>
+      <FieldLabel htmlFor="approver-comment" className="text-lg">
+        {msgs.comment}
+      </FieldLabel>
+      <FieldDescription>{hint}</FieldDescription>
+      <Textarea
+        id="approver-comment"
+        rows={3}
+        maxLength={2000}
+        className="text-base"
+        value={comment}
+        aria-invalid={errors.comment ? true : undefined}
+        onChange={(e) => setComment(e.target.value)}
+      />
+      {errors.comment && <FieldError>{errors.comment}</FieldError>}
+    </Field>
+  )
+  const chosen = intent && (
+    <form
+      aria-labelledby="decision"
+      className="flex flex-col gap-5 rounded-md border p-4 sm:p-5"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (check(intent)) void decide(intent)
+      }}
+    >
+      <div className="flex flex-col gap-1">
+        <h2 id="decision" className="text-xl font-semibold">
+          {intent === 'approve' ? msgs.confirmApprove : msgs.confirmReject}
+        </h2>
+        <p className="text-muted-foreground">
+          {intent === 'reject' ? msgs.rejectBody : last ? msgs.approveLast : msgs.approveNext}
+        </p>
+      </div>
+      {nameField}
+      {commentField(intent === 'reject' ? msgs.commentNeeded : msgs.commentOptional)}
+      {errors.form && <FieldError>{errors.form}</FieldError>}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="submit"
+          variant={intent === 'reject' ? 'destructive' : 'default'}
+          className="h-12 min-w-32 text-base max-sm:w-full"
+          disabled={busy}
+        >
+          {busy && <Spinner />}
+          {intent === 'approve' ? msgs.approve : msgs.reject}
+        </Button>
+        <Button
+          type="button"
+          variant="link"
+          className="h-11 px-0"
+          disabled={busy}
+          onClick={() => {
+            setErrors({})
+            setIntent(intent === 'approve' ? 'reject' : 'approve')
+          }}
+        >
+          {intent === 'approve' ? msgs.rejectInstead : msgs.approveInstead}
+        </Button>
+      </div>
+    </form>
+  )
+
   return (
     <div className="flex flex-col gap-8">
       <StepIntro info={info} headingRef={heading} />
+      {chosen}
+      {chosen && <h2 className="text-sm font-medium text-muted-foreground">{msgs.theResponse}</h2>}
       {earlier.length > 0 && (
         <section className="flex flex-col gap-1">
           <h2 className="text-sm text-muted-foreground">{msgs.earlier}</h2>
@@ -568,51 +691,24 @@ function Review({
         })}
       </div>
       {view.hidden.length > 0 && <p className="text-sm text-muted-foreground">{msgs.hiddenNote}</p>}
-      <section aria-labelledby="decision" className="flex flex-col gap-5 border-t pt-6">
-        <h2 id="decision" className="text-xl font-semibold">
-          {msgs.decisionTitle}
-        </h2>
-        <Field data-invalid={errors.name ? true : undefined}>
-          <FieldLabel htmlFor="approver-name" className="text-lg">
-            {msgs.yourName}
-          </FieldLabel>
-          <Input
-            id="approver-name"
-            autoComplete="name"
-            className="h-12 text-base"
-            maxLength={200}
-            value={name}
-            aria-invalid={errors.name ? true : undefined}
-            onChange={(e) => setName(e.target.value)}
-          />
-          {errors.name && <FieldError>{errors.name}</FieldError>}
-        </Field>
-        <Field data-invalid={errors.comment ? true : undefined}>
-          <FieldLabel htmlFor="approver-comment" className="text-lg">
-            {msgs.comment}
-          </FieldLabel>
-          <FieldDescription>{msgs.commentHint}</FieldDescription>
-          <Textarea
-            id="approver-comment"
-            rows={3}
-            maxLength={2000}
-            className="text-base"
-            value={comment}
-            aria-invalid={errors.comment ? true : undefined}
-            onChange={(e) => setComment(e.target.value)}
-          />
-          {errors.comment && <FieldError>{errors.comment}</FieldError>}
-        </Field>
-        {errors.form && <FieldError>{errors.form}</FieldError>}
-        <div className="flex flex-wrap gap-3">
-          <Button type="button" className="h-12 min-w-32 text-base" disabled={busy} onClick={() => ask('approve')}>
-            {msgs.approve}
-          </Button>
-          <Button type="button" variant="outline" className="h-12 min-w-32 text-base text-destructive" disabled={busy} onClick={() => ask('reject')}>
-            {msgs.reject}
-          </Button>
-        </div>
-      </section>
+      {!chosen && (
+        <section aria-labelledby="decision" className="flex flex-col gap-5 border-t pt-6">
+          <h2 id="decision" className="text-xl font-semibold">
+            {msgs.decisionTitle}
+          </h2>
+          {nameField}
+          {commentField(msgs.commentHint)}
+          {errors.form && <FieldError>{errors.form}</FieldError>}
+          <div className="flex flex-wrap gap-3">
+            <Button type="button" className="h-12 min-w-32 text-base" disabled={busy} onClick={() => ask('approve')}>
+              {msgs.approve}
+            </Button>
+            <Button type="button" variant="outline" className="h-12 min-w-32 text-base text-destructive" disabled={busy} onClick={() => ask('reject')}>
+              {msgs.reject}
+            </Button>
+          </div>
+        </section>
+      )}
       <AlertDialog open={confirm !== null} onOpenChange={(o) => !o && !busy && setConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -623,7 +719,7 @@ function Review({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>{msgs.cancel}</AlertDialogCancel>
-            <Button variant={confirm === 'reject' ? 'destructive' : 'default'} disabled={busy} onClick={() => void decide()}>
+            <Button variant={confirm === 'reject' ? 'destructive' : 'default'} disabled={busy} onClick={() => void decide(confirm)}>
               {busy && <Spinner />}
               {confirm === 'reject' ? msgs.reject : msgs.approve}
             </Button>
@@ -635,6 +731,7 @@ function Review({
 }
 
 export function ApproverPage({ token }: { token: string }) {
+  const [intent] = useState(() => intentFromUrl(window.location.search))
   const [info, setInfo] = useState<LinkInfo | null>(null)
   const [stage, setStage] = useState<Stage>({ kind: 'loading' })
 
@@ -683,8 +780,19 @@ export function ApproverPage({ token }: { token: string }) {
         title={msgs.alreadyTitle}
         body={
           <Msg
-            t={info.state === 'approved' ? msgs.alreadyApproved : msgs.alreadyRejected}
-            params={{ date: info.decidedAt ? formatDay(info.decidedAt) : '' }}
+            t={
+              info.decidedName
+                ? info.state === 'approved'
+                  ? msgs.alreadyApprovedBy
+                  : msgs.alreadyRejectedBy
+                : info.state === 'approved'
+                  ? msgs.alreadyApproved
+                  : msgs.alreadyRejected
+            }
+            params={{
+              name: <bdi dir="auto">{info.decidedName}</bdi>,
+              date: info.decidedAt ? formatDay(info.decidedAt) : '',
+            }}
           />
         }
       />
@@ -696,6 +804,7 @@ export function ApproverPage({ token }: { token: string }) {
         info={info}
         bearer={stage.bearer}
         view={stage.view}
+        initialIntent={intent}
         onDecided={(approved) => setStage({ kind: 'done', approved })}
         onGone={load}
       />
@@ -705,6 +814,7 @@ export function ApproverPage({ token }: { token: string }) {
       <CodeStep
         token={token}
         info={info}
+        intent={intent}
         onDone={load}
         onVerified={async (bearer) => {
           const res = await call(token, '/submission', {}, bearer)

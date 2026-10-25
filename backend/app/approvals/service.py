@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.approvals.config import active, load_config
@@ -197,6 +197,16 @@ async def _finish(
     change.render_pdf = True
 
 
+class AlreadyDecided(Exception):
+    """The step was decided (or the approval ended) before this decision got there."""
+
+
+async def lock(db: AsyncSession, sub: Submission) -> None:
+    """Serialise workflow changes on one submission, then re-read it under the lock."""
+    await db.execute(select(Submission.id).where(Submission.id == sub.id).with_for_update())
+    await db.refresh(sub)
+
+
 async def decide(
     db: AsyncSession,
     sub: Submission,
@@ -205,29 +215,59 @@ async def decide(
     approve: bool,
     name: str,
     comment: str | None,
+    via: str = "email",
+    actor_id: uuid.UUID | None = None,
+    email: str | None = None,
 ) -> Change:
-    """Record an approver's decision (the caller checked the step is pending and locked)."""
+    """Record a decision on ``step``: from the approver's link (``via="email"``) or by a staff
+    member in the studio (``via="studio"``, ``actor_id`` and ``email`` are theirs). The caller
+    holds :func:`lock`. The step only changes if it is still pending (a conditional update), so
+    of two decisions racing for one step the second raises :class:`AlreadyDecided`."""
     change = Change()
-    step.state = StepState.APPROVED if approve else StepState.REJECTED
-    step.decided_at = datetime.now(UTC)
-    step.decided_name = name
-    step.comment = comment or None
+    if sub.approval_state != ApprovalState.PENDING or sub.approval_step != step.step:
+        raise AlreadyDecided
+    decided_email = email if via == "studio" else step.approver_email
+    now = datetime.now(UTC)
+    result = await db.execute(
+        update(ApprovalStep)
+        .where(
+            ApprovalStep.id == step.id,
+            ApprovalStep.state.in_([StepState.PENDING, StepState.NO_APPROVER]),
+        )
+        .values(
+            state=StepState.APPROVED if approve else StepState.REJECTED,
+            decided_at=now,
+            decided_name=name,
+            comment=comment or None,
+            decided_via=via,
+            decided_by_id=actor_id,
+            decided_email=decided_email,
+        )
+        .execution_options(synchronize_session=False)
+    )
+    if getattr(result, "rowcount", 0) != 1:
+        raise AlreadyDecided
+    await db.refresh(step)
     payload: dict[str, Any] = {
         "step": step.step,
         "name": step.name,
         "decision": "approved" if approve else "rejected",
         "approverEmail": step.approver_email,
         "approverName": name,
+        "decidedVia": via,
     }
+    if via == "studio":
+        payload["decidedByEmail"] = decided_email
     if comment:
         payload["comment"] = comment
-    await append_event(db, sub, EventType.APPROVAL_DECIDED, payload=payload)
+    await append_event(db, sub, EventType.APPROVAL_DECIDED, actor_id=actor_id, payload=payload)
     done: dict[str, Any] = {
         "action": payload["decision"],
         "step": step.step,
         "stepName": step.name,
         "approverEmail": step.approver_email,
         "approverName": name,
+        "decidedVia": via,
     }
     if comment:
         done["comment"] = comment
@@ -361,6 +401,8 @@ def step_out(s: ApprovalStep) -> dict[str, Any]:
         "requestedAt": s.requested_at.isoformat() if s.requested_at else None,
         "decidedAt": s.decided_at.isoformat() if s.decided_at else None,
         "decidedName": s.decided_name,
+        "decidedEmail": s.decided_email,
+        "decidedVia": s.decided_via,
         "comment": s.comment,
     }
 
@@ -415,7 +457,7 @@ async def printed_record(db: AsyncSession, sub: Submission) -> list[ApprovalLine
                     name=s.name,
                     outcome=s.state.value,
                     approver_name=s.decided_name,
-                    approver_email=s.approver_email,
+                    approver_email=s.decided_email or s.approver_email,
                     decided_at=s.decided_at,
                 )
             )

@@ -34,6 +34,9 @@ const MAX_RECIPIENTS = 10
 function logTitle(e: EmailLogEntry): string {
   if (e.kind === 'test_owner_new') return `Test notification to ${e.to}`
   if (e.kind === 'test_receipt') return `Test receipt to ${e.to}`
+  if (e.kind === 'test_approval_request') return `Test approval request to ${e.to}`
+  if (e.kind === 'test_approval_approved') return `Test "approved" email to ${e.to}`
+  if (e.kind === 'test_approval_rejected') return `Test "not approved" email to ${e.to}`
   if (e.kind === 'receipt') return `Receipt to ${e.to}`
   if (e.kind === 'webhook_disabled') return `Webhook warning to ${e.to}`
   if (e.kind === 'approval_request') return `Approval request to ${e.to}`
