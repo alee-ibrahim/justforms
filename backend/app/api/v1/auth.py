@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from typing import Annotated, Any
 
@@ -24,6 +25,7 @@ from app.auth.deps import (
 from app.auth.oidc import OIDCError, get_oidc_client
 from app.auth.sessions import (
     clear_session_cookies,
+    clear_stale_site_data,
     create_session,
     delete_session,
     set_session_cookies,
@@ -200,10 +202,14 @@ async def local_verify(
     await db.commit()
     token, session = await create_session(redis, settings, str(user.id))
     set_session_cookies(response, settings, token, session)
+    clear_stale_site_data(response)
     return await build_me(db, user)
 
 
 # -- OIDC -------------------------------------------------------------------------------
+
+
+_EMAIL_HINT = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
 def _require_oidc(settings: SettingsDep) -> None:
@@ -213,10 +219,15 @@ def _require_oidc(settings: SettingsDep) -> None:
 
 @router.get("/login", dependencies=[Depends(_require_oidc), AuthLimited])
 async def oidc_login(
-    redis: RedisDep, settings: SettingsDep, next: Annotated[str | None, Query()] = None
+    redis: RedisDep,
+    settings: SettingsDep,
+    next: Annotated[str | None, Query()] = None,
+    login_hint: Annotated[str | None, Query(max_length=320)] = None,
 ) -> RedirectResponse:
+    # Only an email address is passed on as a hint (invitation links); anything else is dropped.
+    hint = normalize_email(login_hint) if login_hint and _EMAIL_HINT.match(login_hint) else None
     try:
-        url = await get_oidc_client(settings).start(redis, next)
+        url = await get_oidc_client(settings).start(redis, next, hint)
     except OIDCError as exc:
         log.warning("OIDC login failed to start: %s", exc)
         return RedirectResponse("/login?error=sso_unavailable", status.HTTP_302_FOUND)
@@ -302,6 +313,7 @@ async def upsert_oidc_user(db: DbDep, settings: SettingsDep, claims: dict[str, A
 
     org = await ensure_default_org(db, settings)
     membership = await db.get(OrgMembership, (org.id, user.id))
+    role_before = membership.role if membership is not None else None
     groups = _claim_groups(settings, claims)
     if groups is None and (settings.oidc_group_mapping or settings.oidc_superadmin_groups):
         log.warning(
@@ -313,15 +325,30 @@ async def upsert_oidc_user(db: DbDep, settings: SettingsDep, claims: dict[str, A
         )
     if groups is not None and settings.oidc_superadmin_groups:
         await _sync_superadmin(db, settings, user, groups)
+    # Superadmin from an IdP group (granted or confirmed now): also admin of the default org.
+    oidc_superadmin = (
+        groups is not None
+        and bool(groups & set(settings.oidc_superadmin_groups))
+        and user.is_superadmin
+        and user.superadmin_source == SuperadminSource.OIDC
+    )
     if settings.oidc_group_mapping and groups is not None:
         role: OrgRole | None = None
-        if groups & set(settings.oidc_admin_groups):
+        if oidc_superadmin or groups & set(settings.oidc_admin_groups):
             role = OrgRole.ADMIN
         elif groups & set(settings.oidc_creator_groups):
             role = OrgRole.CREATOR
         elif groups & set(settings.oidc_member_groups):
             role = OrgRole.MEMBER
-        if role is not None:
+        # An admin role the mapping didn't grant (a superadmin group, an invitation, an admin's
+        # change) is not lowered by it: an admin can change it.
+        kept_admin = (
+            membership is not None
+            and not membership.idp_managed
+            and membership.role == OrgRole.ADMIN
+            and role != OrgRole.ADMIN
+        )
+        if role is not None and not kept_admin:
             membership = await set_membership(db, org, user, role)
             membership.idp_managed = True
         elif membership is not None and membership.idp_managed:
@@ -336,6 +363,25 @@ async def upsert_oidc_user(db: DbDep, settings: SettingsDep, claims: dict[str, A
     ):
         membership = await set_membership(db, org, user, OrgRole(settings.oidc_default_role))
         membership.idp_managed = True
+    if oidc_superadmin:
+        if membership is None or membership.role != OrgRole.ADMIN:
+            membership = await set_membership(db, org, user, OrgRole.ADMIN)
+        # Not IdP-managed: losing superadmin (or every mapped group) later doesn't demote or
+        # remove them. An admin can change the role.
+        membership.idp_managed = False
+        if role_before != OrgRole.ADMIN:
+            await audit(
+                db,
+                "org.member_role",
+                org_id=org.id,
+                target_type="user",
+                target_id=user.id,
+                meta={
+                    "before": role_before.value if role_before else None,
+                    "role": OrgRole.ADMIN.value,
+                    "source": "oidc_superadmin",
+                },
+            )
     # Invitations for this address. Not when the IdP says the address isn't verified.
     if claims.get("email_verified") is not False:
         await invitations.accept_all(db, user)
@@ -373,4 +419,5 @@ async def oidc_callback(
     token, session = await create_session(redis, settings, str(user.id), id_token=id_token)
     response = RedirectResponse(next_path, status.HTTP_302_FOUND)
     set_session_cookies(response, settings, token, session)
+    clear_stale_site_data(response)
     return response

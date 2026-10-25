@@ -5,11 +5,13 @@ import {
   createRouter,
   Outlet,
   redirect,
+  type RouterHistory,
 } from '@tanstack/react-router'
 
 import { AppShell } from '@/components/layout/app-shell'
 import { validateSubmissionsSearch } from '@/components/submissions/search'
-import { meQuery } from '@/lib/queries'
+import { meQuery, metaQuery } from '@/lib/queries'
+import { autoSignInUrl, clearSignedOut, loginTarget, startAutoSignIn } from '@/lib/sso-auto'
 import { FormEditorPage } from '@/routes/form-editor'
 import { FormLayout } from '@/routes/form-layout'
 import { FormPreviewPage } from '@/routes/form-preview'
@@ -38,13 +40,20 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({ component: AppSh
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (search: Record<string, unknown>): { next?: string; error?: string; manual?: boolean } => ({
     next: typeof search.next === 'string' ? search.next : undefined,
     error: typeof search.error === 'string' ? search.error : undefined,
+    manual: search.manual === 1 || search.manual === '1' || search.manual === true ? true : undefined,
   }),
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, search, preload }) => {
     const me = await context.queryClient.ensureQueryData(meQuery)
     if (me) throw redirect({ to: '/forms' })
+    // Automatic single sign-on (DESIGN 8.1): leave for the IdP before the page renders.
+    if (preload) return { autoSignIn: false }
+    const meta = await context.queryClient.ensureQueryData(metaQuery).catch(() => undefined)
+    const url = autoSignInUrl({ features: meta?.features, ...search, next: loginTarget(search.next) })
+    if (url) startAutoSignIn(url)
+    return { autoSignIn: !!url }
   },
   component: LoginPage,
 })
@@ -53,6 +62,9 @@ const loginRoute = createRoute({
 const inviteRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login/invite/$token',
+  validateSearch: (search: Record<string, unknown>): { manual?: boolean } => ({
+    manual: search.manual === 1 || search.manual === '1' || search.manual === true ? true : undefined,
+  }),
   component: InvitePage,
 })
 
@@ -63,6 +75,8 @@ const authedRoute = createRoute({
   beforeLoad: async ({ context, location }) => {
     const me = await context.queryClient.ensureQueryData(meQuery)
     if (!me) throw redirect({ to: '/login', search: { next: location.href, error: undefined } })
+    // A live session ends the signed-out state of this tab.
+    clearSignedOut()
     return { me }
   },
   component: Outlet,
@@ -184,8 +198,8 @@ const routeTree = rootRoute.addChildren([
   ]),
 ])
 
-export function createAppRouter(queryClient: QueryClient) {
-  return createRouter({ routeTree, context: { queryClient }, defaultPreload: 'intent' })
+export function createAppRouter(queryClient: QueryClient, history?: RouterHistory) {
+  return createRouter({ routeTree, context: { queryClient }, defaultPreload: 'intent', history })
 }
 
 declare module '@tanstack/react-router' {

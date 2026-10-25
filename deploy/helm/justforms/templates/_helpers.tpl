@@ -214,6 +214,8 @@ env:
     value: {{ join "," ($oidc.superadminGroups | default list) | quote }}
   - name: JUSTFORMS_OIDC_DEFAULT_ROLE
     value: {{ $oidc.defaultRole | default "creator" | quote }}
+  - name: JUSTFORMS_OIDC_AUTO_REDIRECT
+    value: {{ ternary "true" "false" (ne $oidc.autoRedirect false) | quote }}
   {{- include "justforms.secretEnv" (dict "name" "JUSTFORMS_OIDC_CLIENT_SECRET" "secret" $oidc.existingSecret "key" $oidc.existingSecretKey) | nindent 2 }}
   {{- end }}
   # email

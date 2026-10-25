@@ -108,6 +108,9 @@ class Settings(BaseSettings):
     # Without group mapping: the role someone gets in the default organisation the first time
     # they sign in with OIDC, or "none" (people join only by invitation).
     oidc_default_role: Literal["creator", "member", "none"] = "creator"
+    # With OIDC on, the sign-in page (and any studio page while signed out) goes straight to
+    # the IdP without a button press. Never right after signing out or a failed sign-in.
+    oidc_auto_redirect: bool = True
 
     # Local email-code login (only when OIDC is not configured).
     login_code_ttl_seconds: int = Field(default=600, ge=60)

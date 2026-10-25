@@ -119,6 +119,8 @@ export interface Meta {
     /** Who receives what the AI is sent, e.g. "Google Gemini". */
     aiProviderLabel: string
     oidc: boolean
+    /** Signed-out visitors go straight to the IdP (JUSTFORMS_OIDC_AUTO_REDIRECT). */
+    oidcAutoRedirect: boolean
     localLogin: boolean
     /** A demo sign-in code is configured (demo instances only). */
     demo: boolean
@@ -749,6 +751,9 @@ export const api = {
 }
 
 /** Start OIDC login (full-page redirect through the API). */
-export function ssoLoginUrl(next: string): string {
-  return `/api/v1/auth/login?next=${encodeURIComponent(next)}`
+/** Single sign-on, coming back to `next`. `loginHint` (an invited address) pre-fills the
+ * IdP's account picker where it supports that. */
+export function ssoLoginUrl(next: string, loginHint?: string | null): string {
+  const hint = loginHint ? `&login_hint=${encodeURIComponent(loginHint)}` : ''
+  return `/api/v1/auth/login?next=${encodeURIComponent(next)}${hint}`
 }

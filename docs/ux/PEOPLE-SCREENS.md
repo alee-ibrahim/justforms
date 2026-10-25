@@ -230,6 +230,10 @@ branding). One `Card`, `max-w-sm`, like the sign-in page.
   ("This invitation is for this address."); the rest is the normal code flow. After the
   code is accepted the invitation is accepted on the server and the studio opens `/forms`
   with toast "You joined {organisation}".
+- Pending, single sign-on with automatic sign-in (the default, DESIGN §8.1): no card, only
+  "Signing you in…" while the browser goes to the IdP (next = this page, `login_hint` = the
+  invited address). Not right after signing out, with `?manual=1`, or within 30 s of an
+  attempt: then the card below.
 - Pending, single sign-on: same card with "Sign in with single sign-on" (next = this page).
   The server accepts invitations when an IdP sign-in's email matches (case-insensitive,
   `email_verified` not false). Back on this page, already accepted and a member → `/forms`

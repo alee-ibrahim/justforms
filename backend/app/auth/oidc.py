@@ -36,10 +36,15 @@ def _b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
 
+# Where people land after signing in without a ``next``: the studio home. Not "/": a browser
+# can hold a cached redirect for "/" from an app that used the hostname before.
+DEFAULT_NEXT = "/forms"
+
+
 def safe_next(value: str | None) -> str:
     """Only allow same-origin relative paths as post-login redirects."""
     if not value or not value.startswith("/") or value.startswith("//") or "\\" in value:
-        return "/"
+        return DEFAULT_NEXT
     return value
 
 
@@ -87,8 +92,13 @@ class OIDCClient:
             self._jwks = KeySet.import_key_set(res.json())
         return self._jwks
 
-    async def start(self, redis: Redis, next_path: str | None) -> str:
-        """Create login state and return the IdP authorize URL."""
+    async def start(
+        self, redis: Redis, next_path: str | None, login_hint: str | None = None
+    ) -> str:
+        """Create login state and return the IdP authorize URL.
+
+        ``login_hint`` (an invited address) pre-fills the IdP's account picker where supported.
+        """
         meta = await self.metadata()
         state = secrets.token_urlsafe(32)
         nonce = secrets.token_urlsafe(32)
@@ -99,19 +109,19 @@ class OIDCClient:
             json.dumps({"nonce": nonce, "verifier": verifier, "next": safe_next(next_path)}),
             ex=STATE_TTL_SECONDS,
         )
-        query = urlencode(
-            {
-                "response_type": "code",
-                "client_id": self.settings.oidc_client_id,
-                "redirect_uri": self.redirect_uri,
-                "scope": self.settings.oidc_scopes,
-                "state": state,
-                "nonce": nonce,
-                "code_challenge": challenge,
-                "code_challenge_method": "S256",
-            }
-        )
-        return f"{meta['authorization_endpoint']}?{query}"
+        params = {
+            "response_type": "code",
+            "client_id": self.settings.oidc_client_id,
+            "redirect_uri": self.redirect_uri,
+            "scope": self.settings.oidc_scopes,
+            "state": state,
+            "nonce": nonce,
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+        }
+        if login_hint:
+            params["login_hint"] = login_hint
+        return f"{meta['authorization_endpoint']}?{urlencode(params)}"
 
     async def finish(self, redis: Redis, code: str, state: str) -> tuple[dict[str, Any], str, str]:
         """Exchange the code; return (validated ID token claims, raw id_token, next path)."""

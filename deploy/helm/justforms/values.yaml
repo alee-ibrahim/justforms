@@ -98,6 +98,9 @@ auth:
     superadminGroups: []  # JUSTFORMS_OIDC_SUPERADMIN_GROUPS
     # Without group mapping: role on first sign-in (creator, member, or none = invitation only).
     defaultRole: creator  # JUSTFORMS_OIDC_DEFAULT_ROLE
+    # Signed-out visits to the studio go straight to the IdP (no sign-in button). Never right
+    # after signing out or a failed sign-in; /login?manual=1 shows the page.
+    autoRedirect: true    # JUSTFORMS_OIDC_AUTO_REDIRECT
     # Secret holding the client secret (required when enabled). Register
     # {publicUrl}/api/v1/auth/callback as the redirect URI.
     existingSecret: ""

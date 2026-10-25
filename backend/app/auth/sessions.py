@@ -108,3 +108,14 @@ def set_session_cookies(
 def clear_session_cookies(response: Response, settings: Settings) -> None:
     for name in (SESSION_COOKIE, CSRF_COOKIE):
         response.delete_cookie(name, path="/", secure=settings.secure_cookies, samesite="lax")
+
+
+# Sent with a successful sign-in. Clears what a previous app on the same hostname may have left
+# in the browser: cached redirects (e.g. "/" pointing at another site) and service workers.
+# Not "cookies": the new session cookie is set on the same response. Trade-off: local UI
+# preferences in browser storage are dropped and re-read from the account.
+CLEAR_SITE_DATA = '"cache", "storage"'
+
+
+def clear_stale_site_data(response: Response) -> None:
+    response.headers["Clear-Site-Data"] = CLEAR_SITE_DATA

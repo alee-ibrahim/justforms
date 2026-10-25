@@ -26,6 +26,7 @@ import { api, type Me } from '@/lib/api'
 import { applyBrand, type Brand } from '@/lib/branding'
 import { applyAppearance, rememberAppearance, storedAppearance, type Appearance } from '@/lib/color-scheme'
 import { brandQuery, meQuery, metaQuery } from '@/lib/queries'
+import { markSignedOut } from '@/lib/sso-auto'
 import { loadThaanaFont } from '@/lib/thaana-font'
 
 const APPEARANCES: { value: Appearance; label: string; icon: typeof SunIcon }[] = [
@@ -54,6 +55,8 @@ function UserMenu() {
   }
 
   const signOut = async () => {
+    // Not straight back to the IdP afterwards: the sign-in page says "You're signed out".
+    markSignedOut()
     const { logoutUrl } = await api.logout()
     queryClient.clear()
     if (logoutUrl) window.location.assign(logoutUrl)

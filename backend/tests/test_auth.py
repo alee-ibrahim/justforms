@@ -24,6 +24,7 @@ async def test_meta(client: AsyncClient) -> None:
         "aiVision": False,
         "aiProviderLabel": "",
         "oidc": False,
+        "oidcAutoRedirect": False,
         "localLogin": True,
         "demo": False,
         "email": False,

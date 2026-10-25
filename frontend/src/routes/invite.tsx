@@ -4,9 +4,9 @@
  * that address: accepted at once. Expired, used or cancelled links say so.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { KeyRoundIcon } from 'lucide-react'
-import { type ReactNode, useEffect, useRef } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -18,7 +18,8 @@ import { api, ApiError, ssoLoginUrl, type InvitationLink, type Me } from '@/lib/
 import { applyBrand } from '@/lib/branding'
 import { brandQuery, meQuery, metaQuery } from '@/lib/queries'
 import { ORG_ROLE_PHRASE } from '@/lib/roles'
-import { LocalLogin } from '@/routes/login'
+import { autoSignInUrl, clearSignedOut, markSignedOut, startAutoSignIn } from '@/lib/sso-auto'
+import { LocalLogin, SigningIn } from '@/routes/login'
 
 function Frame({ title, description, children }: { title: ReactNode; description?: ReactNode; children?: ReactNode }) {
   return (
@@ -100,6 +101,7 @@ function Joined({ link }: { link: InvitationLink }) {
 function WrongAccount({ link, me }: { link: InvitationLink; me: Me }) {
   const queryClient = useQueryClient()
   const signOut = async () => {
+    markSignedOut()
     const { logoutUrl } = await api.logout()
     queryClient.setQueryData(['me'], null)
     if (logoutUrl) window.location.assign(logoutUrl)
@@ -123,8 +125,23 @@ function WrongAccount({ link, me }: { link: InvitationLink; me: Me }) {
   )
 }
 
+/** A pending invitation, signed out: with automatic single sign-on, straight to the IdP with
+ * the invited address as the login hint (DESIGN 8.1). Decided once, at mount: the attempt it
+ * records would flip the answer on the next render. */
+function AutoSignIn({
+  children,
+  ...input
+}: Parameters<typeof autoSignInUrl>[0] & { children: ReactNode }) {
+  const [url] = useState(() => autoSignInUrl(input))
+  useEffect(() => {
+    if (url) startAutoSignIn(url)
+  }, [url])
+  return url ? <SigningIn /> : children
+}
+
 export function InvitePage() {
   const { token } = useParams({ from: '/login/invite/$token' })
+  const { manual } = useSearch({ from: '/login/invite/$token' })
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const meta = useQuery(metaQuery)
@@ -206,34 +223,36 @@ export function InvitePage() {
 
   const here = `/login/invite/${token}`
   return (
-    <Frame
-      title={<>Join {org(data)}</>}
-      description={
-        <>
-          {data.invitedByName ? <bdi dir="auto">{data.invitedByName}</bdi> : 'An admin'} invited you as{' '}
-          {ORG_ROLE_PHRASE[data.role ?? 'member']}.
-        </>
-      }
-    >
-      {meta.data?.features.oidc && (
-        <Button asChild>
-          <a href={ssoLoginUrl(here)}>
-            <KeyRoundIcon />
-            Sign in with single sign-on
-          </a>
-        </Button>
-      )}
-      {meta.data?.features.localLogin && data.email && (
-        <LocalLogin
-          next="/forms"
-          fixedEmail={data.email}
-          onSignedIn={async () => {
-            await queryClient.invalidateQueries({ queryKey: ['invitation', token] })
-            toast(`You joined ${data.orgName ?? 'the organisation'}`)
-            await navigate({ to: '/forms' })
-          }}
-        />
-      )}
-    </Frame>
+    <AutoSignIn features={meta.data?.features} manual={manual} next={here} loginHint={data.email}>
+      <Frame
+        title={<>Join {org(data)}</>}
+        description={
+          <>
+            {data.invitedByName ? <bdi dir="auto">{data.invitedByName}</bdi> : 'An admin'} invited you as{' '}
+            {ORG_ROLE_PHRASE[data.role ?? 'member']}.
+          </>
+        }
+      >
+        {meta.data?.features.oidc && (
+          <Button asChild>
+            <a href={ssoLoginUrl(here, data.email)} onClick={() => clearSignedOut()}>
+              <KeyRoundIcon />
+              Sign in with single sign-on
+            </a>
+          </Button>
+        )}
+        {meta.data?.features.localLogin && data.email && (
+          <LocalLogin
+            next="/forms"
+            fixedEmail={data.email}
+            onSignedIn={async () => {
+              await queryClient.invalidateQueries({ queryKey: ['invitation', token] })
+              toast(`You joined ${data.orgName ?? 'the organisation'}`)
+              await navigate({ to: '/forms' })
+            }}
+          />
+        )}
+      </Frame>
+    </AutoSignIn>
   )
 }

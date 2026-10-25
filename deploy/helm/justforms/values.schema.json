@@ -197,6 +197,9 @@
               "type": "string",
               "enum": ["creator", "member", "none"]
             },
+            "autoRedirect": {
+              "type": "boolean"
+            },
             "existingSecret": {
               "type": "string"
             },

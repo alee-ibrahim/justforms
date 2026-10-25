@@ -60,6 +60,7 @@ does this for you. The bucket also needs a CORS rule allowing `POST`, `GET` and 
 | `JUSTFORMS_OIDC_ADMIN_GROUPS`, `_CREATOR_GROUPS`, `_MEMBER_GROUPS` | empty | Map IdP groups to roles in the default organisation (see below) |
 | `JUSTFORMS_OIDC_SUPERADMIN_GROUPS` | empty | IdP groups whose people are superadmins, checked at each sign-in (see below) |
 | `JUSTFORMS_OIDC_DEFAULT_ROLE` | `creator` | Without group mapping: the role people get the first time they sign in (`creator`, `member`, or `none` to let people in only by invitation) |
+| `JUSTFORMS_OIDC_AUTO_REDIRECT` | `true` | With OIDC on: signed-out visits to the sign-in page or the studio go straight to the IdP (see below) |
 | `JUSTFORMS_INVITE_DAYS` | `14` | How long an invitation to join an organisation stays open (a resend restarts it) |
 | `JUSTFORMS_LOGIN_CODE_TTL_SECONDS`, `_LOGIN_CODE_MAX_ATTEMPTS` | `600`, `5` | Emailed sign-in codes |
 | `JUSTFORMS_DEMO_LOGIN_CODE`, `JUSTFORMS_DEMO_LOGIN_EMAILS` | unset (off) | **Demo instances only.** See below |
@@ -83,6 +84,27 @@ to give a role that could create forms; it now gives the member role. Put groups
 build forms in `JUSTFORMS_OIDC_CREATOR_GROUPS` (the backend logs a warning while only member
 groups are set). Existing members became form creators in the upgrade, so nobody lost access.
 
+**Automatic sign-in.** With OIDC configured it is the only staff sign-in method, so by default
+(`JUSTFORMS_OIDC_AUTO_REDIRECT=true`) the sign-in page, any studio page visited while signed
+out, and invitation links (`/login/invite/{token}`) go straight to the IdP without a button
+press, showing only "Signing you in…". The page someone asked for is kept as `next` and opened
+after the callback; invitation links pass the invited address as `login_hint`. To avoid loops it
+never does this right after signing out (the page says "You're signed out" with a "Sign in
+again" button), after a failed sign-in (`/login?error=…` shows the error and "Try again"),
+with `?manual=1` (the normal sign-in page), or a second time within 30 seconds in the same
+browser. Public forms, approver and verify pages are not affected. Set it to `false` to always
+show the sign-in page with its single sign-on button.
+
+**After signing in.** Without a `next`, people land on `/forms` (the studio home), not `/`. A
+successful sign-in (OIDC callback or emailed code) answers with
+`Clear-Site-Data: "cache", "storage"`: when JustForms replaces another app on the same
+hostname, the browser may still hold that app's cached redirects (e.g. `/` pointing at another
+site) or its service worker, and this clears them. Cookies are kept (the session cookie is set
+on the same response). The trade-off: browser-stored UI preferences on this site (such as the
+appearance choice) are dropped and read again from the account. The bundled nginx also answers
+404 for the usual service-worker script paths (`/sw.js`, `/service-worker.js`, …), so a
+leftover service worker unregisters itself at its next update check.
+
 **Superadmins from IdP groups.** `JUSTFORMS_OIDC_SUPERADMIN_GROUPS` (comma-separated) makes
 people in any listed group superadmins (every organisation plus instance settings) when they
 sign in with OIDC. It works on its own: the role groups above don't have to be set. Values are
@@ -91,7 +113,11 @@ group object IDs with Entra ID). When it is set, someone no longer in a listed g
 superadmin at their next sign-in, but only if OIDC granted it: superadmins made with
 `justforms create-admin` keep it. Grants and removals are audit-logged
 (`user.superadmin_grant`, `user.superadmin_revoke`). Leaving it empty changes nobody's
-superadmin status.
+superadmin status. A sign-in that grants or confirms superadmin this way also makes the person
+**admin of the default organisation** (the membership is created, or a creator/member role is
+raised), audit-logged as `org.member_role` with `source: oidc_superadmin`. Losing superadmin
+does not demote them: the admin role stays (group mapping doesn't lower an admin role it didn't
+grant) until an admin changes it. Superadmins made with `create-admin` are not affected.
 
 *Entra ID group overage.* When someone is in more groups than fit in a token, Entra ID leaves
 the `groups` claim out and sends `_claim_names` / `hasgroups` (a pointer to Microsoft Graph)

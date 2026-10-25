@@ -146,10 +146,16 @@ kubectl -n justforms create secret generic justforms-pdf-signing \
   `defaultRole` (`creator`, `member` or `none`) the first time they sign in.
   `superadminGroups` (exact group names or IDs, independent of the role groups) makes people
   superadmins at sign-in and takes it away from those who left the groups, except superadmins
-  created with `create-admin`. With Entra ID, emit only groups assigned to the application to
+  created with `create-admin`. An SSO superadmin is also made admin of the default organisation
+  (never demoted when the group is left; an admin can change it). With Entra ID, emit only groups assigned to the application to
   avoid group overage (the token then has no `groups` claim and nothing changes). Admins can also
   invite people from Organisation settings › People; invitations are accepted when that email
   signs in.
+  `autoRedirect` (default `true`) sends signed-out visitors of the sign-in page and the studio
+  straight to the IdP, with no button press; invitation links do the same with the invited
+  address as the login hint. It never does so right after signing out ("You're signed out" page),
+  after a failed sign-in (error page with "Try again"), with `/login?manual=1`, or twice within
+  30 seconds. Public forms, approver and verify pages are not affected.
 - Otherwise staff sign in with **one-time codes sent by email**, so configure `smtp.*`. Only
   existing users and people with an open invitation can sign in: create the first admin with
   `kubectl exec deploy/<fullname>-backend -- python -m app.cli create-admin --email you@example.org`.
@@ -199,6 +205,7 @@ unless noted.
 | `auth.oidc.adminGroups` / `.creatorGroups` / `.memberGroups` | `[]` | `JUSTFORMS_OIDC_ADMIN_GROUPS` / `_CREATOR_GROUPS` / `_MEMBER_GROUPS` |
 | `auth.oidc.superadminGroups` | `[]` | `JUSTFORMS_OIDC_SUPERADMIN_GROUPS` |
 | `auth.oidc.defaultRole` | `creator` | `JUSTFORMS_OIDC_DEFAULT_ROLE` (`creator`, `member`, `none`) |
+| `auth.oidc.autoRedirect` | `true` | `JUSTFORMS_OIDC_AUTO_REDIRECT`: signed-out studio visits go straight to the IdP |
 | `auth.oidc.existingSecret` / `.existingSecretKey` | `""` / `JUSTFORMS_OIDC_CLIENT_SECRET` | `JUSTFORMS_OIDC_CLIENT_SECRET` |
 | `smtp.host` | `""` | `JUSTFORMS_SMTP_HOST` (empty: no email) |
 | `smtp.port` | `587` | `JUSTFORMS_SMTP_PORT` |

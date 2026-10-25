@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useSearch } from '@tanstack/react-router'
+import { useNavigate, useRouteContext, useSearch } from '@tanstack/react-router'
 import { REGEXP_ONLY_DIGITS } from 'input-otp'
-import { CircleAlertIcon, FlaskConicalIcon, KeyRoundIcon } from 'lucide-react'
+import { CircleAlertIcon, FlaskConicalIcon, KeyRoundIcon, RotateCwIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -15,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { api, ApiError, ssoLoginUrl, type Me } from '@/lib/api'
 import { brandQuery, metaQuery } from '@/lib/queries'
+import { clearSignedOut, isSignedOut, loginTarget } from '@/lib/sso-auto'
 
 const SSO_ERRORS: Record<string, string> = {
   sso_failed: 'Single sign-on failed. Try again.',
@@ -226,11 +227,52 @@ export function LocalLogin({
   )
 }
 
+/** The minimal state shown while the browser leaves for the identity provider. */
+export function SigningIn() {
+  return (
+    <main className="mx-auto flex w-full max-w-sm flex-col gap-6 px-4 py-8">
+      <p role="status" className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+        <Spinner /> Signing you in…
+      </p>
+    </main>
+  )
+}
+
 export function LoginPage() {
-  const { next, error } = useSearch({ from: '/login' })
+  const { next, error, manual } = useSearch({ from: '/login' })
+  const { autoSignIn } = useRouteContext({ from: '/login' })
   const meta = useQuery(metaQuery)
   const brand = useQuery(brandQuery('_'))
-  const target = next && next.startsWith('/') && !next.startsWith('//') ? next : '/forms'
+  const target = loginTarget(next)
+  // Read once: clicking "Sign in again" clears the flag on the way out.
+  const [signedOut] = useState(() => isSignedOut())
+
+  if (autoSignIn) return <SigningIn />
+  const oidc = !!meta.data?.features.oidc
+  const showSignedOut = oidc && signedOut && !error && !manual
+  const ssoUrl = ssoLoginUrl(target)
+
+  if (showSignedOut)
+    return (
+      <main className="mx-auto flex w-full max-w-sm flex-col gap-6 px-4 py-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              <h1>You&apos;re signed out</h1>
+            </CardTitle>
+            <CardDescription>You can close this tab, or sign in again.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <Button asChild>
+              <a href={ssoUrl} onClick={() => clearSignedOut()}>
+                <KeyRoundIcon />
+                Sign in again
+              </a>
+            </Button>
+          </CardContent>
+        </Card>
+      </main>
+    )
 
   return (
     <main className="mx-auto flex w-full max-w-sm flex-col gap-6 px-4 py-8">
@@ -250,9 +292,10 @@ export function LoginPage() {
           <CardDescription>Sign in to build forms and review submissions.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          {error && SSO_ERRORS[error] && (
+          {error && (
             <Alert variant="destructive">
-              <AlertDescription>{SSO_ERRORS[error]}</AlertDescription>
+              <CircleAlertIcon />
+              <AlertDescription>{SSO_ERRORS[error] ?? SSO_ERRORS.sso_failed}</AlertDescription>
             </Alert>
           )}
           {meta.isPending ? (
@@ -274,9 +317,9 @@ export function LoginPage() {
               )}
               {meta.data.features.oidc && (
                 <Button asChild>
-                  <a href={ssoLoginUrl(target)}>
-                    <KeyRoundIcon />
-                    Sign in with single sign-on
+                  <a href={ssoUrl} onClick={() => clearSignedOut()}>
+                    {error ? <RotateCwIcon /> : <KeyRoundIcon />}
+                    {error ? 'Try again' : 'Sign in with single sign-on'}
                   </a>
                 </Button>
               )}

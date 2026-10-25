@@ -115,6 +115,8 @@ async def test_oidc_login_creates_user_with_mapped_role(
     assert res.status_code == 302
     assert res.headers["location"] == "/forms"
     assert "justforms_session" in client.cookies
+    # Stale cached redirects and service workers of an earlier app go; cookies stay.
+    assert res.headers["clear-site-data"] == '"cache", "storage"'
     # PKCE verifier and client auth were sent to the token endpoint.
     assert idp.token_requests[0]["code_verifier"]
 
@@ -130,6 +132,18 @@ async def test_oidc_login_creates_user_with_mapped_role(
     # State is single use.
     res = await client.get("/api/v1/auth/callback", params={"code": "abc", "state": state})
     assert res.headers["location"] == "/login?error=sso_failed"
+    assert "clear-site-data" not in res.headers
+
+
+async def test_sign_in_without_next_lands_on_the_studio(client: AsyncClient, idp: FakeIdP) -> None:
+    res = await client.get("/api/v1/auth/login")
+    query = parse_qs(urlparse(res.headers["location"]).query)
+    idp.nonce = query["nonce"][0]
+    res = await client.get(
+        "/api/v1/auth/callback", params={"code": "abc", "state": query["state"][0]}
+    )
+    assert res.status_code == 302
+    assert res.headers["location"] == "/forms"
 
 
 async def test_user_without_mapped_group_gets_no_org_role(
@@ -287,6 +301,69 @@ async def test_superadmin_group_grants_and_revokes(
     assert await _audit_actions(db) == ["user.superadmin_grant", "user.superadmin_revoke"]
 
 
+async def _default_membership(db: AsyncSession) -> OrgMembership | None:
+    user = await _user(db)
+    return await db.scalar(select(OrgMembership).where(OrgMembership.user_id == user.id))
+
+
+async def _role_audits(db: AsyncSession) -> list[dict[str, Any]]:
+    rows = await db.scalars(
+        select(AuditLog).where(AuditLog.action == "org.member_role").order_by(AuditLog.created_at)
+    )
+    return [dict(r.meta or {}) for r in rows]
+
+
+async def test_new_sso_superadmin_is_admin_of_the_default_org(
+    client: AsyncClient, idp: FakeIdP, db: AsyncSession, oidc_settings: Settings
+) -> None:
+    # Without group mapping (default role creator) the superadmin group still makes them admin.
+    oidc_settings.oidc_admin_groups = []
+    oidc_settings.oidc_member_groups = []
+    oidc_settings.oidc_superadmin_groups = ["justforms-superadmins"]
+    idp.claims = {"groups": ["justforms-superadmins"]}
+    await _sign_in(client, idp)
+    membership = await _default_membership(db)
+    assert membership is not None and membership.role == OrgRole.ADMIN
+    assert await _role_audits(db) == [
+        {"before": None, "role": "admin", "source": "oidc_superadmin"}
+    ]
+    # Confirmed at the next sign-in: no second audit entry.
+    await _sign_in(client, idp)
+    assert len(await _role_audits(db)) == 1
+
+
+async def test_sso_superadmin_creator_is_raised_and_revoke_does_not_demote(
+    client: AsyncClient, idp: FakeIdP, db: AsyncSession, oidc_settings: Settings
+) -> None:
+    oidc_settings.oidc_creator_groups = ["justforms-builders"]
+    oidc_settings.oidc_superadmin_groups = ["justforms-superadmins"]
+    idp.claims = {"groups": ["justforms-builders"]}
+    await _sign_in(client, idp)
+    membership = await _default_membership(db)
+    assert membership is not None and membership.role == OrgRole.CREATOR
+
+    idp.claims = {"groups": ["justforms-builders", "justforms-superadmins"]}
+    await _sign_in(client, idp)
+    membership = await _default_membership(db)
+    assert membership is not None and membership.role == OrgRole.ADMIN
+    assert await _role_audits(db) == [
+        {"before": "creator", "role": "admin", "source": "oidc_superadmin"}
+    ]
+
+    # Left the superadmin group, still a builder: superadmin goes, the admin role stays.
+    idp.claims = {"groups": ["justforms-builders"]}
+    await _sign_in(client, idp)
+    assert not (await _user(db)).is_superadmin
+    membership = await _default_membership(db)
+    assert membership is not None and membership.role == OrgRole.ADMIN
+    # In no mapped group at all: still not removed.
+    idp.claims = {"groups": []}
+    await _sign_in(client, idp)
+    membership = await _default_membership(db)
+    assert membership is not None and membership.role == OrgRole.ADMIN
+    assert len(await _role_audits(db)) == 1
+
+
 async def test_superadmin_groups_match_exact_strings(
     client: AsyncClient, idp: FakeIdP, db: AsyncSession, oidc_settings: Settings
 ) -> None:
@@ -314,6 +391,8 @@ async def test_local_superadmin_is_kept(
     user = await _user(db)
     assert user.is_superadmin and user.superadmin_source == SuperadminSource.LOCAL
     assert await _audit_actions(db) == []
+    # A local superadmin's org role is not touched by the superadmin group.
+    assert await _role_audits(db) == []
 
 
 async def test_group_overage_changes_nothing(
@@ -394,9 +473,46 @@ async def test_token_signed_by_unpublished_key_is_rejected(
     assert res.headers["location"] == "/login?error=sso_failed"
 
 
+async def test_login_hint_is_passed_to_the_idp(client: AsyncClient, idp: FakeIdP) -> None:
+    res = await client.get(
+        "/api/v1/auth/login",
+        params={"next": "/login/invite/tok", "login_hint": "Invited@Example.org"},
+    )
+    assert res.status_code == 302
+    assert parse_qs(urlparse(res.headers["location"]).query)["login_hint"] == [
+        "invited@example.org"
+    ]
+    # Not an email address: no hint.
+    res = await client.get("/api/v1/auth/login", params={"login_hint": "not an address"})
+    assert "login_hint" not in parse_qs(urlparse(res.headers["location"]).query)
+    res = await client.get("/api/v1/auth/login")
+    assert "login_hint" not in parse_qs(urlparse(res.headers["location"]).query)
+
+
+async def test_meta_auto_redirect(
+    client: AsyncClient, idp: FakeIdP, oidc_settings: Settings, app: Any
+) -> None:
+    features = (await client.get("/api/v1/meta")).json()["features"]
+    assert features["oidc"] is True
+    assert features["oidcAutoRedirect"] is True
+    off = oidc_settings.model_copy(update={"oidc_auto_redirect": False})
+    app.dependency_overrides[get_settings] = lambda: off
+    assert (await client.get("/api/v1/meta")).json()["features"]["oidcAutoRedirect"] is False
+
+
+def test_auto_redirect_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert Settings(environment="test").oidc_auto_redirect is True
+    monkeypatch.setenv("JUSTFORMS_OIDC_AUTO_REDIRECT", "false")
+    assert Settings(environment="test").oidc_auto_redirect is False
+
+
 def test_safe_next() -> None:
     assert safe_next("/forms/1") == "/forms/1"
-    assert safe_next("//evil.example") == "/"
-    assert safe_next("https://evil.example") == "/"
-    assert safe_next("/\\evil") == "/"
-    assert safe_next(None) == "/"
+    assert safe_next("/") == "/"
+    assert safe_next("/login/invite/tok") == "/login/invite/tok"
+    # Without a usable next: the studio home, never "/".
+    assert safe_next("//evil.example") == "/forms"
+    assert safe_next("https://evil.example") == "/forms"
+    assert safe_next("/\\evil") == "/forms"
+    assert safe_next(None) == "/forms"
+    assert safe_next("") == "/forms"
