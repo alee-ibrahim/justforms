@@ -59,7 +59,15 @@ everyone else sees it disabled (same rule as the rest of Settings).
     form's top-level email questions (labels in the form's language, `<select>` with
     `contentProps`), and "Always this address" with an `Input type="email" dir="ltr"`.
     No email questions: the first option is disabled with description "Add an email
-    question to the form to use this."
+    question to the form to use this." Third option: "People with edit access, in the studio"
+    ("Editors and owners of this form approve or reject it here after signing in. No emailed
+    link or code."). Chosen, it shows, indented: "Notify" (`Input dir="ltr"`, comma-separated,
+    up to 10, placeholder "team@example.org", description "Up to 10 addresses, separated by
+    commas, for example a shared mailbox. They get a "New response to review" email with a link
+    to sign in; they can't decide from the email.") and the `Switch` "Also email people with edit
+    access" ("Each editor and owner of the form gets the same email.", off by default). Errors:
+    "Enter email addresses like name@example.org, separated by commas", "Enter up to 10
+    addresses".
   - Warnings under the step (`Alert`, triangle icon, not destructive): the question is
     optional ("This question is optional. Responses without an answer wait until someone
     stops the approval. Make it required."), or only shown on some paths ("This question is
@@ -81,6 +89,12 @@ everyone else sees it disabled (same rule as the rest of Settings).
   replaces the built-in sentence; the reference, and for a rejection the comment, follow) and
   "Reply-to address" (`dir="ltr"`). Server errors (an unknown placeholder, a two-line subject)
   show under their field.
+- With only studio steps the wording block's legend is 'The "to review" email' ("Steps decided
+  in the studio send it to their Notify addresses, with a button that opens the submission after
+  signing in. No Approve or Reject buttons and no code."), the subject default reads "New
+  response to review: ..." and the message "Replaces the built-in sentence". With both kinds, the
+  approver's-email text gains a sentence that studio steps send the same wording as a "New
+  response to review" email.
 - "Try the emails" row (owners, email set up, saved and on, nothing unsaved): outline button
   "Send test emails" with the description "Sends the approver's email and both outcome emails to
   you only, with sample answers and [Test] in the subject. The buttons in the test open the
@@ -133,7 +147,8 @@ the sheet header stays short on phones), not in the header as first sketched.
   approver), slash-circle (stopped).
 - Titles: "{n}. {step name}" (step name in the form's language, `bdi`). Descriptions:
   "Approved by {name} ({email}), {time}", "Rejected by {name} ({email}), {time}" plus the
-  comment on its own line, "Waiting for {email} since {time}", "Not started",
+  comment on its own line, "Waiting for {email} since {time}" (a studio step: "Waiting for a decision by someone with edit
+  access since {time}"), "Not started",
   "No approver: the answer to "{question}" is empty", "Stopped".
 - Actions for editors and owners, on the current step only: "Send the email again"
   (outline, toast "Email sent again") and "Stop approval" (ghost, destructive text) which
@@ -162,7 +177,11 @@ the emailed link. Viewers see the steps but no buttons.
 - In the submission header the locked status control is replaced by `Button size="sm"`
   "Approve" (primary, check icon) and "Reject…" (outline, destructive text, x icon), with a muted
   line under the actions: "Step {n} of {N}, {step name}: waiting for {email}. You can decide it
-  here instead." (or "no approver. Decide it here or stop the approval.").
+  here instead." (or "no approver. Decide it here or stop the approval.", or for a studio step
+  "waiting for a decision by someone with edit access. You can decide it here."). A studio step's
+  "Send the email again" reads "Send the notification again" (only when it has someone to notify,
+  toast "Notification sent again"); its decision dialog drops "in place of the approver..." and the
+  Stop dialog drops "The approver's link stops working."
 - The Approval block (Details) shows "Step {n} of {N}" (or the outcome) next to its heading, and
   the same two buttons on the current step before "Send the email again" and "Stop approval".
   Decided steps say how: "Approved by {name} ({email}) by email, {time}" or "… in the studio,
@@ -353,6 +372,14 @@ components (`Button`, `Alert`), no router, no query cache, no renderer.
   non-sensitive answers when the form turns that on; then "Each button opens the response.
   You'll confirm your email with a code, then confirm your decision there. The link works for
   {days} days." The text part lists the three links.
+- **To review** (steps decided in the studio, to the notify addresses; English; title and step
+  name in the form's language): kicker "Waiting for a decision", subject "New response to review:
+  {title} ({ref})" or the form's own subject; the form's message followed by "Reference {ref}", or
+  "{step name}: response {ref} to {title} is waiting for a decision. It was submitted on {date}.";
+  "Step {n} of {N}." with more than one step; one button "Open in {product}" to the submission
+  page (sign-in required); the non-sensitive answers when turned on; then "Sign in to approve or
+  reject it. Only people with edit access to the form can decide." No Approve / Reject buttons,
+  no link to decide, no code.
 - **Outcome** (to the respondent, English; title in the form's language): subject "Approved: {title} ({ref})" /
   "Not approved: {title} ({ref})"; body "Your response {ref} was approved." / "Your response
   {ref} was not approved." plus "Comment: {comment}" for a rejection, and "The signed PDF is

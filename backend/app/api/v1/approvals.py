@@ -53,7 +53,7 @@ from app.models import (
 )
 from app.net import client_ip
 from app.notifications.emails import code_message
-from app.notifications.events import APPROVAL_TEST_KINDS
+from app.notifications.events import APPROVAL_OUTCOME_TEST_KINDS
 from app.permissions import FormOwner, FormViewer, effective_form_role, has_form_role
 from app.queue import JobQueue, get_queue
 from app.schemas.form import FileField, Form, SignatureField
@@ -121,6 +121,11 @@ async def put_approvals(
             update={
                 "email": str(s.email).lower() if s.source == "fixed" and s.email else None,
                 "field_id": s.field_id if s.source == "field" else None,
+                # Notify addresses belong to steps decided in the studio only.
+                "notify": list(dict.fromkeys(str(a).lower() for a in s.notify))
+                if s.source == "editors"
+                else [],
+                "notify_editors": s.notify_editors and s.source == "editors",
             }
         )
         for s in body.steps
@@ -171,7 +176,12 @@ async def send_approval_tests(
     if not active(config):
         raise HTTPException(status.HTTP_409_CONFLICT, "approvals_off")
     await ratelimit.enforce(redis, settings, "notify_test", str(access.user.id))
-    kinds = list(APPROVAL_TEST_KINDS if config.notify_respondent else APPROVAL_TEST_KINDS[:1])
+    sources = {s.source for s in config.steps}
+    kinds = [
+        *(["test_approval_request"] if sources - {"editors"} else []),
+        *(["test_approval_notice"] if "editors" in sources else []),
+        *(APPROVAL_OUTCOME_TEST_KINDS if config.notify_respondent else []),
+    ]
     rows = [
         EmailDelivery(
             id=uuid.uuid4(),
@@ -219,13 +229,15 @@ async def _editable(db: DbDep, user: CurrentUser, submission_id: uuid.UUID) -> S
 async def resend_approval(
     submission_id: uuid.UUID, db: DbDep, user: CurrentUser, queue: QueueDep
 ) -> dict[str, str]:
-    """Email the current approver again, with a new link (the old one stops working)."""
+    """Email the current approver again, with a new link (the old one stops working); for a
+    step decided in the studio, its notify addresses."""
     sub = await _editable(db, user, submission_id)
-    email_id = await approvals.resend(db, sub)
-    if email_id is None:
+    email_ids = await approvals.resend(db, sub)
+    if not email_ids:
         raise HTTPException(status.HTTP_409_CONFLICT, "no_approver_waiting")
     await db.commit()
-    await queue.enqueue("send_form_email", email_id=str(email_id))
+    for email_id in email_ids:
+        await queue.enqueue("send_form_email", email_id=str(email_id))
     return {"status": "sent"}
 
 
@@ -442,7 +454,8 @@ class DecisionIn(ApiModel):
 async def _link(db: DbDep, token: str) -> tuple[ApprovalStep, Submission]:
     step = await approvals.step_by_token(db, token)
     sub = await db.get(Submission, step.submission_id) if step else None
-    if step is None or sub is None or sub.deleted_at is not None:
+    # Steps decided in the studio have no approver link at all.
+    if step is None or step.source == "editors" or sub is None or sub.deleted_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "link_invalid")
     return step, sub
 

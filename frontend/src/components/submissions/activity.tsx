@@ -78,6 +78,7 @@ function title(ev: SubmissionEvent): React.ReactNode {
     case 'deleted':
       return `${who} deleted this submission`
     case 'approval_requested':
+      if (ev.payload.approvers === 'editors') return <>Approval requested from people with edit access{stepOf(ev)}</>
       return (
         <>
           Approval requested from <bdi dir="ltr">{String(ev.payload.approverEmail)}</bdi>
@@ -104,6 +105,8 @@ function detail(ev: SubmissionEvent): string | null {
   if (ev.type === 'status_changed' && ev.payload.reason) return `Reason: ${String(ev.payload.reason)}`
   if (ev.type === 'approval_decided' && ev.payload.comment) return `Comment: ${String(ev.payload.comment)}`
   if (ev.type === 'approval_stopped' && ev.payload.reason) return `Reason: ${String(ev.payload.reason)}`
+  if (ev.type === 'approval_requested' && Array.isArray(ev.payload.notified) && ev.payload.notified.length)
+    return `Notified ${ev.payload.notified.map(String).join(', ')}`
   if (ev.type === 'approval_waiting') return 'The answer with the approver’s email is empty. Stop the approval to set the status yourself.'
   return null
 }

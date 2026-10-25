@@ -349,9 +349,11 @@ export interface ApprovalStepInfo {
   step: number
   name: string
   state: StepState
-  source: 'field' | 'fixed'
+  source: ApproverSource
   fieldId: string | null
   approverEmail: string | null
+  /** Steps decided in the studio (`editors`): the addresses told it was waiting. */
+  notifyTo?: string[]
   requestedAt: string | null
   decidedAt: string | null
   decidedName: string | null
@@ -367,11 +369,21 @@ export interface ApprovalDetail extends ApprovalBrief {
   steps: ApprovalStepInfo[]
 }
 
+/**
+ * Who approves a step: the answer to an email question or a fixed address (both get an emailed
+ * link and confirm with a code), or `editors`: only people with edit access, in the studio.
+ */
+export type ApproverSource = 'field' | 'fixed' | 'editors'
+
 export interface ApprovalStepConfig {
   name: string
-  source: 'field' | 'fixed'
+  source: ApproverSource
   fieldId: string | null
   email: string | null
+  /** `editors` steps: addresses told the step is waiting (no link, no code), up to 10. */
+  notify?: string[]
+  /** `editors` steps: also email everyone with edit access. */
+  notifyEditors?: boolean
 }
 
 export interface ApprovalConfig {
@@ -639,10 +651,12 @@ export interface EmailLogEntry {
     | 'receipt'
     | 'webhook_disabled'
     | 'approval_request'
+    | 'approval_notice'
     | 'approval_outcome'
     | 'test_owner_new'
     | 'test_receipt'
     | 'test_approval_request'
+    | 'test_approval_notice'
     | 'test_approval_approved'
     | 'test_approval_rejected'
     | 'form_shared'

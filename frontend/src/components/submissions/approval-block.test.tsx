@@ -173,4 +173,34 @@ describe('deciding an approval step in the studio', () => {
     expect(alreadyDecidedMessage(err)).toMatch(/^Already approved by Hassan through the emailed link on /)
     expect(alreadyDecidedMessage(new ApiError(500, null))).toBeNull()
   })
+
+  it('says a studio-only step waits for someone with edit access, with no approver link', async () => {
+    const studio = detail({
+      approval: {
+        ...pending,
+        steps: [{ ...pending.steps[0], source: 'editors', approverEmail: null, notifyTo: ['team@example.org'] }],
+      },
+    })
+    expect(decidableStep(studio)?.step).toBe(1)
+    await render(
+      <>
+        <ApprovalDecision d={studio} />
+        <ApprovalBlock d={studio} />
+      </>,
+    )
+    expect(host.textContent).toContain('Waiting for a decision by someone with edit access')
+    expect(host.textContent).toContain('waiting for a decision by someone with edit access. You can decide it here.')
+    expect(buttons()).toEqual(expect.arrayContaining(['Approve', 'Reject…', 'Send the notification again']))
+    expect(buttons()).not.toContain('Send the email again')
+    await act(async () => button('Reject…').click())
+    expect(document.body.textContent).not.toContain('The emailed link')
+
+    // Nobody to notify: no "send again".
+    await render(
+      <ApprovalBlock
+        d={detail({ approval: { ...pending, steps: [{ ...pending.steps[0], source: 'editors', approverEmail: null, notifyTo: [] }] } })}
+      />,
+    )
+    expect(buttons().some((b) => b?.startsWith('Send the'))).toBe(false)
+  })
 })

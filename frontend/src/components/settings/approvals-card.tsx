@@ -1,7 +1,8 @@
 /**
  * "Approvals" (APPROVALS-SCREENS 1): up to three ordered approval steps, each with a name and
- * an approver taken from an email question or a fixed address, the wording of the approver's
- * email, and the outcome email.
+ * an approver taken from an email question or a fixed address, or decided only in the studio by
+ * people with edit access (who can be told by email); the wording of the approver's email, and
+ * the outcome email.
  * Edited locally and saved together ("Save approvals"), because a step is several fields.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -38,6 +39,7 @@ import {
   type ApprovalIssue,
   type ApprovalStepConfig,
   type Approvals,
+  type ApproverSource,
   type FormSummary,
 } from '@/lib/api'
 import { contentProps } from '@/schema/language'
@@ -46,6 +48,19 @@ import { PLACEHOLDER_HELP } from './email-wording'
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const MAX_STEPS = 3
+const MAX_NOTIFY = 10
+
+/** "a@x.org, b@y.org" → lower-case addresses without repeats. */
+function parseList(text: string): string[] {
+  return [
+    ...new Set(
+      text
+        .split(/[,;\s]+/)
+        .map((x) => x.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ]
+}
 const CONFIRMED = '__confirmed__'
 
 function newStep(a: Approvals): ApprovalStepConfig {
@@ -62,6 +77,10 @@ function localErrors(c: ApprovalConfig): Map<number, string> {
     else if (s.source === 'field' && !s.fieldId) out.set(i + 1, 'Choose a question')
     else if (s.source === 'fixed' && !EMAIL.test(s.email?.trim() ?? ''))
       out.set(i + 1, 'Enter an email address like name@example.org')
+    else if (s.source === 'editors' && (s.notify ?? []).some((x) => !EMAIL.test(x)))
+      out.set(i + 1, 'Enter email addresses like name@example.org, separated by commas')
+    else if (s.source === 'editors' && (s.notify ?? []).length > MAX_NOTIFY)
+      out.set(i + 1, `Enter up to ${MAX_NOTIFY} addresses`)
   })
   return out
 }
@@ -167,6 +186,12 @@ function StepEditor({
 }) {
   const id = `approval-step-${n}`
   const noQuestions = a.emailFields.length === 0
+  // What was typed in "Notify", kept while it still means the step's list (moving or
+  // discarding a step shows that step's own list again).
+  const [notifyText, setNotifyText] = useState<string | null>(null)
+  const notify = step.notify ?? []
+  const shownNotify =
+    notifyText !== null && parseList(notifyText).join(',') === notify.join(',') ? notifyText : notify.join(', ')
   return (
     <FieldSet className="gap-4 rounded-md border p-4" data-invalid={error ? true : undefined}>
       <div className="flex items-center gap-1">
@@ -206,7 +231,7 @@ function StepEditor({
           onValueChange={(v) =>
             onChange({
               ...step,
-              source: v as 'field' | 'fixed',
+              source: v as ApproverSource,
               fieldId: v === 'field' ? (step.fieldId ?? a.emailFields[0]?.id ?? null) : step.fieldId,
             })
           }
@@ -272,6 +297,57 @@ function StepEditor({
               </div>
             )}
           </div>
+          <div className="flex flex-col gap-2">
+            <Field orientation="horizontal">
+              <RadioGroupItem value="editors" id={`${id}-editors`} />
+              <FieldContent>
+                <FieldLabel htmlFor={`${id}-editors`} className="font-normal">
+                  People with edit access, in the studio
+                </FieldLabel>
+                <FieldDescription>
+                  Editors and owners of this form approve or reject it here after signing in. No emailed link or code.
+                </FieldDescription>
+              </FieldContent>
+            </Field>
+            {step.source === 'editors' && (
+              <FieldGroup className="gap-4 ps-7">
+                <Field>
+                  <FieldLabel htmlFor={`${id}-notify`}>Notify</FieldLabel>
+                  <Input
+                    id={`${id}-notify`}
+                    type="text"
+                    dir="ltr"
+                    inputMode="email"
+                    autoComplete="off"
+                    placeholder="team@example.org"
+                    value={shownNotify}
+                    disabled={disabled}
+                    onChange={(e) => {
+                      setNotifyText(e.target.value)
+                      onChange({ ...step, notify: parseList(e.target.value) })
+                    }}
+                    onBlur={() => setNotifyText(null)}
+                  />
+                  <FieldDescription>
+                    Up to {MAX_NOTIFY} addresses, separated by commas, for example a shared mailbox. They get a "New
+                    response to review" email with a link to sign in; they can't decide from the email.
+                  </FieldDescription>
+                </Field>
+                <Field orientation="horizontal">
+                  <FieldContent>
+                    <FieldLabel htmlFor={`${id}-notify-editors`}>Also email people with edit access</FieldLabel>
+                    <FieldDescription>Each editor and owner of the form gets the same email.</FieldDescription>
+                  </FieldContent>
+                  <Switch
+                    id={`${id}-notify-editors`}
+                    checked={step.notifyEditors ?? false}
+                    disabled={disabled}
+                    onCheckedChange={(on) => onChange({ ...step, notifyEditors: on })}
+                  />
+                </Field>
+              </FieldGroup>
+            )}
+          </div>
         </RadioGroup>
       </FieldSet>
       {error && <FieldError>{error}</FieldError>}
@@ -334,8 +410,9 @@ export function ApprovalsCard({ form, canManage }: { form: FormSummary; canManag
     <CardHeader>
       <CardTitle>Approvals</CardTitle>
       <CardDescription>
-        Send each new response to people who approve or reject it, in order. Approvers confirm their email with a code;
-        they don't need an account. Changes save when you choose Save approvals.
+        Send each new response to people who approve or reject it, in order. Approvers by email confirm their address
+        with a code and don't need an account; a step can also be decided only here, by people with edit access.
+        Changes save when you choose Save approvals.
       </CardDescription>
     </CardHeader>
   )
@@ -372,6 +449,11 @@ export function ApprovalsCard({ form, canManage }: { form: FormSummary; canManag
   const confirmedAvailable = form.accessMode !== 'public'
   const outcomeTarget = c.respondentEmailField ?? (confirmedAvailable ? CONFIRMED : '')
   const outcomePossible = confirmedAvailable || a.emailFields.length > 0
+  // Which emails the steps send: the approver's (link and code) and/or the "to review" notice.
+  const byEmail = c.steps.some((s) => s.source !== 'editors')
+  const byStudio = c.steps.some((s) => s.source === 'editors')
+  const savedByEmail = a.config.steps.some((s) => s.source !== 'editors')
+  const savedByStudio = a.config.steps.some((s) => s.source === 'editors')
   // Warnings describe the saved settings; hide them while editing.
   const warnings = (n: number) => (dirty ? [] : a.issues.filter((i) => i.step === n && i.level === 'warning'))
 
@@ -426,16 +508,19 @@ export function ApprovalsCard({ form, canManage }: { form: FormSummary; canManag
             </div>
             <FieldSeparator />
             <FieldSet className="gap-4">
-              <FieldLegend variant="label">The approver's email</FieldLegend>
+              <FieldLegend variant="label">{byEmail ? "The approver's email" : 'The "to review" email'}</FieldLegend>
               <FieldDescription>
-                It has Approve and Reject buttons. Each opens the response with that choice made; the approver confirms
-                their email with a code and then their decision, so opening the email alone changes nothing.
+                {byEmail &&
+                  'It has Approve and Reject buttons. Each opens the response with that choice made; the approver confirms their email with a code and then their decision, so opening the email alone changes nothing.'}
+                {byEmail && byStudio && ' '}
+                {byStudio &&
+                  `${byEmail ? 'Steps decided in the studio send the same wording as a "New response to review" email' : 'Steps decided in the studio send it to their Notify addresses'}, with a button that opens the submission after signing in. No Approve or Reject buttons and no code.`}
               </FieldDescription>
               <WordingField
                 id="approvals-request-subject"
                 label="Subject"
-                description={`Leave empty for "Approval needed: {form_title} ({reference})". ${PLACEHOLDER_HELP}`}
-                placeholder="Approval needed: {form_title} ({reference})"
+                description={`Leave empty for "${byEmail ? 'Approval needed' : 'New response to review'}: {form_title} ({reference})". ${PLACEHOLDER_HELP}`}
+                placeholder={`${byEmail ? 'Approval needed' : 'New response to review'}: {form_title} ({reference})`}
                 value={c.requestSubject}
                 disabled={disabled}
                 error={fieldErrors.requestSubject}
@@ -444,7 +529,7 @@ export function ApprovalsCard({ form, canManage }: { form: FormSummary; canManag
               <WordingField
                 id="approvals-request-message"
                 label="Message"
-                description={`Shown above the buttons, for example who applied. Plain text. ${PLACEHOLDER_HELP}`}
+                description={`${byEmail ? 'Shown above the buttons' : 'Replaces the built-in sentence'}, for example who applied. Plain text. ${PLACEHOLDER_HELP}`}
                 value={c.requestMessage}
                 multiline
                 disabled={disabled}
@@ -584,8 +669,9 @@ export function ApprovalsCard({ form, canManage }: { form: FormSummary; canManag
             <FieldContent>
               <FieldLabel htmlFor="approvals-test">Try the emails</FieldLabel>
               <FieldDescription>
-                Sends the approver's email{a.config.notifyRespondent ? ' and both outcome emails' : ''} to you only, with
-                sample answers and [Test] in the subject. The buttons in the test open the submissions.
+                Sends {savedByEmail && savedByStudio ? `the approver's and the "to review" email` : savedByEmail ? "the approver's email" : 'the "to review" email'}
+                {a.config.notifyRespondent ? ' and both outcome emails' : ''} to you only, with sample answers and [Test] in
+                the subject. The buttons in the test open the submissions.
               </FieldDescription>
             </FieldContent>
             <Button id="approvals-test" type="button" variant="outline" size="sm" disabled={test.isPending} onClick={() => test.mutate()}>
@@ -603,7 +689,8 @@ export function ApprovalsCard({ form, canManage }: { form: FormSummary; canManag
           <Alert>
             <TriangleAlertIcon />
             <AlertDescription>
-              Email isn't set up on this install, so approvers won't get their links. An administrator can set the{' '}
+              Email isn't set up on this install, so {byEmail ? "approvers won't get their links" : 'nobody is emailed'}. An
+              administrator can set the{' '}
               <code className="font-mono text-xs">JUSTFORMS_SMTP_*</code> settings.
             </AlertDescription>
           </Alert>

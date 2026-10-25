@@ -11,6 +11,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -44,10 +45,15 @@ class ApprovalStep(IdMixin, TimestampMixin, Base):
     )
     step: Mapped[int] = mapped_column(Integer)  # 1-based
     name: Mapped[str] = mapped_column(String(60))
-    # "field": the address came from an email question (field_id); "fixed": from the settings.
+    # "field": the address came from an email question (field_id); "fixed": from the settings;
+    # "editors": no approver address and no link, decided only in the studio by people with
+    # edit access to the form.
     source: Mapped[str] = mapped_column(String(10))
     field_id: Mapped[str | None] = mapped_column(String(63))
     approver_email: Mapped[str | None] = mapped_column(String(320))
+    # "editors" steps: the addresses told the step is waiting (the settings' notify addresses,
+    # plus the people with edit access when that is on), resolved when the step is reached.
+    notify_to: Mapped[list[str] | None] = mapped_column(JSONB)
     state: Mapped[StepState] = mapped_column(
         str_enum(StepState, "approval_step_state"),
         default=StepState.WAITING,

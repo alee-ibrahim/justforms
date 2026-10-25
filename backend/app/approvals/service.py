@@ -34,11 +34,16 @@ from app.models import (
     ApprovalStep,
     EmailDelivery,
     EventType,
+    FormPermission,
     FormRecord,
+    FormRole,
+    OrgMembership,
+    OrgRole,
     PdfStatus,
     StepState,
     Submission,
     SubmissionStatus,
+    User,
 )
 from app.pdf.render import ApprovalLine
 from app.queue import JobQueue
@@ -87,6 +92,9 @@ async def steps_of(db: AsyncSession, sub: Submission) -> list[ApprovalStep]:
     )
 
 
+EDITORS = "editors"
+
+
 def _request_email(db: AsyncSession, sub: Submission, step: ApprovalStep) -> uuid.UUID:
     assert step.approver_email
     row = EmailDelivery(
@@ -101,8 +109,70 @@ def _request_email(db: AsyncSession, sub: Submission, step: ApprovalStep) -> uui
     return row.id
 
 
+def _notice_emails(db: AsyncSession, sub: Submission, step: ApprovalStep) -> list[uuid.UUID]:
+    """ "New response to review" emails for a step decided in the studio: no link, no code."""
+    rows = [
+        EmailDelivery(
+            id=uuid.uuid4(),
+            form_id=sub.form_id,
+            submission_id=sub.id,
+            kind="approval_notice",
+            to_address=to,
+            detail=str(step.id),
+        )
+        for to in step.notify_to or []
+    ]
+    db.add_all(rows)
+    return [r.id for r in rows]
+
+
+async def editor_addresses(db: AsyncSession, form: FormRecord) -> list[str]:
+    """People with edit access to the form: explicit editors and owners, and the
+    organisation's admins (who act as owners)."""
+    granted = await db.scalars(
+        select(User.email)
+        .join(FormPermission, FormPermission.user_id == User.id)
+        .where(
+            FormPermission.form_id == form.id,
+            FormPermission.role.in_([FormRole.EDITOR, FormRole.OWNER]),
+        )
+    )
+    admins = await db.scalars(
+        select(User.email)
+        .join(OrgMembership, OrgMembership.user_id == User.id)
+        .where(OrgMembership.org_id == form.org_id, OrgMembership.role == OrgRole.ADMIN)
+    )
+    return sorted({e.lower() for e in [*granted, *admins] if e})
+
+
 async def _activate(db: AsyncSession, sub: Submission, step: ApprovalStep, change: Change) -> None:
     sub.approval_step = step.step
+    if step.source == EDITORS:
+        # Decided only in the studio; the notify addresses are just told about it.
+        step.state = StepState.PENDING
+        step.requested_at = datetime.now(UTC)
+        await append_event(
+            db,
+            sub,
+            EventType.APPROVAL_REQUESTED,
+            payload={
+                "step": step.step,
+                "name": step.name,
+                "approvers": EDITORS,
+                "notified": list(step.notify_to or []),
+            },
+        )
+        change.emails += _notice_emails(db, sub, step)
+        change.steps.append(
+            {
+                "action": "requested",
+                "step": step.step,
+                "stepName": step.name,
+                "approverEmail": None,
+                "approvers": EDITORS,
+            }
+        )
+        return
     if step.approver_email is None:
         step.state = StepState.NO_APPROVER
         await append_event(
@@ -140,8 +210,18 @@ async def start(db: AsyncSession, sub: Submission, form: FormRecord) -> Change:
     if not active(config):
         return change
     rows = []
+    editors: list[str] | None = None
     for n, cfg in enumerate(config.steps, start=1):
-        if cfg.source == "fixed":
+        notify: list[str] | None = None
+        if cfg.source == EDITORS:
+            email = None
+            notify = [a for a in (_address(str(x)) for x in cfg.notify) if a]
+            if cfg.notify_editors:
+                if editors is None:
+                    editors = await editor_addresses(db, form)
+                notify += editors
+            notify = list(dict.fromkeys(notify))
+        elif cfg.source == "fixed":
             email = _address(cfg.email)
         else:
             email = _address(sub.data.get(cfg.field_id)) if cfg.field_id else None
@@ -153,6 +233,7 @@ async def start(db: AsyncSession, sub: Submission, form: FormRecord) -> Change:
             source=cfg.source,
             field_id=cfg.field_id if cfg.source == "field" else None,
             approver_email=email,
+            notify_to=notify,
         )
         db.add(row)
         rows.append(row)
@@ -317,16 +398,21 @@ async def stop(
     return change
 
 
-async def resend(db: AsyncSession, sub: Submission) -> uuid.UUID | None:
-    """Email the current approver again (with a new link; the old one stops working)."""
+async def resend(db: AsyncSession, sub: Submission) -> list[uuid.UUID]:
+    """Email the current approver again (with a new link; the old one stops working), or, for
+    a step decided in the studio, its notify addresses. Empty when there is nobody to email."""
     step = await current_step(db, sub)
     if step is None or step.state != StepState.PENDING:
-        return None
-    return _request_email(db, sub, step)
+        return []
+    if step.source == EDITORS:
+        return _notice_emails(db, sub, step)
+    return [_request_email(db, sub, step)]
 
 
 def mint_link(settings: Settings, step: ApprovalStep) -> str:
-    """A new link token for ``step`` (stored as a hash); returns the approver URL."""
+    """A new link token for ``step`` (stored as a hash); returns the approver URL. Never for
+    a step decided in the studio: those have no link."""
+    assert step.source != EDITORS
     token = new_link_token()
     step.token_hash = hash_token(token)
     step.token_expires_at = datetime.now(UTC) + timedelta(days=settings.approval_link_days)
@@ -337,7 +423,7 @@ async def step_by_token(db: AsyncSession, token: str) -> ApprovalStep | None:
     if not 20 <= len(token) <= 64:
         return None
     step = await db.scalar(select(ApprovalStep).where(ApprovalStep.token_hash == hash_token(token)))
-    if step is None or step.token_expires_at is None:
+    if step is None or step.token_expires_at is None or step.source == EDITORS:
         return None
     if step.token_expires_at < datetime.now(UTC) and step.state == StepState.PENDING:
         return None
@@ -398,6 +484,7 @@ def step_out(s: ApprovalStep) -> dict[str, Any]:
         "source": s.source,
         "fieldId": s.field_id,
         "approverEmail": s.approver_email,
+        "notifyTo": s.notify_to or [],
         "requestedAt": s.requested_at.isoformat() if s.requested_at else None,
         "decidedAt": s.decided_at.isoformat() if s.decided_at else None,
         "decidedName": s.decided_name,

@@ -71,6 +71,13 @@ function describe(s: ApprovalStepInfo, d: SubmissionDetail): React.ReactNode {
         </>
       )
     case 'pending':
+      if (s.source === 'editors')
+        return (
+          <>
+            Waiting for a decision by someone with edit access
+            {s.requestedAt && <> since {formatDateTime(s.requestedAt)}</>}
+          </>
+        )
       return (
         <>
           Waiting for <bdi dir="ltr">{s.approverEmail}</bdi>
@@ -183,7 +190,7 @@ function DecideDialog({
               <bdi dir="auto" lang={language}>
                 {step.name}
               </bdi>
-              ) in place of the approver. The emailed link will show it's done.
+              ){step.source === 'editors' ? '.' : " in place of the approver. The emailed link will show it's done."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {reject && (
@@ -244,7 +251,9 @@ export function ApprovalDecision({ d }: { d: SubmissionDetail }) {
           {step.name}
         </bdi>
         :{' '}
-        {step.state === 'pending' ? (
+        {step.state === 'pending' && step.source === 'editors' ? (
+          'waiting for a decision by someone with edit access. You can decide it here.'
+        ) : step.state === 'pending' ? (
           <>
             waiting for <bdi dir="ltr">{step.approverEmail}</bdi>. You can decide it here instead.
           </>
@@ -257,7 +266,17 @@ export function ApprovalDecision({ d }: { d: SubmissionDetail }) {
   )
 }
 
-function StopDialog({ id, open, onOpenChange }: { id: string; open: boolean; onOpenChange: (o: boolean) => void }) {
+function StopDialog({
+  id,
+  open,
+  onOpenChange,
+  withLink,
+}: {
+  id: string
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  withLink: boolean
+}) {
   const queryClient = useQueryClient()
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -277,7 +296,9 @@ function StopDialog({ id, open, onOpenChange }: { id: string; open: boolean; onO
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Stop this approval?</AlertDialogTitle>
-          <AlertDialogDescription>The approver's link stops working. You can then set the status yourself.</AlertDialogDescription>
+          <AlertDialogDescription>
+            {withLink ? "The approver's link stops working. " : ''}You can then set the status yourself.
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <Field data-invalid={error ? true : undefined}>
           <FieldLabel htmlFor="stop-reason">Reason</FieldLabel>
@@ -314,12 +335,13 @@ function StopDialog({ id, open, onOpenChange }: { id: string; open: boolean; onO
 export function ApprovalBlock({ d }: { d: SubmissionDetail }) {
   const [stopping, setStopping] = useState(false)
   const [decision, setDecision] = useState<'approve' | 'reject' | null>(null)
+  const a = d.approval
+  const current = a?.state === 'pending' ? a.steps.find((x) => x.step === a.step) : undefined
   const resend = useMutation({
     mutationFn: () => api.resendApproval(d.id),
-    onSuccess: () => toast('Email sent again'),
+    onSuccess: () => toast(current?.source === 'editors' ? 'Notification sent again' : 'Email sent again'),
     onError: () => toast.error("Couldn't send the email. Try again."),
   })
-  const a = d.approval
   if (!a) return null
   const running = a.state === 'pending'
   const language = formLanguage(d.schema)
@@ -375,10 +397,10 @@ export function ApprovalBlock({ d }: { d: SubmissionDetail }) {
                         </Button>
                       </>
                     )}
-                    {s.state === 'pending' && (
+                    {s.state === 'pending' && (s.source !== 'editors' || (s.notifyTo ?? []).length > 0) && (
                       <Button variant="outline" size="sm" disabled={resend.isPending} onClick={() => resend.mutate()}>
                         {resend.isPending && <Spinner />}
-                        Send the email again
+                        {s.source === 'editors' ? 'Send the notification again' : 'Send the email again'}
                       </Button>
                     )}
                     <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setStopping(true)}>
@@ -394,7 +416,7 @@ export function ApprovalBlock({ d }: { d: SubmissionDetail }) {
       {decidable && (
         <DecideDialog d={d} step={decidable} decision={decision} onOpenChange={(o) => !o && setDecision(null)} />
       )}
-      <StopDialog id={d.id} open={stopping} onOpenChange={setStopping} />
+      <StopDialog id={d.id} open={stopping} onOpenChange={setStopping} withLink={current?.source !== 'editors'} />
     </section>
   )
 }

@@ -18,6 +18,8 @@ from app.logic.index import FormIndex
 from app.schemas.form import EmailField, Form
 
 MAX_STEPS = 3
+# Addresses told about a step decided in the studio ("editors" steps).
+MAX_NOTIFY = 10
 
 StepName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
 FieldId = Annotated[str, StringConstraints(max_length=63)]
@@ -38,9 +40,15 @@ class ApiModel(BaseModel):
 
 class StepConfig(ApiModel):
     name: StepName
-    source: Literal["field", "fixed"]
+    # "field": the approver's address is the answer to an email question; "fixed": always this
+    # address. Both get an emailed link and confirm with a code. "editors": no approver link at
+    # all; only people with edit access to the form decide, signed in to the studio, and
+    # ``notify`` (plus, with ``notify_editors``, those people) only get told about it.
+    source: Literal["field", "fixed", "editors"]
     field_id: FieldId | None = None
     email: EmailStr | None = None
+    notify: Annotated[list[EmailStr], Field(max_length=MAX_NOTIFY)] = Field(default_factory=list)
+    notify_editors: bool = False
 
 
 class ApprovalConfig(ApiModel):
@@ -130,6 +138,8 @@ def check_config(config: ApprovalConfig, form: Form, live: Form | None = None) -
     index = FormIndex.build(form)
     live_ids = set(FormIndex.build(live).elements) if live is not None else None
     for n, step in enumerate(config.steps, start=1):
+        if step.source == "editors":
+            continue
         if step.source == "fixed":
             if not step.email:
                 issues.append(

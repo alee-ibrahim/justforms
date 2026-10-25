@@ -11,7 +11,7 @@ form's **Settings** page. Design background: [DESIGN.md §11.2](DESIGN.md).
 | `submission.status_changed` | A submission's status changes (`change.from`, `change.to`). When an approval sets it, `change.via` is `"approval"` and the event has no person behind it. |
 | `submission.comment_added` | Someone comments (`change.comment`, `change.by`). |
 | `submission.pdf_ready` | The signed PDF of a submission is ready (`submission.pdf`). |
-| `submission.approval_step` | Something happened in a submission's approval: `change.action` is `requested` (an approver was emailed), `approved`, `rejected`, `stopped` (by staff, with `change.reason`) or `waiting` (no approver address in the answers). Also `change.step` (1-based), `change.stepName` and, where known, `change.approverEmail`, `change.approverName` and `change.comment`. Decisions carry `change.decidedVia`: `"email"` (the approver's link) or `"studio"` (a staff member decided the step; `approverName` is theirs). |
+| `submission.approval_step` | Something happened in a submission's approval: `change.action` is `requested` (an approver was emailed, or, with `change.approvers: "editors"` and no `approverEmail`, a step that only people with edit access decide in the studio was reached), `approved`, `rejected`, `stopped` (by staff, with `change.reason`) or `waiting` (no approver address in the answers). Also `change.step` (1-based), `change.stepName` and, where known, `change.approverEmail`, `change.approverName` and `change.comment`. Decisions carry `change.decidedVia`: `"email"` (the approver's link) or `"studio"` (a staff member decided the step; `approverName` is theirs). |
 | `test` | "Send test event" on the webhook. |
 
 ## Request

@@ -102,8 +102,11 @@ their email with a code and then their decision. The link works for
 `JUSTFORMS_APPROVAL_LINK_DAYS` (14 by default). Editors and owners can also approve or reject the
 waiting step in the studio, one submission or a selection at a time; the approver's link then
 says who decided. The request and outcome emails' wording (and the outcome's Reply-To) can be
-set per form, with test emails to yourself. The outcome is part of the signed PDF's approval
-record and shows on the verify page.
+set per form, with test emails to yourself. A step can instead be decided **only in the studio**
+by people with edit access (editors, owners, organisation admins), signed in: no approver link
+and no code. Up to 10 notify addresses (for example a shared mailbox), and optionally everyone with
+edit access, get a "New response to review" email with a button to the submission. The outcome
+is part of the signed PDF's approval record and shows on the verify page.
 
 ## Submissions and export
 

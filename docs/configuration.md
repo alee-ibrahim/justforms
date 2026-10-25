@@ -229,7 +229,7 @@ are made again when it changes. Restart the API and worker after replacing the f
 | `JUSTFORMS_PDF_SIGNING_P12`, `_P12_PASSWORD` | unset | Sign with an organisation certificate instead of the install's own key |
 | `JUSTFORMS_PDF_TSA_URL` | unset | RFC 3161 timestamp authority |
 | `JUSTFORMS_PDF_SIGNER_NAME` | `JustForms document signing` | Name on the install's own signing certificate |
-| `JUSTFORMS_APPROVAL_LINK_DAYS` | `14` | How long an approver's link works |
+| `JUSTFORMS_APPROVAL_LINK_DAYS` | `14` | How long an approver's link works (steps decided in the studio have no link) |
 | `JUSTFORMS_WEBHOOK_ALLOWED_CIDRS` | empty | Private networks webhooks may reach (plain `http` only to these) |
 | `JUSTFORMS_WEBHOOK_TIMEOUT_SECONDS` | `10` | Timeout per webhook delivery |
 
@@ -242,7 +242,7 @@ Instance defaults, used by organisations that set no branding of their own. See
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `JUSTFORMS_BRAND_NAME`, `_PRIMARY_COLOR`, `_SUPPORT_URL` | JustForms' own | Name, `#RRGGBB` colour and help link when an organisation sets none |
+| `JUSTFORMS_BRAND_NAME`, `_PRIMARY_COLOR`, `_SUPPORT_URL` | JustForms' own | Name, `#RRGGBB` colour and help link when an organisation sets none. The name is also the product name in emails ("Open in JustForms") |
 | `JUSTFORMS_BRAND_LOGO_FILE`, `_LOGO_DARK_FILE`, `_ICON_FILE` | unset | Paths to PNG/SVG files the API reads (e.g. a mounted ConfigMap) |
 | `JUSTFORMS_BRAND_POWERED_BY` | `optional` | `always` keeps "Powered by JustForms" on every form |
 

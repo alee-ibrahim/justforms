@@ -59,6 +59,13 @@ WORDS: dict[str, str] = {
     "approval_open": "Or open the response to read it first",
     "approval_note": "Each button opens the response. You'll confirm your email with a code, "
     "then confirm your decision there. The link works for {days} days.",
+    "notice_subject": "New response to review: {title} ({reference})",
+    "notice_kicker": "Waiting for a decision",
+    "notice_body": "{step}: response {reference} to {title} is waiting for a decision. "
+    "It was submitted on {date}.",
+    "notice_button": "Open in {product}",
+    "notice_note": "Sign in to approve or reject it. Only people with edit access to the form "
+    "can decide.",
     "outcome_subject_approved": "Approved: {title} ({reference})",
     "outcome_subject_rejected": "Not approved: {title} ({reference})",
     "outcome_approved": "Your response {reference} was approved.",
@@ -183,6 +190,36 @@ Answers are not included in this email.
 {{ w.approval_approve }}: {{ approve_url }}
 {{ w.approval_reject }}: {{ reject_url }}
 {{ w.approval_open }}: {{ url }}
+{% if answers %}
+{% for a in answers %}
+{{ a.label }}
+{{ a.value }}
+{% endfor %}{% endif %}
+
+{{ note }}
+""",
+    "approval_notice.html": """{% extends "layout.html" %}{% block body %}
+<p style="margin:0 0 4px;color:#5A6380">{{ kicker }}</p>
+<h1 style="margin:0 0 12px;font-size:20px{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
+{% if message %}<p style="margin:0 0 12px;white-space:pre-wrap" dir="auto">{{ message }}</p>
+<p style="margin:0 0 {{ '8' if step_of else '20' }}px">{{ w.reference }} <strong>{{ reference }}</strong></p>
+{% else %}<p style="margin:0 0 {{ '8' if step_of else '20' }}px">{{ body }}</p>
+{% endif %}{% if step_of %}<p style="margin:0 0 20px;color:#5A6380">{{ step_of }}</p>
+{% endif %}
+<p style="margin:0 0 20px"><a href="{{ url }}" style="display:inline-block;background:{{ brand.button_bg }};color:{{ brand.button_fg }};text-decoration:none;font-weight:bold;padding:10px 18px;border-radius:6px">{{ button }}</a></p>
+{% if answers %}{% include "answers.html" %}<div style="height:16px"></div>
+{% endif %}<p style="margin:0;color:#5A6380">{{ note }}</p>
+{% endblock %}""",
+    "approval_notice.txt": """{{ title }}
+
+{% if message %}{{ message }}
+
+{{ w.reference }} {{ reference }}
+{% else %}{{ body_text }}
+{% endif %}{% if step_of %}{{ step_of }}
+{% endif %}
+
+{{ button }}: {{ url }}
 {% if answers %}
 {% for a in answers %}
 {{ a.label }}
@@ -646,6 +683,64 @@ def approval_request_message(
         subject,
         _env.get_template("approval_request.txt").render(ctx),
         _env.get_template("approval_request.html").render(ctx),
+    )
+    msg.reply_to = wording.reply_to
+    return msg
+
+
+def approval_notice_message(
+    *,
+    org_name: str,
+    product: str,
+    brand: EmailBrand | None = None,
+    form: Form,
+    title: str,
+    reference: str,
+    submitted: datetime,
+    tz: Any,
+    step_name: str,
+    step: int,
+    total: int,
+    url: str,
+    wording: Wording | None = None,
+    answers: list[Answer] | None = None,
+) -> Message:
+    """ "New response to review" for a step that only people with edit access decide, in the
+    studio: a button to the submission (they sign in there), no Approve / Reject buttons, no
+    approver link and no code. The form's own message replaces the built-in sentence."""
+    lang = form.settings.language
+    w = WORDS
+    wording = wording or Wording()
+    date = submitted.astimezone(tz).strftime("%d %b %Y %H:%M %Z").strip()
+    values = {"step": step_name, "reference": reference, "title": title, "date": date}
+    subject = wording.subject or w["notice_subject"].format(
+        title=_iso(title, lang), reference=reference
+    )
+    ctx: dict[str, Any] = {
+        "subject": subject,
+        "kicker": w["notice_kicker"],
+        "message": wording.message,
+        "org_name": org_name,
+        "brand": _brand(brand, org_name),
+        "title": title,
+        "body": _sentence_html(w["notice_body"], {"step", "title"}, lang, **values),
+        "body_text": w["notice_body"].format(
+            **values | {"step": _iso(step_name, lang), "title": _iso(title, lang)}
+        ),
+        "step_of": w["approval_step_of"].format(n=step, total=total) if total > 1 else "",
+        "reference": reference,
+        "button": w["notice_button"].format(product=product),
+        "note": w["notice_note"],
+        "url": url,
+        "answers": answers or [],
+        "w": w,
+        **_content(lang),
+    }
+    msg = _message(
+        ctx["brand"],
+        subject,
+        _env.get_template("approval_notice.txt").render(ctx),
+        _env.get_template("approval_notice.html").render(ctx),
     )
     msg.reply_to = wording.reply_to
     return msg

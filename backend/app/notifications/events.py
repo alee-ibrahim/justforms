@@ -58,8 +58,14 @@ PDF_FAILED = "pdf_failed"  # internal: the receipt goes out without the PDF
 # "Send test emails": each rule's email rendered with sample answers, to the person asking.
 TEST_KINDS = {"test_owner_new": RuleType.OWNER_EMAIL, "test_receipt": RuleType.RESPONDENT_RECEIPT}
 TEST_PREFIX = "[Test] "
-# Approvals' "Send test emails": the approver's email and both outcomes, to the person asking.
-APPROVAL_TEST_KINDS = ("test_approval_request", "test_approval_approved", "test_approval_rejected")
+# Approvals' "Send test emails": the approver's email (or, for steps decided in the studio, the
+# notification), and both outcomes, to the person asking.
+APPROVAL_OUTCOME_TEST_KINDS = ("test_approval_approved", "test_approval_rejected")
+APPROVAL_TEST_KINDS = (
+    "test_approval_request",
+    "test_approval_notice",
+    *APPROVAL_OUTCOME_TEST_KINDS,
+)
 # A member got a role on a form (Share page, "Notify by email").
 FORM_SHARED = "form_shared"
 
@@ -318,6 +324,10 @@ async def render_email(
         return await _approval_request(
             db, settings, row, sub, schema, org_name, title, reference, eb, form
         )
+    if row.kind == "approval_notice":
+        return await _approval_notice(
+            db, settings, row, sub, schema, org_name, title, reference, eb, form
+        )
     if row.kind == "approval_outcome":
         pdf_file: tuple[str, bytes] | None = None
         if sub.pdf_status == PdfStatus.READY and sub.signed_pdf_key:
@@ -472,7 +482,7 @@ async def _approval_test_message(
     sample = {key: f"[{el.label or key}]" for key, el in emails.placeholder_fields(schema).items()}
     words = approval_wording(
         form,
-        kind.removeprefix("test_approval_"),
+        "request" if kind == "test_approval_notice" else kind.removeprefix("test_approval_"),
         title=title,
         reference=reference,
         submitted=_submitted_text(now, settings.tz),
@@ -480,7 +490,10 @@ async def _approval_test_message(
         test=True,
     )
     if kind == "test_approval_request":
-        step = config.steps[0].name if config.steps else "Approval"
+        n, step = next(
+            ((i, s.name) for i, s in enumerate(config.steps, start=1) if s.source != "editors"),
+            (1, "Approval"),
+        )
         msg = emails.approval_request_message(
             org_name=org_name,
             brand=brand,
@@ -490,10 +503,31 @@ async def _approval_test_message(
             submitted=now,
             tz=settings.tz,
             step_name=step,
-            step=1,
+            step=n,
             total=max(1, len(config.steps)),
             url=f"{settings.public_origin}/forms/{form.id}/submissions",
             days=settings.approval_link_days,
+            wording=words,
+            answers=sample_answers(schema) if config.request_include_answers else None,
+        )
+    elif kind == "test_approval_notice":
+        n, cfg = next(
+            ((i, s) for i, s in enumerate(config.steps, start=1) if s.source == "editors"),
+            (1, None),
+        )
+        msg = emails.approval_notice_message(
+            org_name=org_name,
+            product=product_name(settings),
+            brand=brand,
+            form=schema,
+            title=title,
+            reference=reference,
+            submitted=now,
+            tz=settings.tz,
+            step_name=cfg.name if cfg else "Approval",
+            step=n,
+            total=max(1, len(config.steps)),
+            url=f"{settings.public_origin}/forms/{form.id}/submissions",
             wording=words,
             answers=sample_answers(schema) if config.request_include_answers else None,
         )
@@ -597,7 +631,12 @@ async def _approval_request(
     from app.approvals.service import mint_link, step_count
 
     step = await db.get(ApprovalStep, uuid.UUID(row.detail)) if row.detail else None
-    if step is None or step.state != StepState.PENDING or step.submission_id != sub.id:
+    if (
+        step is None
+        or step.state != StepState.PENDING
+        or step.submission_id != sub.id
+        or step.source == "editors"
+    ):
         return None
     url = mint_link(settings, step)
     from app.approvals.config import load_config
@@ -628,6 +667,60 @@ async def _approval_request(
         total=await step_count(db, sub),
         url=url,
         days=settings.approval_link_days,
+        wording=words,
+        answers=(
+            emails.answers_for_email(schema, sub.data) if config.request_include_answers else None
+        ),
+    )
+
+
+def product_name(settings: Settings) -> str:
+    return settings.brand_name.strip() or "JustForms"
+
+
+async def _approval_notice(
+    db: AsyncSession,
+    settings: Settings,
+    row: EmailDelivery,
+    sub: Submission,
+    schema: Form,
+    org_name: str,
+    title: str,
+    reference: str,
+    brand: emails.EmailBrand | None,
+    form: FormRecord,
+) -> emails.Message | None:
+    """ "New response to review" for a step decided in the studio: the same wording settings as
+    the approver's email, a button to the submission (sign-in needed), no link to decide and no
+    code. Nothing is sent once the step is no longer waiting."""
+    from app.approvals.config import load_config
+    from app.approvals.service import step_count
+
+    step = await db.get(ApprovalStep, uuid.UUID(row.detail)) if row.detail else None
+    if step is None or step.state != StepState.PENDING or step.submission_id != sub.id:
+        return None
+    config = load_config(form.settings)
+    words = approval_wording(
+        form,
+        "request",
+        title=title,
+        reference=reference,
+        submitted=_submitted_text(sub.submitted_at, settings.tz),
+        answers=emails.placeholder_answers(schema, sub.data),
+    )
+    return emails.approval_notice_message(
+        org_name=org_name,
+        product=product_name(settings),
+        brand=brand,
+        form=schema,
+        title=title,
+        reference=reference,
+        submitted=sub.submitted_at,
+        tz=settings.tz,
+        step_name=step.name,
+        step=step.step,
+        total=await step_count(db, sub),
+        url=submission_url(settings, sub),
         wording=words,
         answers=(
             emails.answers_for_email(schema, sub.data) if config.request_include_answers else None
