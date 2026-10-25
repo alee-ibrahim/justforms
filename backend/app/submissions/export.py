@@ -336,7 +336,7 @@ async def _build(db: AsyncSession, storage: Storage, settings: Settings, export:
         key = f"exports/{export.id}.xlsx"
         await storage.put(
             key,
-            tmp,  # type: ignore[arg-type]
+            tmp,  # type: ignore[arg-type, unused-ignore]
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
     export.storage_key = key
