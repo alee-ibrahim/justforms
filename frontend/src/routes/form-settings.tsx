@@ -1,6 +1,7 @@
 /**
- * Settings (PHASE-4-SCREENS 1, APPROVALS-SCREENS 1, FORM-THEME-SCREENS 3.3): appearance, who can respond, spam protection, emails,
- * approvals, webhooks, retention.
+ * Settings (PHASE-4-SCREENS 1, APPROVALS-SCREENS 1, FORM-THEME-SCREENS 3.3, SAVED-PROGRESS-SCREENS 3):
+ * appearance, who can respond and saved progress, spam protection, emails, approvals, webhooks,
+ * retention.
  *
  * One section at a time (REVIEW P2-12): a section list at the start edge on desktop, a select on
  * phones. The open section is kept in the URL hash (`#approvals`), so links can point at one.
@@ -12,6 +13,7 @@ import { PageContainer } from '@/components/layout/page'
 import { FormAppearanceCard } from '@/components/theme/form-theme-cards'
 import { ApprovalsCard } from '@/components/settings/approvals-card'
 import { NotificationsCard } from '@/components/settings/notifications-card'
+import { ProgressCard } from '@/components/settings/progress-card'
 import { RespondentsCard } from '@/components/settings/respondents-card'
 import { RetentionCard } from '@/components/settings/retention-card'
 import { SpamCard } from '@/components/settings/spam-card'
@@ -29,7 +31,16 @@ interface Section {
 
 const SECTIONS: Section[] = [
   { id: 'appearance', label: 'Appearance', render: (form) => <FormAppearanceCard form={form} /> },
-  { id: 'access', label: 'Access', render: (form, canManage) => <RespondentsCard form={form} canManage={canManage} /> },
+  {
+    id: 'access',
+    label: 'Access',
+    render: (form, canManage) => (
+      <>
+        <RespondentsCard form={form} canManage={canManage} />
+        <ProgressCard form={form} canManage={canManage} />
+      </>
+    ),
+  },
   { id: 'spam', label: 'Spam protection', render: (form, canManage) => <SpamCard form={form} canManage={canManage} /> },
   {
     id: 'notifications',

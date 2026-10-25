@@ -1046,7 +1046,7 @@ All endpoints are JSON. OpenAPI is served at `/api/v1/openapi.json`, and the TS 
 - `GET /forms/{formId}/notifications` (both rules, the email questions and the last 10 emails), `PUT /forms/{formId}/notifications/{owner_email|respondent_receipt}`
 - `GET /forms/{formId}/approvals` (any role: settings, issues, email questions), `PUT /forms/{formId}/approvals` (owners)
 - `GET|POST /forms/{formId}/webhooks`, `PATCH|DELETE .../{id}`, `POST .../{id}/rotate-secret`, `POST .../{id}/test`, `GET .../{id}/deliveries?before=`, `POST .../{id}/deliveries/{deliveryId}/redeliver`
-- `PATCH /forms/{formId}` also takes `accessMode`, `otpAllowedDomains`, `otpOneResponse`, `captcha` (`off|always|auto`) and `retentionDays`
+- `PATCH /forms/{formId}` also takes `accessMode`, `otpAllowedDomains`, `otpOneResponse`, `captcha` (`off|always|auto`), `retentionDays`, `saveProgress` and `saveProgressDays` (1-90)
 
 **Submissions (studio)**
 - `GET /forms/{formId}/submissions?status=&from=&to=&q=&version=&filter=<json>&cursor=&limit=`
@@ -1112,6 +1112,7 @@ All endpoints are JSON. OpenAPI is served at `/api/v1/openapi.json`, and the TS 
 **`apps/form` (public)**
 - Contains `packages/renderer` and `packages/logic` with react-hook-form and zod. There is no TanStack Router or Query, a single route parsed from `location`, and the shadcn components it needs.
 - Budget: **≤ 120 KB gzipped JS** for the initial load. The signature pad and phonetic keyboard are lazy-loaded chunks.
+- **Saved progress** ([ux/SAVED-PROGRESS-SCREENS.md](ux/SAVED-PROGRESS-SCREENS.md)). Answers and the current page are kept in `localStorage` (debounced 500 ms, flushed on page change and when the page is hidden), keyed by form and, on email-code and staff forms, a hash of the respondent's email. Sensitive questions, signatures, files (upload references belong to one page load's upload session, §10) and hidden values are never stored. On reopening the form restores them (only answers whose question and type still exist when the version changed) with a polite notice and Start over; submit clears them. The per-form setting (`saveProgress`, `saveProgressDays`, default on and 7 days) comes with the public form as `saveProgress: {days} | null`. The code is a lazy chunk fetched in parallel with the form; storage errors are ignored.
 - Serves `/{slug}` and an `?embed=1` mode with transparent background, plus a `postMessage` height-resize protocol for iframe embeds. Old `/f/{org}/{slug}` links get a 301 to `/{slug}`; any other unknown path shows the public "couldn't find this form" screen with a 404. Slugs are unique across the install and may not be one of the app's own top-level words (`app/services/slugs.py`, `frontend/nginx.conf`).
 
 **Document pages (`doc.html`)**

@@ -55,6 +55,7 @@ from app.notifications.emails import code_message
 from app.queue import JobQueue, get_queue
 from app.schemas.form import Form
 from app.services import slugs
+from app.services.progress import save_progress_days
 from app.services.users import normalize_email
 from app.signatures import service as signatures
 from app.storage import FileTooLargeError
@@ -240,6 +241,8 @@ async def get_public_form(
         "captcha": await _captcha_config(redis, settings, form),
         "schema": None,
     }
+    days = save_progress_days(form.settings)
+    body["saveProgress"] = {"days": days} if days else None
     if form.access_mode == AccessMode.OTP:
         body["otp"] = {"allowedDomains": domains, "oneResponse": one_response}
     if not locked:

@@ -496,6 +496,17 @@ function scenarios(d) {
           await clickIf(page, page.getByRole('button', { name: /^(Next|Submit)$/ }))
         },
       ],
+      [
+        // Saved progress (SAVED-PROGRESS-SCREENS): type, reload, the restored notice.
+        'restored',
+        async (page) => {
+          await page.getByRole('textbox').first().fill('Test answer')
+          await wait(800)
+          await page.reload({ waitUntil: 'domcontentloaded' })
+          await page.getByRole('button', { name: 'Start over' }).waitFor({ timeout: 5000 })
+        },
+      ],
+      ['start-over', async (page) => void (await clickIf(page, page.getByRole('button', { name: 'Start over' })))],
     ], { anonymous: true, fullPage: true })
   }
   add('public-not-found', '/no-such-form', undefined, { anonymous: true })

@@ -159,6 +159,9 @@ export interface FormSummary {
   otpAllowedDomains: string[]
   otpOneResponse: boolean
   captcha: CaptchaMode
+  /** Respondents' answers are kept in their browser while they fill in the form. */
+  saveProgress: boolean
+  saveProgressDays: number
   submissionCount: number
   newCount: number
   createdAt: string
@@ -552,6 +555,8 @@ export type FormPatch = Partial<{
   otpAllowedDomains: string[]
   otpOneResponse: boolean
   captcha: CaptchaMode
+  saveProgress: boolean
+  saveProgressDays: number
   /** 0 turns retention off. */
   retentionDays: number
 }>

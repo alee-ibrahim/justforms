@@ -3,7 +3,7 @@
  * CAPTCHA (PHASE-4-SCREENS 2-3). Loaded lazily by `app.tsx`.
  */
 import { hasThaana } from '@yashau/thaana-react'
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { BrandLogo } from '@/components/brand/brand-parts'
 import { applyBrand } from '@/lib/branding'
@@ -16,7 +16,9 @@ import { themeAttrs } from '@/renderer/theme'
 import { AccessScreen, CaptchaStatus, CaptchaWidget, OtpGate, RespondingAs } from './access'
 import { freshChallenge, solveAltcha } from './access-lib'
 import { loadForm, submitAnswers, type Access, type CaptchaChallenge, type LiveForm, type LoadResult } from './api'
-import { changedQuestions, embed, formSlug, prefill } from './helpers'
+import * as autosaveLib from './autosave'
+import { changedQuestions, embed, formSlug } from './helpers'
+import { useAutosave } from './use-autosave'
 
 /** The sheet on the desk, for screens shown before the form itself. */
 function Sheet({ children }: { children: ReactNode }) {
@@ -87,8 +89,7 @@ export function ProtectedApp({ first }: { first: LoadResult }) {
   }, [state])
 
   const live = state?.ok ? state.form : null
-  const schema = live?.schema ?? null
-  const initial = useMemo(() => (schema ? prefill(schema) : {}), [schema])
+  const autosave = useAutosave(autosaveLib, live)
   const altcha = useAltcha(live?.schema && live.captcha?.provider === 'altcha' ? live.captcha.challenge : undefined)
 
   if (!state.ok) {
@@ -165,6 +166,7 @@ export function ProtectedApp({ first }: { first: LoadResult }) {
     }
     switch (res.status) {
       case 'ok':
+        autosave.onSubmitted()
         return { ok: true, reference: res.reference }
       case 'invalid':
         return { ok: false, kind: 'invalid', errors: res.errors }
@@ -229,6 +231,7 @@ export function ProtectedApp({ first }: { first: LoadResult }) {
   return (
     <main>
       <FormRenderer
+        key={autosave.key}
         form={form}
         orgName={current.orgName}
         brand={current.brand}
@@ -236,10 +239,15 @@ export function ProtectedApp({ first }: { first: LoadResult }) {
         embed={embed}
         onSubmit={onSubmit}
         uploader={uploader}
-        initialAnswers={initial}
+        initialAnswers={autosave.initialAnswers}
+        initialPage={autosave.initialPage}
+        onProgress={autosave.onProgress}
         highlighted={highlighted}
         notice={
-          current.respondentEmail ? <RespondingAs email={current.respondentEmail} /> : undefined
+          <>
+            {current.respondentEmail && <RespondingAs email={current.respondentEmail} />}
+            {autosave.notice}
+          </>
         }
         beforeSubmit={beforeSubmit}
         allowAnother={!current.otp?.oneResponse}

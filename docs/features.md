@@ -55,6 +55,11 @@ and the same logic engine runs in the browser and on the server.
 
 - A small, fast public form (initial JavaScript under 120 KB gzip) made for mid-range phones.
 - Answers are validated the same way in the browser and on the server.
+- Progress is saved on the respondent's device (browser storage) while they type, so a closed
+  tab or a reload loses nothing: the form reopens with their answers and page and a small
+  notice with **Start over**. Sensitive questions, signatures and files are never kept; saved
+  progress expires after 7 days by default and is cleared on submit. Owners can change the
+  expiry or turn it off for forms used on shared or kiosk devices (Settings › Access).
 - Access: open to anyone with the link, to people who confirm their email first, or to
   signed-in staff.
 - Rate limits and optional CAPTCHA per form (off, always, or only when busy).

@@ -18,6 +18,8 @@ export function listItem(overrides: Partial<FormListItem> = {}): FormListItem {
     retentionDays: null,
     otpAllowedDomains: [],
     otpOneResponse: false,
+    saveProgress: true,
+    saveProgressDays: 7,
     captcha: 'off',
     submissionCount: 0,
     newCount: 0,

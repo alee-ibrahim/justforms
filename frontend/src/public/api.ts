@@ -41,6 +41,8 @@ export interface LiveForm {
   respondentEmail: string | null
   captcha: CaptchaConfig | null
   otp?: { allowedDomains: string[]; oneResponse: boolean }
+  /** Keep answers on this device while filling in (days until they expire); null when off. */
+  saveProgress?: { days: number } | null
 }
 
 /** How requests prove who the respondent is. */

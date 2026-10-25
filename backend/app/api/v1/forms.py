@@ -48,6 +48,7 @@ from app.permissions import (
 from app.schemas.form import FormLanguage
 from app.services import forms as svc
 from app.services import slugs
+from app.services.progress import DEFAULT_SAVE_PROGRESS_DAYS, MAX_SAVE_PROGRESS_DAYS, progress_out
 from app.services.users import audit
 
 router = APIRouter(tags=["forms"])
@@ -73,6 +74,9 @@ class FormOut(ApiModel):
     otp_allowed_domains: list[str] = Field(default_factory=list)
     otp_one_response: bool = False
     captcha: CaptchaMode = "off"
+    # Respondents' answers are kept in their browser while they fill in the form.
+    save_progress: bool = True
+    save_progress_days: int = DEFAULT_SAVE_PROGRESS_DAYS
     submission_count: int = 0
     new_count: int = 0
     created_at: datetime
@@ -146,6 +150,8 @@ class FormPatch(ApiModel):
     otp_allowed_domains: list[Domain] | None = Field(default=None, max_length=50)
     otp_one_response: bool | None = None
     captcha: CaptchaMode | None = None
+    save_progress: bool | None = None
+    save_progress_days: Annotated[int, Field(ge=1, le=MAX_SAVE_PROGRESS_DAYS)] | None = None
 
 
 class DraftOut(ApiModel):
@@ -226,6 +232,7 @@ async def form_out(
         otp_allowed_domains=list((form.settings or {}).get("otpAllowedDomains", [])),
         otp_one_response=bool((form.settings or {}).get("otpOneResponse", False)),
         captcha=form_mode(form.settings),
+        **progress_out(form.settings),
         submission_count=counts[0],
         new_count=counts[1],
         created_at=form.created_at,
@@ -387,6 +394,7 @@ async def list_forms(
                 otp_allowed_domains=list(extra.get("otpAllowedDomains", [])),
                 otp_one_response=bool(extra.get("otpOneResponse", False)),
                 captcha=form_mode(extra),
+                **progress_out(extra),
                 submission_count=r.total,
                 new_count=r.new,
                 created_at=r.created_at,
@@ -456,6 +464,8 @@ async def patch_form(
             body.otp_allowed_domains,
             body.otp_one_response,
             body.captcha,
+            body.save_progress,
+            body.save_progress_days,
         )
     )
     if owner_only and not has_form_role(access.role, FormRole.OWNER):
@@ -476,6 +486,10 @@ async def patch_form(
         extra["otpOneResponse"] = body.otp_one_response
     if body.captcha is not None:
         extra["captcha"] = body.captcha
+    if body.save_progress is not None:
+        extra["saveProgress"] = body.save_progress
+    if body.save_progress_days is not None:
+        extra["saveProgressDays"] = body.save_progress_days
     if extra:
         form.settings = {**(form.settings or {}), **extra}
     if body.retention_days is not None:

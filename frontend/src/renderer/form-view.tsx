@@ -65,8 +65,12 @@ export interface FormRendererProps {
   embed?: boolean
   onSubmit: (answers: Answers) => Promise<SubmitOutcome>
   uploader: Uploader
-  /** Prefilled answers (hidden values from link parameters). */
+  /** Prefilled answers (hidden values from link parameters, saved progress). */
   initialAnswers?: Answers
+  /** The page to start on (saved progress), used when it is on the respondent's path. */
+  initialPage?: string
+  /** Called after each change the respondent makes, with the answers and the current page. */
+  onProgress?: (answers: Answers, pageId: string) => void
   /** Questions to wash with the marker, plus the "form was updated" notice. */
   highlighted?: ReadonlySet<string>
   /** Called with every evaluation (the studio preview shows a logic trace). */
@@ -149,6 +153,8 @@ export function FormRenderer({
   onSubmit,
   uploader,
   initialAnswers,
+  initialPage,
+  onProgress,
   highlighted,
   onEvaluate,
   frame = 'page',
@@ -163,7 +169,13 @@ export function FormRenderer({
   const [answers, setAnswers] = useState<Answers>(() => initialAnswers ?? {})
   const [errors, setErrors] = useState<Map<string, string>>(new Map())
   const [summary, setSummary] = useState<Problem[]>([])
-  const [pageId, setPageId] = useState<string>(form.pages[0].id)
+  const [pageId, setPageId] = useState<string>(() => {
+    const first = form.pages[0].id
+    if (!initialPage || initialPage === first) return first
+    return safeEvaluate(form, initialAnswers ?? {})?.path.includes(initialPage) ? initialPage : first
+  })
+  // Set by the respondent's own changes, so prefilled answers alone are never saved.
+  const touched = useRef(false)
   const [uploading, setUploadingState] = useState<Set<string>>(new Set())
   const [phase, setPhase] = useState<'filling' | 'submitting' | 'done'>('filling')
   const [failure, setFailure] = useState<'network' | 'closed' | null>(null)
@@ -250,6 +262,7 @@ export function FormRenderer({
   })
 
   const setValue = useStableCallback((p: AnswerPath, value: unknown) => {
+    touched.current = true
     setAnswers((prev) => {
       if (p.repeater === undefined) {
         const next = { ...prev }
@@ -307,6 +320,7 @@ export function FormRenderer({
   )
   const addRow = useStableCallback((repeaterId: string) => {
     const n = rowCount(repeaterId)
+    touched.current = true
     setAnswers((prev) => {
       const rows = Array.isArray(prev[repeaterId]) ? [...(prev[repeaterId] as Row[])] : []
       while (rows.length < n + 1) rows.push({})
@@ -320,6 +334,7 @@ export function FormRenderer({
     }, 0)
   })
   const removeRow = useStableCallback((repeaterId: string, row: number) => {
+    touched.current = true
     setAnswers((prev) => {
       const rows = Array.isArray(prev[repeaterId]) ? [...(prev[repeaterId] as Row[])] : []
       rows.splice(row, 1)
@@ -502,7 +517,12 @@ export function FormRenderer({
     lastPage.current = pageId
   }, [visibleOnPage, pageId])
 
+  useEffect(() => {
+    if (touched.current && phase === 'filling') onProgress?.(answers, pageId)
+  }, [answers, pageId, phase, onProgress])
+
   const resetForm = () => {
+    touched.current = false
     setAnswers(initialAnswers ?? {})
     setErrors(new Map())
     setSummary([])

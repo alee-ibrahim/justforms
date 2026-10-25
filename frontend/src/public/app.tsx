@@ -4,7 +4,7 @@
  * Forms that ask for an email code, staff sign-in or a CAPTCHA continue in a lazy chunk
  * (`protected.tsx`), so forms open to anyone don't pay for it.
  */
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import { applyBrand } from '@/lib/branding'
@@ -16,10 +16,13 @@ import { MSG } from '@/renderer/messages'
 import { themeAttrs } from '@/renderer/theme'
 
 import { loadForm, submitAnswers, type Access, type LiveForm, type LoadResult } from './api'
-import { changedQuestions, embed, formSlug, postHeight, prefill } from './helpers'
+import { changedQuestions, embed, formSlug, postHeight } from './helpers'
+import { useAutosave, type AutosaveLib } from './use-autosave'
 
 const ProtectedApp = lazy(() => import('./protected').then((m) => ({ default: m.ProtectedApp })))
 const PUBLIC: Access = { mode: 'public' }
+// Saved progress is a lazy chunk, fetched alongside the form so it never delays the first paint.
+const autosaveLib: Promise<AutosaveLib | null> = import('./autosave').catch(() => null)
 
 export function Loading() {
   const show = useDelayed(true)
@@ -51,9 +54,13 @@ function needsAccess(state: LoadResult): boolean {
 export function App() {
   const [state, setState] = useState<LoadResult | null>(null)
   const [highlighted, setHighlighted] = useState<Set<string>>(new Set())
+  const [lib, setLib] = useState<AutosaveLib | null>(null)
 
   useEffect(() => {
-    void loadForm(formSlug).then(setState)
+    void Promise.all([loadForm(formSlug), autosaveLib]).then(([result, autosave]) => {
+      setLib(autosave)
+      setState(result)
+    })
   }, [])
 
   useEffect(() => {
@@ -70,8 +77,7 @@ export function App() {
     return () => ro.disconnect()
   }, [])
 
-  const schema = state?.ok ? state.form.schema : null
-  const initial = useMemo(() => (schema ? prefill(schema) : {}), [schema])
+  const autosave = useAutosave(lib, state && !needsAccess(state) && state.ok ? state.form : null)
 
   if (!state) return <Loading />
   if (needsAccess(state))
@@ -104,6 +110,7 @@ export function App() {
     const res = await submitAnswers(formSlug, PUBLIC, current.versionId, answers, nonce)
     switch (res.status) {
       case 'ok':
+        autosave.onSubmitted()
         return { ok: true, reference: res.reference }
       case 'invalid':
         return { ok: false, kind: 'invalid', errors: res.errors }
@@ -132,6 +139,7 @@ export function App() {
   return (
     <main>
       <FormRenderer
+        key={autosave.key}
         form={form}
         orgName={current.orgName}
         brand={current.brand}
@@ -139,7 +147,10 @@ export function App() {
         embed={embed}
         onSubmit={onSubmit}
         uploader={uploader}
-        initialAnswers={initial}
+        initialAnswers={autosave.initialAnswers}
+        initialPage={autosave.initialPage}
+        onProgress={autosave.onProgress}
+        notice={autosave.notice}
         highlighted={highlighted}
       />
     </main>
