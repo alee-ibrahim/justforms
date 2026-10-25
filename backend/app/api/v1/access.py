@@ -72,6 +72,8 @@ class AccessList(ApiModel):
     can_manage: bool
     # Owners who are also organisation admins can invite people from outside.
     can_invite: bool = False
+    # For the "Add someone by email" suggestions (``/orgs/{org_id}/members/search``).
+    org_id: uuid.UUID | None = None
     org_name: str = ""
     # "Notify by email" needs SMTP; without it the Share page turns the option off.
     smtp_enabled: bool = False
@@ -183,6 +185,7 @@ async def access_list(db: DbDep, settings: SettingsDep, access: FormAccess) -> A
         pending=await _pending(db, form.id, form.org_id),
         can_manage=owner,
         can_invite=owner and await org_role(db, access.user, form.org_id) == OrgRole.ADMIN,
+        org_id=form.org_id,
         org_name=org.name if org else "",
         smtp_enabled=settings.smtp_enabled,
     )

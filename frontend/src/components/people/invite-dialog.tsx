@@ -1,9 +1,11 @@
-/** "Invite people" (PEOPLE-SCREENS 3.1): several addresses at once, one role. */
+/** "Invite people" (PEOPLE-SCREENS 3.1): several addresses at once (chips), one role. Typing
+ * suggests matching members, marked "Already a member" (PEOPLE-SCREENS 6.2). */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { MailPlusIcon } from 'lucide-react'
+import { MailPlusIcon, XIcon } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { MemberCombobox } from '@/components/people/member-combobox'
 import { RolePicker } from '@/components/people/role-picker'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -19,21 +21,34 @@ import {
 } from '@/components/ui/dialog'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldSet, FieldLegend } from '@/components/ui/field'
 import { Spinner } from '@/components/ui/spinner'
-import { Textarea } from '@/components/ui/textarea'
 import { api, ApiError, type InviteResult, type OrgRole } from '@/lib/api'
 import { metaQuery } from '@/lib/queries'
 
+import { addChips, isEmail, splitTyped } from './member-search-lib'
 import { MAX_INVITES as MAX, parseEmails } from './parse-emails'
 
 export function InviteDialog({ orgId, orgName, inviteDays }: { orgId: string; orgName: string; inviteDays: number }) {
   const queryClient = useQueryClient()
   const meta = useQuery(metaQuery)
   const [open, setOpen] = useState(false)
+  const [chips, setChips] = useState<string[]>([])
   const [text, setText] = useState('')
   const [role, setRole] = useState<OrgRole>('member')
   const [error, setError] = useState<string | null>(null)
   const [skipped, setSkipped] = useState<string[]>([])
-  const { valid, invalid } = parseEmails(text)
+  // The chips plus whatever is still being typed.
+  const { valid, invalid } = parseEmails([...chips, text].join(' '))
+  const type = (value: string) => {
+    const { done, rest } = splitTyped(value)
+    if (done.length) setChips((c) => addChips(c, done))
+    setText(rest)
+    if (error) setError(null)
+  }
+  const commit = () => {
+    const { done } = splitTyped(`${text} `)
+    if (done.length) setChips((c) => addChips(c, done))
+    setText('')
+  }
 
   const send = useMutation({
     mutationFn: () => api.invite(orgId, valid, role),
@@ -47,6 +62,7 @@ export function InviteDialog({ orgId, orgName, inviteDays }: { orgId: string; or
         return
       }
       setSkipped(already)
+      setChips([])
       setText('')
       if (invited.length) toast(invited.length === 1 ? `Invited ${invited[0]}` : `Invited ${invited.length} people`)
     },
@@ -62,7 +78,8 @@ export function InviteDialog({ orgId, orgName, inviteDays }: { orgId: string; or
 
   const submit = () => {
     setSkipped([])
-    if (!text.trim()) return setError('Enter at least one email address.')
+    commit()
+    if (!valid.length && !invalid.length) return setError('Enter at least one email address.')
     if (invalid.length) return setError(`Check these addresses: ${invalid.join(', ')}.`)
     if (valid.length > MAX) return setError(`Invite up to ${MAX} people at a time.`)
     setError(null)
@@ -78,6 +95,7 @@ export function InviteDialog({ orgId, orgName, inviteDays }: { orgId: string; or
       onOpenChange={(next) => {
         setOpen(next)
         if (next) {
+          setChips([])
           setText('')
           setRole('member')
           setError(null)
@@ -109,27 +127,67 @@ export function InviteDialog({ orgId, orgName, inviteDays }: { orgId: string; or
           </DialogHeader>
           <FieldGroup>
             <Field data-invalid={error ? true : undefined}>
-              <FieldLabel htmlFor="invite-emails">Email addresses</FieldLabel>
-              <Textarea
-                id="invite-emails"
-                dir="ltr"
-                rows={3}
-                autoComplete="off"
-                autoCapitalize="none"
-                spellCheck={false}
-                inputMode="email"
-                placeholder="name@example.org, another@example.org"
+              <FieldLabel id="invite-emails-label">Email addresses</FieldLabel>
+              {chips.length > 0 && (
+                <ul className="flex flex-wrap gap-1.5" aria-label="To invite">
+                  {chips.map((address) => (
+                    <li key={address}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={isEmail(address) ? 'secondary' : 'destructive'}
+                        className="max-w-full"
+                        aria-label={`Remove ${address}`}
+                        onClick={() => setChips((c) => c.filter((x) => x !== address))}
+                      >
+                        <bdi dir="ltr" className="truncate">
+                          {address}
+                        </bdi>
+                        <XIcon data-icon="inline-end" aria-hidden />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <MemberCombobox
+                label="Email addresses"
+                labelId="invite-emails-label"
+                orgId={orgId}
                 value={text}
-                aria-invalid={error ? true : undefined}
-                aria-describedby={error ? 'invite-emails-error invite-emails-help' : 'invite-emails-help'}
-                onChange={(e) => {
-                  setText(e.target.value)
-                  if (error) setError(null)
-                }}
+                placeholder={chips.length ? 'Add another' : 'Name or name@example.org'}
+                invalid={!!error}
+                describedBy={error ? 'invite-emails-error invite-emails-help' : 'invite-emails-help'}
                 autoFocus
+                onValueChange={type}
+                // Members are already in: their rows only say so.
+                onPick={() => {}}
+                unavailable={() => 'Already a member'}
+                freeEntry={(address) =>
+                  chips.includes(address)
+                    ? { note: 'Already in the list.' }
+                    : {
+                        label: (
+                          <>
+                            Invite <bdi dir="ltr">{address}</bdi>
+                          </>
+                        ),
+                        onSelect: () => {
+                          setChips((c) => addChips(c, [address]))
+                          setText('')
+                        },
+                      }
+                }
+                onEnter={() => (text.trim() ? commit() : submit())}
+                onKeyDown={(e) => {
+                  if (e.key === 'Backspace' && !text && chips.length) {
+                    e.preventDefault()
+                    setChips((c) => c.slice(0, -1))
+                  }
+                }}
               />
               <FieldDescription id="invite-emails-help">
-                Separate addresses with commas, spaces or new lines. Up to {MAX} at a time.
+                Type a name to find people already here, or paste addresses separated by commas,
+                spaces or new lines. Up to {MAX} at a time.
               </FieldDescription>
               {error && <FieldError id="invite-emails-error">{error}</FieldError>}
             </Field>
@@ -164,7 +222,7 @@ export function InviteDialog({ orgId, orgName, inviteDays }: { orgId: string; or
                 {skipped.length ? 'Done' : 'Cancel'}
               </Button>
             </DialogClose>
-            <Button type="submit" disabled={send.isPending || (!!text.trim() && count === 0 && invalid.length === 0)}>
+            <Button type="submit" disabled={send.isPending}>
               {send.isPending && <Spinner />}
               {count > 1 ? `Send ${count} invites` : 'Send invite'}
             </Button>

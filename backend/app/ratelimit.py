@@ -52,6 +52,8 @@ DEFAULTS: dict[str, Limit] = {
     "invite_org": Limit(200, 86400),  # addresses invited, per organisation
     "invite_resend": Limit(3, 3600),  # per invitation
     "invite_link": Limit(60, 60),  # invitation page requests, per IP
+    # Type-ahead member suggestions (Share page, Invite people).
+    "member_search": Limit(120, 60),  # per user
     # "Notify by email" when sharing a form with members.
     "share_notify_user": Limit(50, 3600),  # people emailed, per sharer
     "share_notify_org": Limit(200, 86400),  # people emailed, per organisation

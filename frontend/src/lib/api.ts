@@ -536,12 +536,25 @@ export interface AccessList {
   canManage: boolean
   /** Owners who are organisation admins can invite people from outside. */
   canInvite: boolean
+  /** Missing from older servers. */
+  orgId?: string | null
   orgName: string
   /** "Notify by email" needs email to be set up on the server. */
   smtpEnabled: boolean
 }
 
 // -- people (docs/ux/PEOPLE-SCREENS.md) -----------------------------------------------------
+
+/** A member suggested while typing a name or email (PEOPLE-SCREENS 6.2). */
+export interface MemberMatch {
+  userId: string
+  email: string
+  displayName: string
+  role: OrgRole
+  initials: string
+  /** With a form: the role they already have on it (organisation admins are owners). */
+  formRole: FormRole | null
+}
 
 export interface Person {
   userId: string
@@ -836,6 +849,12 @@ export const api = {
   removePendingAccess: (formId: string, invitationId: string) =>
     request<AccessList>('DELETE', `/forms/${formId}/permissions/invitations/${invitationId}`),
   people: (orgId: string) => request<People>('GET', `/orgs/${orgId}/people`),
+  /** Members matching a name or email (at least 2 characters); `formId` for a form's owners. */
+  searchMembers: (orgId: string, q: string, formId?: string) => {
+    const params = new URLSearchParams({ q, limit: '8' })
+    if (formId) params.set('form_id', formId)
+    return request<MemberMatch[]>('GET', `/orgs/${orgId}/members/search?${params}`)
+  },
   invite: (orgId: string, emails: string[], role: OrgRole) =>
     request<{ results: InviteResult[] }>('POST', `/orgs/${orgId}/invitations`, { emails, role }),
   setInvitationRole: (orgId: string, id: string, role: OrgRole) =>

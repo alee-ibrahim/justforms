@@ -1,0 +1,28 @@
+# JustForms. Public form pages and their link-preview images may be fetched (pages say
+# noindex); the studio, the API and private document links are not for crawlers.
+
+User-agent: facebookexternalhit
+User-agent: Facebot
+User-agent: WhatsApp
+User-agent: Twitterbot
+User-agent: TelegramBot
+User-agent: LinkedInBot
+User-agent: Slackbot
+User-agent: Slackbot-LinkExpanding
+User-agent: Discordbot
+User-agent: Viber
+Allow: /
+
+User-agent: *
+Allow: /api/v1/public/forms/*/og.png
+Allow: /api/v1/public/og/
+Disallow: /api/
+Disallow: /forms$
+Disallow: /forms/
+Disallow: /settings$
+Disallow: /settings/
+Disallow: /login$
+Disallow: /login/
+Disallow: /v/
+Disallow: /a/
+Allow: /

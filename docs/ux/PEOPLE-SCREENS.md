@@ -129,8 +129,15 @@ at the bottom so Send stays reachable on a phone; no custom drawer). Title "Invi
                                            [Cancel] [Send 2 invites]
 ```
 
-- `Field` + `FieldLabel` "Email addresses" + `Textarea` (`dir="ltr"`, `rows=3`,
-  `autoComplete="off"`, `inputMode="email"`) + `FieldDescription`.
+- `Field` + `FieldLabel` "Email addresses" + the member combobox (6.2) + `FieldDescription`
+  "Type a name to find people already here, or paste addresses separated by commas, spaces or
+  new lines. Up to 20 at a time." (Was a `Textarea`; replaced by chips so members can be
+  spotted while typing.) Finished addresses (followed by a comma, space, semicolon or new
+  line, pasted lists, Enter, or the "Invite {email}" row) become chips above the input (so
+  the suggestion list never covers them): a
+  secondary `Button size="sm"` per address with an `X` icon, `aria-label` "Remove {email}"
+  (destructive variant when it isn't an address). Backspace in the empty input removes the
+  last chip.
 - Role: `RadioGroup` of three `Field orientation="horizontal"` rows with `FieldLabel` and
   `FieldDescription` (choice-card style from shadcn `Field` docs); default Member.
 - Submit button text counts the valid addresses: "Send invite" / "Send {n} invites";
@@ -346,6 +353,71 @@ pattern). Changed: the card already has an inline add row that works on phones; 
 and note slot under it without a new surface. The note is hidden while unticked so the card
 stays short. A dialog for raised roles was chosen over an inline checkbox in the row, which
 would not fit at 320 px and would be easy to miss.
+
+### 6.2 Suggesting people while typing
+
+Both "Add someone by email" (Share) and "Email addresses" (Invite people) suggest existing
+members of the organisation as you type a name or an address. People can still type any full
+address.
+
+```
+Add someone by email
+[ ibra                         ] [ Submissions viewer v ] [ Add ]
+┌──────────────────────────────────────────┐
+│ People in your organisation              │
+│ (IN) Ibrahim Naseer                      │
+│      ibrahim@example.org                 │
+│      Already has access (Editor)         │  dimmed text, not selectable
+│ (IH) Ibrahima Hassan                     │  highlighted: Enter picks
+│      ibrahima@example.org                │
+└──────────────────────────────────────────┘
+
+[ new@example.org              ]
+┌──────────────────────────────────────────┐
+│ ✉ Invite new@example.org to Example Office│  org admins
+└──────────────────────────────────────────┘
+  or, for other owners, a note: "new@example.org isn't in Example Office yet. Ask an
+  organisation admin to invite them."
+```
+
+- **Composition**: the official combobox pattern, `Popover` + `Command` (no new primitive).
+  `CommandInput` is the field (anchored with `PopoverAnchor`; the popover is as wide as the
+  field, at least 256 px); `CommandList` / `CommandGroup` "People in your organisation" /
+  `CommandItem` rows with `Avatar size="sm"` initials, name (`bdi dir="auto"`) and email
+  (`bdi dir="ltr"`). The server filters (`shouldFilter={false}`).
+- **Search**: from 2 characters, debounced 200 ms, up to 8 people: name or email, case and
+  common accents ignored; exact matches first, then names or emails starting with it, then a
+  word of the name, then anywhere. Only the organisation's members.
+  `GET /orgs/{id}/members/search?q=&limit=8` (org admins) or with `&form_id=` (that form's
+  owners; each match carries `formRole`). Rate limited per user.
+- **Share**: picking a member fills in their address and closes the list; Enter (or Add)
+  then adds them with the chosen role, so a stray Enter never shares and emails at once.
+  People who already have access are listed but not selectable: "Already has access
+  (Editor)", "Already has access (Owner, organisation admin)". A typed full address that is
+  not a member gives "Invite {email} to {organisation}" (org admins; it opens the existing
+  "Invite and share" alert) or the note above; an address already invited to this form:
+  "Already invited. They get {role} access when they accept."
+- **Invite people**: matching members are listed as "Already a member" (not selectable); a
+  typed full address gives "Invite {email}", which adds a chip; an address already in the
+  chips: "Already in the list."
+- **States**: "Searching…" with a `Spinner` before the first answer (earlier results stay
+  while the next request runs); "No one in your organisation matches. Type their full email
+  address."; on errors "Couldn't look up people. You can still type a full email address."
+- **Keyboard and screen readers**: cmdk gives `role="combobox"` on the input, `listbox` /
+  `option` rows and `aria-activedescendant`; `aria-expanded` follows the list. Up/Down move,
+  Enter picks, Escape closes the list (inside the Invite dialog, only the list). With no row
+  to choose, Enter is the field's own action (Add on Share, a new chip in Invite). The visible
+  label names the input and focuses it when clicked. Focus and the phone keyboard stay in the
+  input while choosing.
+- **Phones**: rows reach 44 px on coarse pointers (global rule for `command-item`); the
+  popover opens under the field and flips above when there is no room; names and emails
+  truncate, the access note wraps.
+
+Self-critique: the first idea was to share the moment a member is picked (one step). Changed:
+on Share that also sends the "Notify by email" email, so picking only fills the field and Add
+stays the commit. First idea for Invite was to keep the textarea with a list under it; a
+combobox needs a single-line input, and chips show what will be sent better than a block of
+text, while pasting a list still works.
 
 ## 7. Studio changes for members
 

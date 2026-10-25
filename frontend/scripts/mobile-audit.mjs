@@ -517,6 +517,18 @@ function scenarios(d) {
     ['', null],
     ['invite', async (page) => void (await clickIf(page, page.getByRole('button', { name: 'Invite people' })))],
     [
+      // Member suggestions while typing, with a chip (PEOPLE-SCREENS 6.2).
+      'invite-suggest',
+      async (page) => {
+        await clickIf(page, page.getByRole('button', { name: 'Invite people' }))
+        const input = page.getByRole('combobox', { name: 'Email addresses' })
+        if (!(await input.count())) return
+        await input.pressSequentially('ana@example.org,', { delay: 10 })
+        await input.pressSequentially('ex', { delay: 40 })
+        await wait(800)
+      },
+    ],
+    [
       'row-menu',
       async (page) => {
         await closeOverlays(page)
@@ -535,6 +547,17 @@ function scenarios(d) {
   add('preview', `${formPath}/preview`, undefined, { scroll: true })
   add('share', `${formPath}/share`, [
     ['', null],
+    [
+      // Member suggestions under "Add someone by email" (PEOPLE-SCREENS 6.2).
+      'suggest',
+      async (page) => {
+        const input = page.getByRole('combobox', { name: 'Add someone by email' })
+        if (!(await input.count())) return
+        await input.click()
+        await input.pressSequentially('ex', { delay: 40 })
+        await wait(800)
+      },
+    ],
     [
       // Raising a submissions viewer opens the "Notify by email" dialog (PEOPLE-SCREENS 6.1).
       // Only when email is set up: otherwise the change would save at once.

@@ -3,7 +3,7 @@
  * someone gets a role or a higher one (PEOPLE-SCREENS 6.1). */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { MailIcon, XIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import {
@@ -22,7 +22,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
+import { MemberCombobox } from '@/components/people/member-combobox'
+import { accessNote } from '@/components/people/member-search-lib'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -48,6 +49,7 @@ function initials(e: { displayName?: string; email: string }): string {
 export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: string }) {
   const queryClient = useQueryClient()
   const access = useQuery({ queryKey: ['access', formId], queryFn: () => api.getAccess(formId) })
+  const formRef = useRef<HTMLFormElement>(null)
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<FormRole>('viewer')
   const [error, setError] = useState<string | null>(null)
@@ -241,6 +243,7 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
         )}
         {manage ? (
           <form
+            ref={formRef}
             className="flex flex-col gap-2"
             onSubmit={(ev) => {
               ev.preventDefault()
@@ -259,23 +262,52 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
             }}
           >
             <Field>
-              <FieldLabel htmlFor="access-email">Add someone by email</FieldLabel>
+              <FieldLabel id="access-email-label">Add someone by email</FieldLabel>
               <div className="flex flex-wrap gap-2">
                 {/* Only the email input is marked invalid; the role select keeps its colours. */}
                 <Field data-invalid={error ? true : undefined} className="min-w-48 flex-1">
-                  <Input
-                    id="access-email"
-                    type="email"
-                    autoComplete="off"
-                    placeholder="name@example.org"
+                  <MemberCombobox
+                    label="Add someone by email"
+                    labelId="access-email-label"
+                    orgId={access.data?.orgId}
+                    formId={formId}
                     value={email}
-                    aria-invalid={error ? true : undefined}
-                    aria-describedby={error ? 'access-email-error' : undefined}
-                    onChange={(ev) => {
-                      setEmail(ev.target.value)
+                    placeholder="Name or name@example.org"
+                    invalid={!!error}
+                    describedBy={error ? 'access-email-error' : undefined}
+                    onValueChange={(v) => {
+                      setEmail(v)
                       setError(null)
                       setOutsider(null)
                     }}
+                    onPick={(m) => setEmail(m.email)}
+                    unavailable={accessNote}
+                    freeEntry={(address) => {
+                      const invited = pending.find((p) => p.email === address)
+                      if (invited)
+                        return { note: `Already invited. They get ${ROLES[invited.role].toLowerCase()} access when they accept.` }
+                      if (access.data?.canInvite)
+                        return {
+                          label: (
+                            <>
+                              Invite <bdi dir="ltr">{address}</bdi> to <bdi dir="auto">{access.data.orgName}</bdi>
+                            </>
+                          ),
+                          onSelect: () => {
+                            setEmail(address)
+                            setOutsider({ email: address, role })
+                          },
+                        }
+                      return {
+                        note: (
+                          <>
+                            <bdi dir="ltr">{address}</bdi> isn't in <bdi dir="auto">{access.data?.orgName || 'your organisation'}</bdi> yet.
+                            Ask an organisation admin to invite them.
+                          </>
+                        ),
+                      }
+                    }}
+                    onEnter={() => formRef.current?.requestSubmit()}
                   />
                 </Field>
                 <Select value={role} onValueChange={(v) => setRole(v as FormRole)}>
