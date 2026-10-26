@@ -28,10 +28,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ApiError, type FormRole } from '@/lib/api'
 
-import { askErrorText, insightsApi, type AskMessage, type AskState, type ChartSpec, type Insights, type QueryStep } from './api'
+import { askErrorText, insightsApi, plain, type AskMessage, type AskState, type ChartSpec, type Insights, type QueryStep } from './api'
 import { BarList } from './charts'
 
 const MAX = 2000
+
 const thaana = /[ހ-޿]/
 
 const OPS: Record<string, string> = {
@@ -189,7 +190,7 @@ function Answer({
     <div className="flex min-w-0 flex-col gap-3">
       {c.status === 'ok' && c.text && (
         <p className="text-sm whitespace-pre-wrap" dir="auto">
-          {c.text}
+          {plain(c.text)}
         </p>
       )}
       {c.status === 'cancelled' && <p className="text-sm text-muted-foreground">Stopped.</p>}

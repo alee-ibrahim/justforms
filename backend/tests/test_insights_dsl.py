@@ -196,7 +196,7 @@ async def test_repeater_rows_and_mapping(db: AsyncSession) -> None:
     assert res["matched"] == {"submissions": 4, "rows": 7}
     assert res["aggregates"]["count"] == 7
     assert res["aggregates"]["avg:member_age"] == pytest.approx(
-        (30 + 41 + 25 + 19 + 52 + 47) / 6, abs=1e-3
+        (30 + 41 + 25 + 19 + 52 + 47) / 6, abs=0.01
     )
     # A condition on a row question: submissions with at least one such row.
     assert await count(db, s, {"field": "member_age", "op": "gte", "value": 50}) == 1

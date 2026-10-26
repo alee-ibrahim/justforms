@@ -209,3 +209,8 @@ export function askErrorText(code: string | null | undefined): string {
       return "Couldn't get an answer. Try again."
   }
 }
+
+/** The reply as plain text: models sometimes add Markdown emphasis anyway. */
+export function plain(text: string): string {
+  return text.replace(/\*\*(.+?)\*\*/g, '$1').replace(/^#{1,6}\s+/gm, '')
+}

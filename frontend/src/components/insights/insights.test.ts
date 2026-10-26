@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { validateSubmissionsSearch } from '@/components/submissions/search'
 import { filterParams } from '@/lib/api'
 
-import { askErrorText } from './api'
+import { askErrorText, plain } from './api'
 import { fileName } from './png'
 
 describe('conditions in the Submissions URL', () => {
@@ -38,6 +38,10 @@ describe('Insights helpers', () => {
   it('names PNG files after the question', () => {
     expect(fileName('How useful was the last workshop?')).toBe('how-useful-was-the-last-workshop.png')
     expect(fileName('ތާނަ')).toBe('chart.png')
+  })
+
+  it('shows replies as plain text', () => {
+    expect(plain('**14 of 42** ticked it\n## Notes\n- a')).toBe('14 of 42 ticked it\nNotes\n- a')
   })
 
   it('explains errors in plain words', () => {

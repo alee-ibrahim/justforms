@@ -606,9 +606,9 @@ def _num_out(v: Any) -> Any:
         return None
     if isinstance(v, Decimal):
         f = float(v)
-        return int(f) if f.is_integer() else round(f, 4)
+        return int(f) if f.is_integer() else round(f, 2)
     if isinstance(v, float):
-        return int(v) if v.is_integer() else round(v, 4)
+        return int(v) if v.is_integer() else round(v, 2)
     return v
 
 
