@@ -93,7 +93,9 @@ external secrets operator").
 - Thaana stack: `Faruma, "MV Faseyha", "Noto Sans Thaana", sans-serif`. Only Noto Sans Thaana (OFL)
   is bundled. **Never commit Faruma/MV font files** — operators drop them into the fonts directory
   served at `/fonts/` (see README).
-- The PDF renderer embeds TTFs from `backend/app/pdf/fonts/` (Atkinson Hyperlegible Next and Noto
+- Latin UI and form text is Inter (`@fontsource-variable/inter`, self-hosted); Atkinson
+  Hyperlegible Next is an optional form-theme font. Type scale and figures: docs/ux/DESIGN-SYSTEM.md 4.
+- The PDF renderer embeds TTFs from `backend/app/pdf/fonts/` (Inter, a Latin subset, and Noto
   Sans Thaana, both SIL OFL, licence files alongside). Only add fonts there under a licence that
   allows embedding.
 - Operators can supply a Thaana TTF/OTF for server rendering (PDFs and link-preview images) with

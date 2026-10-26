@@ -25,7 +25,7 @@ HexColor = Annotated[str, StringConstraints(pattern=r"^#[0-9a-fA-F]{6}$")]
 ImageRef = Annotated[str, StringConstraints(pattern=r"^([0-9a-f]{16}\.webp|none)$")]
 FontId = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9-]{0,59}$")]
 
-LatinFont = Literal["atkinson", "inter", "ibm-plex-sans", "source-serif-4", "noto-sans"]
+LatinFont = Literal["inter", "atkinson", "ibm-plex-sans", "source-serif-4", "noto-sans"]
 TextSize = Literal["s", "m", "l", "xl"]
 HeadingScale = Literal["compact", "standard", "large"]
 Radius = Literal["none", "small", "medium", "large"]
@@ -109,7 +109,7 @@ class FormTheme(ThemeModel):
 class ResolvedTheme(ThemeModel):
     """Every value concrete, after inheritance."""
 
-    latin_font: LatinFont = "atkinson"
+    latin_font: LatinFont = "inter"
     thaana_font: str = "faruma"
     text_size: TextSize = "m"
     heading_scale: HeadingScale = "standard"

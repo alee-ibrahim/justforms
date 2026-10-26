@@ -589,7 +589,7 @@ export function FormRenderer({
         <Separator />
         <div
           key={pageId}
-          className="flex flex-col gap-[var(--df-gap,2rem)] duration-120 animate-in fade-in motion-reduce:animate-none"
+          className="flex flex-col gap-[var(--df-space,2rem)] duration-120 animate-in fade-in motion-reduce:animate-none"
         >
           {(page.title || page.description) && (
             <div className="flex flex-col gap-1">
@@ -606,7 +606,7 @@ export function FormRenderer({
                 </h2>
               )}
               {page.description && (
-                <Markdown text={page.description} className="max-w-xl text-base text-muted-foreground" rtl={language === 'dv'} />
+                <Markdown text={page.description} className="max-w-[36em] text-base text-muted-foreground" rtl={language === 'dv'} />
               )}
             </div>
           )}
@@ -728,7 +728,7 @@ export function FormRenderer({
           <div
             ref={sheetRef}
             className={cn(
-              '@container mx-auto flex w-full max-w-[var(--df-page-width,40rem)] flex-col gap-6 bg-card p-5 md:p-10',
+              '@container mx-auto flex w-full max-w-[var(--df-sheet,40rem)] flex-col gap-6 bg-card p-5 md:p-10',
               frame === 'page' && !embed && 'md:rounded-md md:border',
               embed && 'bg-transparent p-0 md:p-0',
             )}
@@ -834,7 +834,7 @@ export function FormHeader({
       {description !== undefined
         ? description
         : form.settings.description && (
-            <Markdown text={form.settings.description} className="max-w-xl text-base text-muted-foreground" rtl={language === 'dv'} />
+            <Markdown text={form.settings.description} className="max-w-[36em] text-base text-muted-foreground" rtl={language === 'dv'} />
           )}
     </header>
   )

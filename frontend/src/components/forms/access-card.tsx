@@ -166,7 +166,7 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
                   ) : manage ? (
                     <>
                       <Select value={e.role} onValueChange={(v) => change(e, v as FormRole)} disabled={lastOwner(e) || save.isPending}>
-                        <SelectTrigger size="sm" className="w-44" aria-label={`Role of ${e.displayName || e.email}`}>
+                        <SelectTrigger size="sm" className="w-48" aria-label={`Role of ${e.displayName || e.email}`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -311,7 +311,7 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
                   />
                 </Field>
                 <Select value={role} onValueChange={(v) => setRole(v as FormRole)}>
-                  <SelectTrigger className="w-44" aria-label="Role">
+                  <SelectTrigger className="w-48" aria-label="Role">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

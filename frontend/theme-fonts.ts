@@ -1,7 +1,7 @@
 /**
- * Latin fonts a form theme can choose (backend app/theme/fonts.py): built into
- * `/theme-fonts/{id}.css` plus content-hashed `.woff2` files from the SIL OFL @fontsource
- * packages, Latin and Latin Extended subsets only. They are plain CSS, so the public form's
+ * Latin fonts a form theme can choose besides the bundled default, Inter (backend
+ * app/theme/fonts.py): built into `/theme-fonts/{id}.css` plus content-hashed `.woff2` files from
+ * the SIL OFL @fontsource packages, Latin and Latin Extended subsets only. They are plain CSS, so the public form's
  * JavaScript doesn't grow; a page fetches one only when its theme `@import`s it. The dev server
  * serves the same files.
  */
@@ -11,7 +11,7 @@ import path from 'node:path'
 import type { Plugin } from 'vite'
 
 export const THEME_FONTS: Record<string, string> = {
-  inter: '@fontsource-variable/inter',
+  atkinson: '@fontsource-variable/atkinson-hyperlegible-next',
   'ibm-plex-sans': '@fontsource-variable/ibm-plex-sans',
   'source-serif-4': '@fontsource-variable/source-serif-4',
   'noto-sans': '@fontsource-variable/noto-sans',

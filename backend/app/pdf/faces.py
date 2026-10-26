@@ -29,6 +29,18 @@ from app.config import Settings
 log = logging.getLogger(__name__)
 
 FONTS = Path(__file__).parent / "fonts"
+# The Latin face for PDFs and link-preview images: Inter 4.1 (SIL OFL), the studio and form
+# default (DESIGN-SYSTEM 4.1). Static Regular and Bold cut from the release and subset to Latin,
+# Latin Extended, Vietnamese, punctuation, currency and arrows without hinting:
+#   pyftsubset Inter-Regular.ttf --unicodes="U+0000-024F,U+0259,U+02B0-02FF,U+0300-036F,
+#     U+1E00-1EFF,U+2000-206F,U+20A0-20CF,U+2100-218F,U+2190-21FF,U+2212-2215,U+2219,U+221E,
+#     U+2248,U+2260-2265,U+25A0-25FF,U+2713-2717,U+FB01-FB02,U+FEFF,U+FFFD"
+#     --layout-features="kern,liga,calt,ccmp,locl,mark,mkmk,tnum,pnum,lnum,case,frac,numr,dnom,
+#     sups,subs" --name-IDs="*" --name-languages="*" --notdef-outline --no-hinting
+LATIN_REGULAR = FONTS / "Inter-Regular.ttf"
+LATIN_BOLD = FONTS / "Inter-Bold.ttf"
+# Part of the link-preview image version: changing the Latin face makes new images.
+LATIN_VERSION = "inter-4.1"
 BUNDLED_REGULAR = FONTS / "NotoSansThaana-Regular.ttf"
 BUNDLED_BOLD = FONTS / "NotoSansThaana-Bold.ttf"
 # Larger files are refused (a Thaana face is tens to hundreds of kilobytes).

@@ -89,7 +89,7 @@ _TEMPLATES = {
     "layout.html": """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>{{ subject }}</title></head>
-<body style="margin:0;padding:24px;background:#F3F5F9;color:#18203A;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5">
+<body style="margin:0;padding:24px;background:#F3F5F9;color:#18203A;font-family:Inter,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:15px;line-height:1.5">
 {% if brand.custom %}<div style="max-width:560px;margin:0 auto 12px">{% if brand.logo_url %}<img src="{{ brand.logo_url }}" alt="{{ brand.name }}" height="32" style="display:block;height:32px;max-width:240px;border:0">{% else %}<strong style="font-size:16px;color:#18203A">{{ brand.name }}</strong>{% endif %}</div>
 {% endif %}<div style="max-width:560px;margin:0 auto;background:#FFFFFF;border:1px solid #DCE0EA;border-radius:6px;padding:28px">
 {% block body %}{% endblock %}
@@ -101,7 +101,7 @@ _TEMPLATES = {
 {% for a in answers %}
 <tr><td lang="{{ lang }}" style="padding:8px 0;border-top:1px solid #DCE0EA;text-align:{{ align }}{{ font }}" align="{{ align }}">
 <div style="color:#3A425E;font-size:{{ label_px }}px;line-height:1.75">{{ a.label }}</div>
-<div style="white-space:pre-wrap;font-size:{{ answer_px }}px;line-height:1.75">{% if a.ltr %}<bdi dir="ltr" style="font-family:Arial,Helvetica,sans-serif">{{ a.value }}</bdi>{% else %}{{ a.value }}{% endif %}</div></td></tr>
+<div style="white-space:pre-wrap;font-size:{{ answer_px }}px;line-height:1.75">{% if a.ltr %}<bdi dir="ltr" style="font-family:Inter,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">{{ a.value }}</bdi>{% else %}{{ a.value }}{% endif %}</div></td></tr>
 {% endfor %}
 </table>
 {% endif %}""",
@@ -155,7 +155,7 @@ Answers are not included in this email.
     "code.html": """{% extends "layout.html" %}{% block body %}
 <h1 style="margin:0 0 12px;font-size:20px{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
 <p style="margin:0 0 12px">{{ body }}</p>
-<p style="margin:0 0 16px;font-size:28px;letter-spacing:4px;font-family:monospace">{{ code }}</p>
+<p style="margin:0 0 16px;font-size:28px;letter-spacing:4px;font-family:Inter,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-variant-numeric:tabular-nums">{{ code }}</p>
 <p style="margin:0;color:#5A6380">{{ w.code_ignore }}</p>
 {% endblock %}""",
     "code.txt": """{{ title }}

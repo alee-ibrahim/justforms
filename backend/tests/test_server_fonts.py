@@ -99,7 +99,7 @@ def test_operator_font_is_embedded_in_pdfs_for_thaana_only(tmp_path: Path) -> No
     assert b"+TestThaana" in pdf
     assert b"NotoSansThaana" not in pdf
     # Latin letters in a Dhivehi answer keep the Latin face.
-    assert b"AtkinsonHyperlegibleNext" in pdf
+    assert b"Inter" in pdf
 
 
 def test_bold_file_is_used_for_bold(tmp_path: Path) -> None:
@@ -154,7 +154,7 @@ def test_unusable_files_fall_back_and_warn_once(
         path = tmp_path / "junk.ttf"
         path.write_bytes(b"\x00\x01\x00\x00" + b"junk" * 100)
     else:
-        path = faces.FONTS / "AtkinsonHyperlegibleNext-Regular.ttf"
+        path = faces.LATIN_REGULAR
     settings = _settings(path)
     with caplog.at_level(logging.WARNING, logger="app.pdf.faces"):
         assert thaana_face(settings, "pdf") is BUNDLED

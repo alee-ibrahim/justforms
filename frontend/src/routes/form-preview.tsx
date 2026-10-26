@@ -52,7 +52,7 @@ function LogicTrace({ form, ev }: { form: Form; ev: Evaluation | null }) {
     .map((id) => index.elements.get(id))
     .filter((info) => info && ev.path.includes(form.pages[info.pageIndex].id) && info.element.visibleIf)
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="mx-auto w-full max-w-[40rem]">
+    <Collapsible open={open} onOpenChange={setOpen} className="mx-auto w-full max-w-[var(--df-sheet,40rem)]">
       <CollapsibleTrigger asChild>
         <Button variant="ghost" size="sm" className="group/t">
           <ChevronRightIcon className="transition-transform group-data-[state=open]/t:rotate-90 motion-reduce:transition-none" />
@@ -132,6 +132,7 @@ export function FormPreviewPage() {
       </div>
       <div
         {...scope}
+        data-df-device={device}
         className={cn(
           scope.className,
           'mx-auto w-full overflow-hidden text-foreground',

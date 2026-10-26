@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.models import FormPermission, FormRecord, FormRole, User
+from app.pdf import faces
 from app.sharing import image as og
 from app.sharing import meta
 from app.sharing import service as sharing
@@ -141,7 +142,7 @@ def test_generated_image_size_and_weight() -> None:
 def test_thaana_title_is_shaped_and_right_aligned() -> None:
     import uharfbuzz as hb
 
-    font = hb.Font(hb.Face(hb.Blob.from_file_path(str(og.FONTS / "NotoSansThaana-Bold.ttf"))))
+    font = hb.Font(hb.Face(hb.Blob.from_file_path(str(faces.BUNDLED_BOLD))))
     buf = hb.Buffer()
     buf.add_str(DV_TITLE)
     buf.guess_segment_properties()

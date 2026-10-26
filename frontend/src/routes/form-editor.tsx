@@ -45,7 +45,7 @@ function useMedia(query: string): boolean {
 function PageSheet() {
   return (
     <>
-      <div className="mx-auto w-full max-w-[40rem]" onClick={(e) => e.stopPropagation()}>
+      <div className="mx-auto w-full max-w-[var(--df-sheet,40rem)]" onClick={(e) => e.stopPropagation()}>
         <PageStrip />
       </div>
       <Canvas />
@@ -79,7 +79,7 @@ function CanvasPane({ narrow, phone, onBackToChat }: { narrow: boolean; phone?: 
           {narrow && !locked && (
             <Drawer open={paletteOpen} onOpenChange={setPaletteOpen}>
               <DrawerTrigger asChild>
-                <Button className="mx-auto w-full max-w-[40rem]" variant="outline" onClick={(e) => e.stopPropagation()}>
+                <Button className="mx-auto w-full max-w-[var(--df-sheet,40rem)]" variant="outline" onClick={(e) => e.stopPropagation()}>
                   <PlusIcon />
                   Add question
                 </Button>

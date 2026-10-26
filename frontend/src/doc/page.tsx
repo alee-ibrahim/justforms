@@ -43,7 +43,7 @@ export function Page({ children, brand }: { children?: ReactNode; brand?: Brand 
   return (
     <div className="min-h-svh bg-background md:px-6 md:py-12" {...themeAttrs(brand?.theme)} data-df-frame="page">
       <main
-        className="mx-auto flex max-w-[var(--df-page-width,40rem)] flex-col gap-6 bg-card p-5 max-md:min-h-svh md:rounded-md md:border md:p-10"
+        className="mx-auto flex max-w-[var(--df-sheet,40rem)] flex-col gap-6 bg-card p-5 max-md:min-h-svh md:rounded-md md:border md:p-10"
       >
         {brand?.logoUrl && brand.theme?.logoPlacement !== 'hidden' && <PageLogo brand={brand} />}
         {loading ? show && <Skeleton className="h-40 w-full" /> : children}

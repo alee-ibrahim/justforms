@@ -62,8 +62,8 @@ own complex text layout needs libraqm and FriBiDi, which slim containers lack.
   description; if it can't, the description drops to one line, then none; at the smallest size
   the third line ends with an ellipsis.
 - **Theme.** Card background, text, muted text and primary band from the form theme's light
-  values (contrast already checked by the theme, DESIGN 18.3). Latin text is always Atkinson
-  Hyperlegible Next (the theme's other Latin fonts are web fonts only).
+  values (contrast already checked by the theme, DESIGN 18.3). Latin text is always Inter
+  (the theme's other Latin fonts are web fonts only).
 - **Logo.** The form's own logo, else the organisation's logo, else its icon; none when the
   theme hides the logo. PNG or the sanitised SVG.
 - **Cache.** Stored at `og/{form_id}/{version}.png`. `version` hashes everything drawn

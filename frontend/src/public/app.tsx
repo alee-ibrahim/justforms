@@ -28,7 +28,7 @@ export function Loading() {
   const show = useDelayed(true)
   return (
     <div className="min-h-svh bg-background md:px-6 md:py-12" {...themeAttrs(null)} data-df-frame="page">
-      <div className="mx-auto flex max-w-[var(--df-page-width,40rem)] flex-col gap-6 bg-card p-5 md:rounded-md md:border md:p-10">
+      <div className="mx-auto flex max-w-[var(--df-sheet,40rem)] flex-col gap-6 bg-card p-5 md:rounded-md md:border md:p-10">
         {show && (
           <>
             <Skeleton className="h-9 w-3/4" />
@@ -96,7 +96,7 @@ export function App() {
           : { title: MSG.loadFailedTitle, body: MSG.loadFailedBody }
     return (
       <div className="min-h-svh bg-background md:px-6 md:py-12" {...themeAttrs(null)} data-df-frame="page">
-        <main className="mx-auto max-w-[var(--df-page-width,40rem)] bg-card p-5 md:rounded-md md:border md:p-10">
+        <main className="mx-auto max-w-[var(--df-sheet,40rem)] bg-card p-5 md:rounded-md md:border md:p-10">
           <StatusScreen title={screen.title} body={screen.body} />
         </main>
       </div>

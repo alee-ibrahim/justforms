@@ -102,7 +102,7 @@ organisation from JustForms' defaults (and the instance brand colour).
 | | Muted text (descriptions, help) | `#RRGGBB` | derived from text |
 | | Borders (dividers, card edge) | `#RRGGBB` | derived from text |
 | | Errors | `#RRGGBB` | Stamp |
-| Text | Latin font | Atkinson Hyperlegible Next, Inter, IBM Plex Sans, Source Serif 4, Noto Sans | Atkinson |
+| Text | Latin font | Inter, Atkinson Hyperlegible Next, IBM Plex Sans, Source Serif 4, Noto Sans | Inter |
 | | Thaana font | the install's list (Faruma, MV Faseyha, MV Waheed, …) | Faruma |
 | | Text size | Small, Medium, Large, Extra large (0.9375, 1, 1.125, 1.25×) | Medium |
 | | Headings | Compact, Standard, Large (0.875, 1, 1.15× of the title sizes) | Standard |
@@ -220,7 +220,7 @@ read).
   canvas root). The canvas follows the form's colour mode (Light/Dark); "Match device" follows
   the studio.
 - **PDF**: the primary colour for the title rule and section headings, nothing else; fonts stay
-  Atkinson Hyperlegible Next and Noto Sans Thaana (embedded, licensed for it). The PDF stays a
+  Inter and Noto Sans Thaana (embedded, licensed for it). The PDF stays a
   clean document.
 - **Emails** about a form (receipt, approval requests, outcome, owner notification): the
   button uses the form's primary.

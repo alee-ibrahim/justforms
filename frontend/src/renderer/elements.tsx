@@ -31,11 +31,11 @@ import { En } from './msg'
 import { isGroupControl, widthClass } from './util'
 
 /** Help text may hold lists and paragraphs, so it is a div styled like FieldDescription. */
-export const DESCRIPTION = 'max-w-xl text-base text-muted-foreground'
+export const DESCRIPTION = 'max-w-[36em] text-base text-muted-foreground'
 
 /** Grid that pairs half-width questions on ≥ sm and stacks them on phones. */
 export function QuestionGrid({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('grid gap-[var(--df-gap,2rem)] @min-[32rem]:grid-cols-2', className)}>{children}</div>
+  return <div className={cn('grid gap-[var(--df-space,2rem)] @min-[32rem]:grid-cols-2', className)}>{children}</div>
 }
 
 /** "(optional)" / "(required)" after the label, per the form's convention. */
@@ -169,7 +169,7 @@ export function ContentView({ el, placeholder }: { el: ContentElement; placehold
       return <h3 className="text-xl font-semibold tracking-tight">{el.text ? displayText(el.text, language) : placeholder}</h3>
     case 'paragraph':
       return el.text ? (
-        <Markdown text={el.text} className="max-w-xl text-base" rtl={language === 'dv'} />
+        <Markdown text={el.text} className="max-w-[36em] text-base" rtl={language === 'dv'} />
       ) : (
         <p className="text-base">{placeholder}</p>
       )
@@ -208,7 +208,7 @@ export function SectionFrame({
       {description !== undefined
         ? description
         : el.description && <Markdown text={el.description} className={DESCRIPTION} rtl={language === 'dv'} />}
-      <FieldGroup className="gap-[var(--df-gap,2rem)] @min-[32rem]:border-s @min-[32rem]:ps-4">{children}</FieldGroup>
+      <FieldGroup className="gap-[var(--df-space,2rem)] @min-[32rem]:border-s @min-[32rem]:ps-4">{children}</FieldGroup>
     </FieldSet>
   )
 }

@@ -512,7 +512,7 @@ function Sheet({
         </>
       ) : (
         show && (
-          <div className="mx-auto flex w-full max-w-[40rem] flex-col gap-8 bg-card p-5 sm:rounded-md sm:border md:p-10">
+          <div className="mx-auto flex w-full max-w-[var(--df-sheet,40rem)] flex-col gap-8 bg-card p-5 sm:rounded-md sm:border md:p-10">
             {Array.from({ length: 6 }, (_, i) => (
               <div key={i} className="flex flex-col gap-2">
                 <Skeleton className="h-4 w-1/3" />
@@ -530,7 +530,7 @@ function SkippedSwitch({ d, on, onChange }: { d: SubmissionDetail; on: boolean; 
   const { skippedCount } = useLogic(d.schema, d.data)
   if (!skippedCount) return null
   return (
-    <div className="mx-auto flex w-full max-w-[var(--df-page-width,40rem)] px-4 pt-3 sm:px-0 sm:pt-0 print:hidden">
+    <div className="mx-auto flex w-full max-w-[var(--df-sheet,40rem)] px-4 pt-3 sm:px-0 sm:pt-0 print:hidden">
       <Field orientation="horizontal" className="w-auto">
         <Switch id="show-skipped" checked={on} onCheckedChange={onChange} />
         <FieldLabel htmlFor="show-skipped" className="font-normal">
@@ -559,7 +559,7 @@ function SheetBody({
       <article
         {...contentProps(language)}
         aria-label="Answers"
-        className="@container mx-auto flex w-full max-w-[var(--df-page-width,40rem)] flex-col gap-6 bg-card p-5 text-base sm:rounded-md sm:border md:p-10 print:max-w-none print:border-0 print:p-0"
+        className="@container mx-auto flex w-full max-w-[var(--df-sheet,40rem)] flex-col gap-6 bg-card p-5 text-base sm:rounded-md sm:border md:p-10 print:max-w-none print:border-0 print:p-0"
       >
         <FormHeader form={d.schema} theme={options ? { ...options, headerImageUrl: null } : undefined} description={null} />
         <Answers

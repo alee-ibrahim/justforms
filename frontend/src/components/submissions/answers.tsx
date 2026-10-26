@@ -247,7 +247,7 @@ export function AnswerValue({ field, value, row }: { field: FieldElement; value:
           </Line>
         )
       return (
-        <Line className={cn('whitespace-pre-wrap', field.type === 'long_text' && 'max-w-xl')}>
+        <Line className={cn('whitespace-pre-wrap', field.type === 'long_text' && 'max-w-[36em]')}>
           <bdi dir="auto">{displayText(text, language)}</bdi>
         </Line>
       )
@@ -374,7 +374,7 @@ export function Answers({
     .filter(({ page }) => !logic.skippedPages.has(page.id) || hasAnswers(page.elements ?? [], data))
   return (
     <AnswerContext value={{ language, signatures, imported, reveal, showSkipped, isVisible: logic.isVisible }}>
-      <div className="flex flex-col gap-[var(--df-gap,2rem)]">
+      <div className="flex flex-col gap-[var(--df-space,2rem)]">
         {pages.map(({ page, i }, n) => (
           <Fragment key={page.id}>
             {n > 0 && <Separator />}

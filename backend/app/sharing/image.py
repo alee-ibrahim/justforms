@@ -8,9 +8,10 @@ libraqm and FriBiDi, which slim containers don't have).
 Layout, mirrored for Dhivehi forms: the logo and organisation name at the top start, the form
 title (up to three lines, the largest size that fits), an optional description (up to two
 lines), the form's address at the bottom start, and a band in the primary colour along the
-bottom edge. Colours are the form theme's light values; Latin text uses the bundled Atkinson
-Hyperlegible Next and Thaana the install's server Thaana face (``app.pdf.faces``: the operator's
-``JUSTFORMS_THAANA_FONT_FILE``, else the bundled Noto Sans Thaana).
+bottom edge. Colours are the form theme's light values; Latin text uses the bundled Inter
+(``app.pdf.faces.LATIN_REGULAR``) and Thaana the install's server Thaana face
+(``app.pdf.faces``: the operator's ``JUSTFORMS_THAANA_FONT_FILE``, else the bundled Noto Sans
+Thaana).
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ from fpdf import FPDF
 from fpdf.enums import Align
 from PIL import Image
 
-from app.pdf.faces import BUNDLED, FONTS, ThaanaFace
+from app.pdf.faces import BUNDLED, LATIN_BOLD, LATIN_REGULAR, ThaanaFace
 from app.pdf.render import add_thaana
 
 WIDTH, HEIGHT = 1200, 630
@@ -85,8 +86,8 @@ class _Canvas(FPDF):
         self.set_auto_page_break(False)
         self.set_margins(0, 0, 0)
         self.c_margin = 0
-        self.add_font("latin", "", str(FONTS / "AtkinsonHyperlegibleNext-Regular.ttf"))
-        self.add_font("latin", "B", str(FONTS / "AtkinsonHyperlegibleNext-Bold.ttf"))
+        self.add_font("latin", "", str(LATIN_REGULAR))
+        self.add_font("latin", "B", str(LATIN_BOLD))
         add_thaana(self, thaana)
         self.add_page()
 

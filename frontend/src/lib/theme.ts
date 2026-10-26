@@ -81,7 +81,7 @@ export interface ThemeBase {
 
 export const JUSTFORMS_DEFAULTS: ThemeBase = {
   resolved: {
-    latinFont: 'atkinson',
+    latinFont: 'inter',
     thaanaFont: 'faruma',
     textSize: 'm',
     headingScale: 'standard',

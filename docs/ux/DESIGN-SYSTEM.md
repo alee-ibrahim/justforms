@@ -1,6 +1,7 @@
 # JustForms design system
 
-Status: v1 plan for Phase 2 (builder and renderer). Owner: UI/UX.
+Status: v1 plan for Phase 2 (builder and renderer); v2 typography (Inter, studio scale, desktop
+step-up for forms, sections 4 and 6). Owner: UI/UX.
 Applies to the studio (staff building and reviewing forms) and the public form renderer
 (people filling forms, mostly on phones).
 
@@ -131,15 +132,34 @@ fixed so every form remains legible and recognisably JustForms.
 
 | Role | Family | Why | Source |
 |---|---|---|---|
-| Latin UI and form text | **Atkinson Hyperlegible Next** (variable, 200–800) | Designed for low-vision readers: unambiguous `Il1`, `O0`, `rn/m`. Respondents type ID numbers, phone numbers and codes into these forms and read them back. That is the job, so the face is chosen for it. It also gives JustForms a voice that is not the default SaaS grotesk. | `@fontsource-variable/atkinson-hyperlegible-next` (SIL OFL) |
-| Code-like values | **Atkinson Hyperlegible Mono** | Only for things that literally are code: field keys (`full_name`), hashes, embed snippets, version ids. Never for general small labels. | `@fontsource-variable/atkinson-hyperlegible-mono` (SIL OFL) |
+| Latin UI and form text | **Inter** (variable, 100–900) | A clean, neutral sans with a tall x-height that stays readable at 13–15px in dense studio tables and scales up well for form questions. Its default figures are plain: the zero has no slash or dot, `1`, `4` and `7` are unambiguous, and `tnum` gives equal-width figures for columns. Atkinson Hyperlegible Next (the v1 choice) read badly in practice: its slashed zero turned `40` into "4Ø" and reference numbers like `#0040` into a row of crossed circles. Geist and IBM Plex Sans were considered: Geist's figures are narrow and its small sizes light; Plex's squarish digits and flagged `1` feel technical next to form questions. | `@fontsource-variable/inter` (SIL OFL), weight axis only (`inter/wght.css`) |
+| Code-like values | **Atkinson Hyperlegible Mono** | Only for things that literally are code: field keys (`full_name`), hashes, embed snippets, version ids, env var names. Its slashed zero is right there (a hash must never be misread). Never for general small labels, references, dates or amounts. | `@fontsource-variable/atkinson-hyperlegible-mono` (SIL OFL) |
 | Thaana | `Faruma, "MV Faseyha", "Noto Sans Thaana", sans-serif` | Faruma is what Dhivehi readers expect on official forms. Noto Sans Thaana is the bundled fallback. Never commit Faruma or MV files. | runtime stylesheet `JUSTFORMS_THAANA_FONT_CSS_URL` (default: dvfonts CDN; or self-hosted `/fonts/...`; or empty), operator `/fonts/fonts.css`, `@fontsource/noto-sans-thaana` |
+
+Loading: Inter is self-hosted from the app's own assets (no font CDN). Its `@font-face` rules
+carry `unicode-range`, so a Latin page downloads only the Latin file (about 47 KB of woff2, a
+CSS asset, not JavaScript: the public bundle budget is unaffected); the Latin Extended,
+Vietnamese, Greek and Cyrillic files are fetched only when such text appears.
+`font-display: swap` with an `'Inter Fallback'` face (local Arial with Inter's metrics:
+`size-adjust: 107.06%`, `ascent-override: 90.49%`, `descent-override: 22.56%`), so text does
+not jump when Inter arrives.
+
+Form themes can still pick another Latin family (FORM-THEME-SCREENS 3.1): Atkinson Hyperlegible
+Next, IBM Plex Sans, Source Serif 4 and Noto Sans are `/theme-fonts/{id}.css`, fetched only by
+pages whose theme uses them. The instance default is Inter; an organisation or form that chose a
+font explicitly keeps it.
+
+Server rendering (signed PDFs, link-preview images) embeds static Inter Regular and Bold
+(`backend/app/pdf/fonts/`, OFL licence alongside, subset to Latin, Latin Extended, Vietnamese,
+punctuation, currency and arrows; the `pyftsubset` command is in `app/pdf/faces.py`). Emails
+cannot load web fonts reliably; they ask for `Inter, 'Segoe UI', Roboto, 'Helvetica Neue',
+Arial, sans-serif` (Inter when installed, a system sans otherwise).
 
 Font variables:
 
 ```css
 @theme inline {
-  --font-sans: 'Atkinson Hyperlegible Next Variable', Faruma, 'MV Faseyha', 'Noto Sans Thaana', sans-serif;
+  --font-sans: 'Inter Variable', 'Inter Fallback', Roboto, 'Segoe UI', 'Helvetica Neue', Arial, Faruma, 'MV Faseyha', 'Noto Sans Thaana', sans-serif;
   --font-heading: var(--font-sans);
   --font-mono: 'Atkinson Hyperlegible Mono Variable', ui-monospace, monospace;
   --font-thaana: Faruma, 'MV Faseyha', 'Noto Sans Thaana', sans-serif;
@@ -153,18 +173,48 @@ so Thaana punctuation (`،` `؟`) and digits come from the Thaana face.
 
 ### 4.2 Scale
 
-Minor third (1.2), rounded to whole pixels, base 16px. Studio uses the shadcn defaults
-(`text-sm` for controls) at a denser rhythm; the public renderer starts one step up.
+Two scales, because the two surfaces do different jobs. Both are Tailwind's `--text-*`
+variables, so shadcn components (which hard-code `text-sm` and friends) follow without edits.
 
-| Token | Latin px / line-height | Thaana px / line-height | Weight | Used for |
-|---|---|---|---|---|
-| `text-xs` | 12 / 16 | 14 / 24 | 500 | badges, counts, keyboard hints |
-| `text-sm` | 14 / 20 | 16 / 28 | 400, 500 for labels | studio controls, table cells, inspector |
-| `text-base` | 16 / 24 | 18 / 32 | 400 | studio body; public help text |
-| `text-lg` | 19 / 28 | 21 / 36 | 600 Latin, 400 Thaana | public field labels; studio panel titles |
-| `text-xl` | 23 / 32 | 26 / 40 | 650 | public page titles; studio page heading |
-| `text-2xl` | 28 / 36 | 31 / 48 | 700 | public form title (mobile) |
-| `text-3xl` | 33 / 40 | 37 / 56 | 700 | public form title (≥ sm); success reference number |
+**Studio** (`@theme` in `index.css`): dense but readable, with a 15px control size.
+
+| Token | px / line-height | Weight | Used for |
+|---|---|---|---|
+| `text-xs` | 13 / 16 | 500 | badges, counts, keyboard hints |
+| `text-sm` | 15 / 22 | 400, 500 for labels | controls, table cells, inspector, cards |
+| `text-base` | 16 / 24 | 400 | body copy, empty states |
+| `text-lg` | 18 / 28 | 600 | panel and card titles |
+| `text-xl` | 24 / 32 | 600, `tracking-tight` | page titles |
+| `text-2xl` | 30 / 38 | 700 | large numbers |
+| `text-3xl` | 36 / 44 | 700 | rare display numbers |
+
+**Form** (every `[data-df-theme]` root: public form, builder canvas, preview, submission sheet,
+approver and verify pages): minor third (1.2) from 16px, multiplied by the theme's text size
+(S 0.9375, M 1, L 1.125, XL 1.25) and, on desktops, by `--df-fit` (section 6).
+
+| Token | Latin px / line-height (M) | Latin ≥ 1024px (M) | Thaana px / line-height (M) | Weight | Used for |
+|---|---|---|---|---|---|
+| `text-xs` | 12 / 16 | 13.5 / 18 | 14 / 24 | 500 | counts, footer |
+| `text-sm` | 14 / 20 | 15.75 / 22.5 | 16 / 28 | 400 | step counter, small help |
+| `text-base` | 16 / 24 | 18 / 27 | 18 / 32 | 400 | answers, help text, descriptions |
+| `text-lg` | 19 / 28 | 21.4 / 29.4 | 21 / 36 | 600 Latin, 400 Thaana | questions (field labels) |
+| `text-xl` | 23 / 32 | 25.9 / 36 | 26 / 40 | 650 | page titles |
+| `text-2xl` | 28 / 36 | 31.5 / 40.5 | 31 / 48 | 700 | form title (phone), success heading |
+| `text-3xl` | 33 / 40 | 37.1 / 45 | 37 / 56 | 700 | form title (≥ sm), success reference number |
+
+Thaana on desktops is multiplied the same way (body 20px, questions 23.6px at M).
+
+### 4.2.1 Figures
+
+- Inter's default figures: plain zero (never the slashed `zero` feature), no stylistic sets.
+- **Tabular** (`font-variant-numeric: tabular-nums`, Tailwind `tabular-nums`) wherever numbers
+  are compared, scanned or read back: tables (`[data-slot=table]`), badges, calendars,
+  pagination, charts, `<time>`, numeric inputs (`inputmode=numeric|decimal`, `type=number`),
+  reference numbers (`#0040`), dates, counts, money, step counters. A global rule in `index.css`
+  covers the slots; add `tabular-nums` at call sites for the rest.
+- **Proportional** everywhere else (running text, labels, descriptions).
+- PDFs: the reference and submitted line and the footer page line are shaped with `tnum`;
+  answers and URLs stay proportional.
 
 Rules:
 - **Thaana is set ~1.12× larger with ~1.75× line-height.** Thaana's vowel signs (fili) sit
@@ -207,8 +257,8 @@ Rules:
 - No all-caps labels anywhere, in either script. Sentence case for every string.
 - Field labels on the public form are `text-lg` (weight 600 Latin, 400 Thaana): the label is the question, it is
   the most important text on the screen.
-- Line length: public form column max 40rem (≈ 70 Latin characters at 16px). Descriptions
-  inside a field max 36rem.
+- Line length: the sheet is 40rem below 1024px and 48rem on desktops (both about 70 Latin
+  characters at the body size). Descriptions max `36em`, so they widen with the type.
 - Numbers in tables use `tabular-nums`.
 - Western digits everywhere, including in dv forms.
 
@@ -241,11 +291,11 @@ Base unit 4px (Tailwind default). Two densities:
 
 | | Studio (compact) | Public form (comfortable) |
 |---|---|---|
-| Control height | 32px (`h-8`, shadcn default) | 48px on phones, 44px ≥ sm (`h-12 sm:h-11`) |
+| Control height | 32px (`h-8`, shadcn default) | 48px on phones, 44px ≥ sm (`h-12 sm:h-11`), 48px ≥ 1024px |
 | Touch target | 32px with 8px gap with a mouse; ≥ 44×44px on touch screens (`pointer: coarse` rules in `index.css`) | ≥ 44×44px always |
-| Field-to-field gap | 16px in inspector | 32px (`gap-8`) between questions |
+| Field-to-field gap | 16px in inspector | 32px between questions (`gap-(--df-space)`, theme density), 36px ≥ 1024px |
 | Label to input | 8px | 8px; description sits between label and input, 4px |
-| Panel padding | 12–16px | sheet padding 20px phone, 40px desktop |
+| Panel padding | 12–16px | sheet padding 20px phone, 40px tablet, 44px ≥ 1024px |
 | Table row | 40px | n/a |
 
 Layout widths:
@@ -253,8 +303,22 @@ Layout widths:
   settings pages.
 - Builder panes: palette 240px (min 200), canvas flexible with the sheet at the form's
   rendered width (40rem), inspector 340px (min 300, max 480). Resizable.
-- Public form: sheet max 40rem, centred on the desk on ≥ md; full-bleed sheet on phones (no
-  desk visible, no outer radius).
+- Public form: sheet max 40rem (`--df-sheet`), centred on the desk on ≥ md, 48rem on desktops;
+  full-bleed sheet on phones (no desk visible, no outer radius).
+
+**Desktop step-up (≥ 1024px).** On a desktop the phone-first form looked small and lost on the
+page. Inside every form root (`[data-df-theme]`) a viewport media query sets:
+
+- `--df-fit: 1.125`: every form `--text-*` (Latin and Thaana) is multiplied by it on top of the
+  theme's text size, so S/M/L/XL keep their steps (M: body 18px, questions 21px);
+- `--spacing: 0.2727rem` (x1.09): Tailwind's spacing unit inside the form only, so 44px
+  controls become 48px and icons, padding and gaps grow in proportion;
+- `--df-space` = `--df-gap` x `--df-fit`: the space between questions (theme density);
+- `--df-sheet` = `--df-page-width` x 1.2: narrow 40.8rem, standard 48rem, wide 57.6rem.
+
+Below 1024px nothing changes. The builder canvas, preview and submission sheet render the same
+sizes as the public page at the same screen width. Studio phone previews
+(`data-df-device="phone"` on the preview frame) keep phone sizes on any screen.
 
 Alignment: everything is start-aligned (left in LTR, right in RTL). Only the success screen
 centres its reference number. Never justify text (Thaana justification uses kashida-like
@@ -329,7 +393,7 @@ I would have produced the same plan for a CRM, a todo app or an invoicing tool. 
 
 | Draft | Problem | Revised to | Why |
 |---|---|---|---|
-| Geist | The default SaaS face; says nothing about forms. | Atkinson Hyperlegible Next + Mono for code | Legibility of codes and numbers is the job of a form. It is the subject's own requirement, not a style pick. |
+| Geist | The default SaaS face; says nothing about forms. | Atkinson Hyperlegible Next + Mono for code (v1); Inter + Atkinson Mono for code (v2, section 4.1) | Legibility of codes and numbers is the job of a form. v2 keeps that goal with plain figures: people found the slashed zero harder, not easier, to read. |
 | Neutral grey + Tailwind blue | Generic; indistinguishable from any shadcn starter. | Desk / Sheet / Ink / Carbon / Marker / Stamp | Taken from the material of paper forms; each colour has one job. |
 | One radius everywhere | SaaS card-kit tell. | Paper sheet `md`, flush panels with no radius, floating layers `lg` | Radius now encodes "is this paper, chrome or floating". |
 | Soft shadow under every field card | SaaS card-kit tell, and heavy on a 30-question form. | Fields are rows on one sheet, separated by space; only floating layers get a shadow | The canvas looks like the form the respondent will see. |
@@ -352,7 +416,7 @@ changed in this plan:
 | Faruma at weight 600 for every label looked smeared and shouted | dv labels at 400, size carries hierarchy (§4.2) |
 | Underlined Thaana links in the error summary cut through the lower vowel signs | `underline-offset-[0.4em]` in dv (§4.2) |
 | Thaana button text looked smaller than its Latin twin because the button hard-codes its size | Scale Thaana by redefining `--text-*` in `:lang(dv)` instead of per-component classes (§4.2) |
-| Atkinson's slashed zero in "30 November" and "+960" | Kept: it is exactly the legibility the face was chosen for |
+| Atkinson's slashed zero in "30 November" and "+960" | Kept at the time. Reversed in v2 (section 4.1): in live use the slashed zero read as "Ø" and made references and amounts look odd |
 | Marker selection wash, carbon drop line and the drag overlay are distinguishable at a glance | Kept |
 | Error state: stamp start bar + inline message + tinted input ring together | Kept, but the ring tint stays subtle (20% stamp) so the bar and the message do the work |
 

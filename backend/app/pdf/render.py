@@ -8,7 +8,7 @@ Audit data (IP address, device, stroke and file hashes, the event chain) is neve
 it stays in the studio, and the hashes that tie the file to its record travel in the signed
 document metadata.
 
-Fonts are bundled under ``fonts/`` (SIL OFL): Atkinson Hyperlegible Next for Latin and
+Fonts are bundled under ``fonts/`` (SIL OFL): Inter for Latin (a subset, ``app.pdf.faces``) and
 Noto Sans Thaana for Thaana. Faruma is never bundled (licence unclear, DESIGN 16); an operator
 can supply a Thaana font for server rendering (``JUSTFORMS_THAANA_FONT_FILE``, ``app.pdf.faces``).
 
@@ -34,7 +34,7 @@ from fpdf.enums import Align, XPos, YPos
 from app.answers import WORDS, answer_text
 from app.logic.engine import evaluate
 from app.logic.index import FormIndex
-from app.pdf.faces import BUNDLED, FONTS, ThaanaFace
+from app.pdf.faces import BUNDLED, LATIN_BOLD, LATIN_REGULAR, ThaanaFace
 from app.schemas.form import (
     ContentElement,
     DateField,
@@ -167,8 +167,8 @@ class _Doc(FPDF):
         self.w_ = PDF_WORDS
         self.set_margins(MARGIN, MARGIN, MARGIN)
         self.set_auto_page_break(True, margin=MARGIN + FOOTER_HEIGHT)
-        self.add_font("latin", "", str(FONTS / "AtkinsonHyperlegibleNext-Regular.ttf"))
-        self.add_font("latin", "B", str(FONTS / "AtkinsonHyperlegibleNext-Bold.ttf"))
+        self.add_font("latin", "", str(LATIN_REGULAR))
+        self.add_font("latin", "B", str(LATIN_BOLD))
         add_thaana(self, src.thaana)
         self.set_title(f"{src.form_title} {reference(src.seq)}")
         self.set_author(src.org_name or "JustForms")
@@ -184,14 +184,17 @@ class _Doc(FPDF):
 
     # -- text helpers -------------------------------------------------------------------
 
-    def _font(self, content: bool, size: float, bold: bool = False) -> None:
+    def _font(self, content: bool, size: float, bold: bool = False, tabular: bool = False) -> None:
+        """``tabular``: figures of equal width (references, dates, page numbers)."""
         thaana = content and self.rtl
         self.set_font("thaana" if thaana else "latin", "B" if bold else "", size)
         self.set_fallback_fonts(["latin" if thaana else "thaana"], exact_match=False)
         if thaana:
             self.set_text_shaping(True, direction="rtl", script="thaa", language="div")
         else:
-            self.set_text_shaping(True, direction="ltr")
+            self.set_text_shaping(
+                True, direction="ltr", features={"tnum": True} if tabular else None
+            )
 
     def text_block(
         self,
@@ -237,6 +240,7 @@ class _Doc(FPDF):
         color: tuple[int, int, int] = INK,
         height: float = 5,
         start: float | None = None,
+        tabular: bool = False,
     ) -> None:
         """One line of mixed text as separate runs: ``(text, latin)`` in reading order.
 
@@ -252,7 +256,9 @@ class _Doc(FPDF):
         x = start if start is not None else (self.w - self.r_margin if self.rtl else self.l_margin)
         self.set_text_color(*color)
         for text, latin in parts:
-            self._font(not latin, size * (1.12 if self.rtl and not latin else 1))
+            self._font(
+                not latin, size * (1.12 if self.rtl and not latin else 1), tabular=tabular and latin
+            )
             gap = self.get_string_width(" ")
             if not text:
                 x += -2 * gap if self.rtl else 2 * gap
@@ -316,7 +322,7 @@ class _Doc(FPDF):
             f"{brand}{w['reference']} {reference(self.src.seq)}, "
             f"{w['page']} {self.page_no()} {w['of']} {total}"
         )
-        self.runs([(line, True)], size=7.5, color=MUTED, height=4, start=text_edge)
+        self.runs([(line, True)], size=7.5, color=MUTED, height=4, start=text_edge, tabular=True)
 
 
 def _local(dt: datetime | None, tz: ZoneInfo, seconds: bool = False) -> str:
@@ -566,6 +572,7 @@ def _render(src: PdfInput, total_pages: int | None) -> _Doc:
         size=9,
         color=MUTED,
         height=6 if doc.rtl else 5,
+        tabular=True,
     )
     doc.ln(2)
     doc.rule(src.accent)

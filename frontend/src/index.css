@@ -1,27 +1,46 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/atkinson-hyperlegible-next";
+/* Inter (SIL OFL), the Latin face of the studio and of every form whose theme keeps the default
+   (DESIGN-SYSTEM 4.1). Weight axis only; unicode-range means a Latin page fetches just the Latin
+   file (~47 KB), other scripts only when they appear. Atkinson Hyperlegible Next and the other
+   theme fonts are /theme-fonts/*.css, fetched only by forms that choose them. */
+@import "@fontsource-variable/inter/wght.css";
 @import "@fontsource-variable/atkinson-hyperlegible-mono";
 /* Noto Sans Thaana (SIL OFL) is bundled as the Thaana fallback. Faruma / MV Faseyha are used
    when installed locally or supplied by the operator via /fonts/fonts.css (see docs/DESIGN.md). */
 @import "@fontsource/noto-sans-thaana/400.css";
 @import "@fontsource/noto-sans-thaana/700.css";
 
+/* Arial adjusted to Inter's metrics, so text doesn't jump when Inter arrives (font-display: swap). */
+@font-face {
+    font-family: 'Inter Fallback';
+    src: local('Arial');
+    ascent-override: 90.49%;
+    descent-override: 22.56%;
+    line-gap-override: 0%;
+    size-adjust: 107.06%;
+}
+
 /* `.light` forces light inside a dark page (a light form on the canvas of a dark studio). */
 @custom-variant dark (&:is(.dark *):not(.light *));
 
 /* Not inline: utilities must read var(--text-*) so :lang(dv) can rescale them. */
 @theme {
-    /* Minor-third type scale (DESIGN-SYSTEM 4.2). Thaana redefines these under :lang(dv). */
-    --text-lg: 1.1875rem;
+    /* Studio type scale (DESIGN-SYSTEM 4.2): 13 / 15 / 16 / 18 / 24 / 30 / 36 px. Form roots
+       ([data-df-theme]) and Thaana (:lang(dv)) redefine every step below. */
+    --text-xs: 0.8125rem;
+    --text-xs--line-height: 1rem;
+    --text-sm: 0.9375rem;
+    --text-sm--line-height: 1.375rem;
+    --text-lg: 1.125rem;
     --text-lg--line-height: 1.75rem;
-    --text-xl: 1.4375rem;
+    --text-xl: 1.5rem;
     --text-xl--line-height: 2rem;
-    --text-2xl: 1.75rem;
-    --text-2xl--line-height: 2.25rem;
-    --text-3xl: 2.0625rem;
-    --text-3xl--line-height: 2.5rem;
+    --text-2xl: 1.875rem;
+    --text-2xl--line-height: 2.375rem;
+    --text-3xl: 2.25rem;
+    --text-3xl--line-height: 2.75rem;
     /* The one elevation, for floating layers only (popover, menu, dialog, sheet, drag overlay). */
     --shadow-md: 0 8px 24px -8px oklch(0.25 0.05 270 / 0.25);
     --shadow-lg: 0 8px 24px -8px oklch(0.25 0.05 270 / 0.25);
@@ -43,7 +62,7 @@
 @theme inline {
     /* Named Latin fallbacks sit before the Thaana faces: while a Latin web font loads, Latin text
        must fall back to a Latin face, never to Faruma's serif Latin glyphs (DESIGN-SYSTEM 4.1). */
-    --font-sans: 'Atkinson Hyperlegible Next Variable', Roboto, 'Segoe UI', 'Helvetica Neue', Arial, Faruma, 'MV Faseyha', 'Noto Sans Thaana', sans-serif;
+    --font-sans: 'Inter Variable', 'Inter Fallback', Roboto, 'Segoe UI', 'Helvetica Neue', Arial, Faruma, 'MV Faseyha', 'Noto Sans Thaana', sans-serif;
     --font-heading: var(--font-sans);
     --font-mono: 'Atkinson Hyperlegible Mono Variable', ui-monospace, monospace;
     --font-thaana: Faruma, 'MV Faseyha', 'Noto Sans Thaana', sans-serif;
@@ -192,47 +211,76 @@
     font-feature-settings: 'kern';
   }
   /* A form theme (docs/ux/FORM-THEME-SCREENS.md 3.5): the form root carries data-df-theme; the
-     theme's variables (--df-*) come from its stylesheet (public pages) or inline (studio). Latin
-     sizes scale with the theme's text size; Thaana sizes below scale the same way. */
+     theme's variables (--df-*) come from its stylesheet (public pages) or inline (studio). The
+     form's own type scale (16 / 19 / 23 / 28 / 33 at text size M) is multiplied by the theme's
+     text size and, on desktops, by --df-fit (DESIGN-SYSTEM 4.2, 6). Thaana sizes below scale
+     the same way. */
   [data-df-theme] {
-    font-family: var(--df-font-latin, 'Atkinson Hyperlegible Next Variable'), Roboto, 'Segoe UI', 'Helvetica Neue', Arial, Faruma, 'MV Faseyha',
+    font-family: var(--df-font-latin, 'Inter Variable'), 'Inter Fallback', Roboto, 'Segoe UI', 'Helvetica Neue', Arial, Faruma, 'MV Faseyha',
       'Noto Sans Thaana', sans-serif;
-    --text-xs: calc(0.75rem * var(--df-text-scale, 1));
-    --text-xs--line-height: calc(1rem * var(--df-text-scale, 1));
-    --text-sm: calc(0.875rem * var(--df-text-scale, 1));
-    --text-sm--line-height: calc(1.25rem * var(--df-text-scale, 1));
-    --text-base: calc(1rem * var(--df-text-scale, 1));
-    --text-base--line-height: calc(1.5rem * var(--df-text-scale, 1));
-    --text-lg: calc(1.1875rem * var(--df-text-scale, 1));
-    --text-lg--line-height: calc(1.75rem * var(--df-text-scale, 1));
-    --text-xl: calc(1.4375rem * var(--df-text-scale, 1));
-    --text-xl--line-height: calc(2rem * var(--df-text-scale, 1));
-    --text-2xl: calc(1.75rem * var(--df-text-scale, 1));
-    --text-2xl--line-height: calc(2.25rem * var(--df-text-scale, 1));
-    --text-3xl: calc(2.0625rem * var(--df-text-scale, 1));
-    --text-3xl--line-height: calc(2.5rem * var(--df-text-scale, 1));
+    --df-fit: 1;
+    --df-k: calc(var(--df-text-scale, 1) * var(--df-fit));
+    /* Space between questions, with the theme's density. */
+    --df-space: calc(var(--df-gap, 2rem) * var(--df-fit));
+    --text-xs: calc(0.75rem * var(--df-k));
+    --text-xs--line-height: calc(1rem * var(--df-k));
+    --text-sm: calc(0.875rem * var(--df-k));
+    --text-sm--line-height: calc(1.25rem * var(--df-k));
+    --text-base: calc(1rem * var(--df-k));
+    --text-base--line-height: calc(1.5rem * var(--df-k));
+    --text-lg: calc(1.1875rem * var(--df-k));
+    --text-lg--line-height: calc(1.75rem * var(--df-k));
+    --text-xl: calc(1.4375rem * var(--df-k));
+    --text-xl--line-height: calc(2rem * var(--df-k));
+    --text-2xl: calc(1.75rem * var(--df-k));
+    --text-2xl--line-height: calc(2.25rem * var(--df-k));
+    --text-3xl: calc(2.0625rem * var(--df-k));
+    --text-3xl--line-height: calc(2.5rem * var(--df-k));
+  }
+  /* The sheet's width: the theme's page width (40rem standard), a fifth wider on desktops. */
+  :root,
+  [data-df-theme] {
+    --df-sheet: var(--df-page-width, 40rem);
+  }
+  /* Desktops (DESIGN-SYSTEM 6): the form steps up one size. Type x1.125 (body 18px, questions
+     21px at text size M), Tailwind's spacing unit x1.09 inside the form (44px controls become
+     48px, padding and gaps grow with them) and the sheet x1.2 (standard 48rem). Phone previews
+     in the studio (data-df-device="phone") keep phone sizes on any screen. */
+  @media (width >= 64rem) {
+    :root,
+    [data-df-theme] {
+      --df-sheet: calc(var(--df-page-width, 40rem) * 1.2);
+    }
+    [data-df-theme]:not([data-df-device='phone'], [data-df-device='phone'] *) {
+      --df-fit: 1.125;
+      --spacing: 0.2727rem;
+    }
+    [data-df-device='phone'],
+    [data-df-device='phone'] [data-df-theme] {
+      --df-sheet: var(--df-page-width, 40rem);
+    }
   }
   /* Form content in Dhivehi (elements get lang="dv" from the form's language). Thaana is set
      about 1.12x larger with about 1.75x line-height so fili never clip. Redefining Tailwind's
      type-scale variables here makes shadcn components (which hard-code text-sm etc.) scale
      without being edited (DESIGN-SYSTEM 4.2). Never size Thaana per component. */
   :lang(dv) {
-    --text-xs: calc(0.875rem * var(--df-text-scale, 1));
-    --text-xs--line-height: calc(1.5rem * var(--df-text-scale, 1));
-    --text-sm: calc(1rem * var(--df-text-scale, 1));
-    --text-sm--line-height: calc(1.75rem * var(--df-text-scale, 1));
-    --text-base: calc(1.125rem * var(--df-text-scale, 1));
-    --text-base--line-height: calc(2rem * var(--df-text-scale, 1));
-    --text-lg: calc(1.3125rem * var(--df-text-scale, 1));
-    --text-lg--line-height: calc(2.25rem * var(--df-text-scale, 1));
-    --text-xl: calc(1.625rem * var(--df-text-scale, 1));
-    --text-xl--line-height: calc(2.5rem * var(--df-text-scale, 1));
-    --text-2xl: calc(1.9375rem * var(--df-text-scale, 1));
-    --text-2xl--line-height: calc(3rem * var(--df-text-scale, 1));
-    --text-3xl: calc(2.3125rem * var(--df-text-scale, 1));
-    --text-3xl--line-height: calc(3.5rem * var(--df-text-scale, 1));
+    --text-xs: calc(0.875rem * var(--df-k, 1));
+    --text-xs--line-height: calc(1.5rem * var(--df-k, 1));
+    --text-sm: calc(1rem * var(--df-k, 1));
+    --text-sm--line-height: calc(1.75rem * var(--df-k, 1));
+    --text-base: calc(1.125rem * var(--df-k, 1));
+    --text-base--line-height: calc(2rem * var(--df-k, 1));
+    --text-lg: calc(1.3125rem * var(--df-k, 1));
+    --text-lg--line-height: calc(2.25rem * var(--df-k, 1));
+    --text-xl: calc(1.625rem * var(--df-k, 1));
+    --text-xl--line-height: calc(2.5rem * var(--df-k, 1));
+    --text-2xl: calc(1.9375rem * var(--df-k, 1));
+    --text-2xl--line-height: calc(3rem * var(--df-k, 1));
+    --text-3xl: calc(2.3125rem * var(--df-k, 1));
+    --text-3xl--line-height: calc(3.5rem * var(--df-k, 1));
     font-family: var(--df-font-thaana, Faruma), Faruma, 'MV Faseyha', 'Noto Sans Thaana',
-      var(--df-font-latin, 'Atkinson Hyperlegible Next Variable'), sans-serif;
+      var(--df-font-latin, 'Inter Variable'), 'Inter Fallback', sans-serif;
     font-synthesis-style: none;
     letter-spacing: 0;
   }
@@ -243,7 +291,7 @@
   :lang(dv) [dir='ltr'] *,
   :lang(dv) [lang='en'],
   :lang(dv) [lang='en'] * {
-    font-family: var(--df-font-latin, 'Atkinson Hyperlegible Next Variable'), Roboto, 'Segoe UI', 'Helvetica Neue', Arial, Faruma, 'MV Faseyha',
+    font-family: var(--df-font-latin, 'Inter Variable'), 'Inter Fallback', Roboto, 'Segoe UI', 'Helvetica Neue', Arial, Faruma, 'MV Faseyha',
       'Noto Sans Thaana', sans-serif;
   }
   /* A form's own accent replaces primary and ring inside the form root only (light mode; the
@@ -251,6 +299,19 @@
   [data-accent]:not(.dark *) {
     --primary: var(--form-accent);
     --ring: var(--form-accent);
+  }
+  /* Figures that are compared or read back use equal widths (DESIGN-SYSTEM 4.2): tables, badges,
+     dates, counts, references, money. Running text keeps proportional figures. */
+  [data-slot='table'],
+  [data-slot='badge'],
+  [data-slot='calendar'],
+  [data-slot='pagination'],
+  [data-slot='chart'],
+  time,
+  input[type='number'],
+  input[inputmode='numeric'],
+  input[inputmode='decimal'] {
+    font-variant-numeric: tabular-nums;
   }
   /* Thaana underlines sit below the lower vowel signs. */
   :lang(dv) a {

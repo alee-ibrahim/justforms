@@ -345,7 +345,7 @@ function Block({ el, loc, form }: { el: Element; loc: Location; form: Form }) {
                 multiline: true,
                 block: true,
                 empty: 'Add text…',
-                className: 'max-w-xl text-base',
+                className: 'max-w-[36em] text-base',
                 display: el.text ? <Markdown text={el.text} rtl={language === 'dv'} /> : undefined,
               })
             ) : (
@@ -678,7 +678,7 @@ export function Canvas() {
           {...scope}
           className={cn(
             scope.className,
-            '@container mx-auto flex w-full max-w-[var(--df-page-width,40rem)] flex-col gap-6 rounded-md border bg-card p-5 text-foreground sm:p-10 sm:ps-12',
+            '@container mx-auto flex w-full max-w-[var(--df-sheet,40rem)] flex-col gap-6 rounded-md border bg-card p-5 text-foreground sm:p-10 sm:ps-12',
           )}
           {...contentProps(language)}
           onClick={() => store.select({ type: 'page', pageId })}
@@ -722,7 +722,7 @@ export function Canvas() {
                     active={formSelected}
                     activate={activateForm}
                     prompt="Add a description…"
-                    className="max-w-xl text-base text-muted-foreground"
+                    className="max-w-[36em] text-base text-muted-foreground"
                     display={form.settings.description ? <Markdown text={form.settings.description} rtl={language === 'dv'} /> : undefined}
                     onCommit={(text) => store.edit((f) => setSettingsText(f, 'description', text))}
                   />
@@ -766,7 +766,7 @@ export function Canvas() {
                 active={pageSelected}
                 activate={activatePage}
                 prompt="Add a description…"
-                className="max-w-xl text-base text-muted-foreground"
+                className="max-w-[36em] text-base text-muted-foreground"
                 display={page.description ? <Markdown text={page.description} rtl={language === 'dv'} /> : undefined}
                 onCommit={(text) => store.edit((f) => setPageText(f, pageId, 'description', text))}
               />

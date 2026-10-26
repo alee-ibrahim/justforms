@@ -574,7 +574,7 @@ Each `submission_events` row stores `hash = SHA-256(prev_hash || JCS(event_witho
 
 For any submission with at least one signature (and on demand for any submission), the worker job `render_submission_pdf` does the following:
 
-1. Renders the document with **fpdf2** and HarfBuzz text shaping (`uharfbuzz`), so Thaana is shaped and laid out right to left with no system libraries (a pure-Python stack that also runs on developer machines; WeasyPrint needs Pango). Fonts are bundled in `app/pdf/fonts` under the SIL OFL: Atkinson Hyperlegible Next and Noto Sans Thaana (Faruma is never bundled; an operator may supply a Thaana face for server rendering, §16 Fonts). The direction follows the form's language (`dv` → RTL); the fixed labels are English for every form (§16). **The PDF is the respondent's document and prints only** (decided):
+1. Renders the document with **fpdf2** and HarfBuzz text shaping (`uharfbuzz`), so Thaana is shaped and laid out right to left with no system libraries (a pure-Python stack that also runs on developer machines; WeasyPrint needs Pango). Fonts are bundled in `app/pdf/fonts` under the SIL OFL: Inter (a Latin subset) and Noto Sans Thaana (Faruma is never bundled; an operator may supply a Thaana face for server rendering, §16 Fonts). The direction follows the form's language (`dv` → RTL); the fixed labels are English for every form (§16). **The PDF is the respondent's document and prints only** (decided):
    - the form title, the reference number (`#seq`) and the submission date;
    - every visible question and answer in schema order (repeaters as tables, files by name and size);
    - signature images, each under the statement the signer saw (form content, so it stays);
@@ -1111,7 +1111,7 @@ chip.
   - *Emails* are English and LTR (`<html lang="en">`); the form title, the success message and the answers table carry the form's `lang`/`dir` (and `align` for clients that ignore `dir`), and content inside an English sentence (step name, form title) is a `<bdi>` with the form's language. Subjects are plain text ("Your response to {title} ({reference})").
   - *The PDF* follows the form like the sheet: in a `dv` PDF every line starts at the right; content is shaped right to left, and each English label line (reference and date, "Approval", "No answer", "Yes"/"No", the footer) is one left-to-right run placed against that edge.
 - **Styling.** Components that display form content (renderer, preview, builder inputs for form text) use Tailwind **logical properties only** (`ms-*`, `me-*`, `ps-*`, `pe-*`, `start-*`, `end-*`, `text-start`). A lint script bans `ml-/mr-/pl-/pr-/left-/right-/text-left/text-right` in app code. Directional icons such as chevrons and arrows flip with `rtl:rotate-180`.
-- **Fonts.** The Thaana font stack is `Faruma, "MV Faseyha", "Noto Sans Thaana", sans-serif` (Latin text uses Atkinson Hyperlegible Next first). **Noto Sans Thaana** (SIL OFL) is bundled and self-hosted as woff2 and is always available as the fallback. Faruma and MV-series fonts are **not** shipped in the repo or images: their licence is unclear (listed as "Unspecified" on dvfonts). Faruma is loaded **at runtime** from a configurable stylesheet URL, `JUSTFORMS_THAANA_FONT_CSS_URL` (served to the SPA by `GET /meta` and to the public form with its schema):
+- **Fonts.** The Thaana font stack is `Faruma, "MV Faseyha", "Noto Sans Thaana", sans-serif` (Latin text uses Inter first). **Noto Sans Thaana** (SIL OFL) is bundled and self-hosted as woff2 and is always available as the fallback. Faruma and MV-series fonts are **not** shipped in the repo or images: their licence is unclear (listed as "Unspecified" on dvfonts). Faruma is loaded **at runtime** from a configurable stylesheet URL, `JUSTFORMS_THAANA_FONT_CSS_URL` (served to the SPA by `GET /meta` and to the public form with its schema):
   - Default: the public dvfonts CDN, `https://dvfonts.yashau.com/css2?family=Faruma&display=swap` (unicode-range subsets, so Latin pages download nothing). Trade-off: a third-party host then sees respondents' IP addresses and the page they load from.
   - Self-hosted: put the font files plus a CSS file with matching `@font-face` rules in a directory mounted at `/srv/fonts` in the web container (Compose: `deploy/compose/fonts/`, git-ignored; Helm: `frontend.fontsConfigMap`) and set the URL to e.g. `/fonts/faruma.css`. nginx serves them at `/fonts/`, and the SPA also always loads `/fonts/fonts.css` (an empty file in the image), so the older drop-in mechanism keeps working.
   - Empty: only fonts installed on the device and the bundled Noto Sans Thaana are used.
@@ -1344,8 +1344,8 @@ Screens and copy: [ux/FORM-THEME-SCREENS.md](ux/FORM-THEME-SCREENS.md).
   heading scale, background image), so `components/ui` is untouched. The studio canvas, preview
   route and settings previews apply the same tokens inline (`lib/theme.ts`); `.light` forces light
   inside a dark studio.
-- **Fonts.** Latin: Atkinson Hyperlegible Next (bundled), Inter, IBM Plex Sans, Source Serif 4,
-  Noto Sans, built by `frontend/theme-fonts.ts` from the OFL @fontsource packages into
+- **Fonts.** Latin: Inter (bundled, the default), Atkinson Hyperlegible Next, IBM Plex Sans,
+  Source Serif 4, Noto Sans, built by `frontend/theme-fonts.ts` from the OFL @fontsource packages into
   `/theme-fonts/{id}.css` + hashed woff2 (Latin and Latin Extended), loaded only when a theme uses
   one, so the public JavaScript budget is unchanged. Thaana: `JUSTFORMS_THAANA_FONTS`, each a
   css2-style URL on the configured font service (its origin is already in the CSP), Noto Sans
@@ -1387,7 +1387,7 @@ Screens, layout and copy: [ux/SHARING-PREVIEW-SCREENS.md](ux/SHARING-PREVIEW-SCR
   PDFs and rasterised with pdfium (Pillow has no raqm/FriBiDi in slim images): logo and
   organisation name, the title at the largest size that fits three lines, up to two lines of
   description, the address, a band in the theme's primary colour; mirrored and shaped right to
-  left for dv forms (Noto Sans Thaana; Latin always Atkinson Hyperlegible Next). Colours are the
+  left for dv forms (Noto Sans Thaana; Latin always Inter). Colours are the
   form theme's light values.
 - **Cache** (`app/sharing/service.py`). `version` hashes everything drawn; the file lives at
   `og/{form_id}/{version}.png` in `app.storage`, made on first request and the previous one

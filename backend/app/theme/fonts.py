@@ -1,7 +1,7 @@
 """Fonts a form theme can use (docs/ux/FORM-THEME-SCREENS.md section 3.1).
 
-Latin: a curated set of SIL OFL families. Atkinson Hyperlegible Next is bundled with the app;
-the others are built into ``/theme-fonts/{id}.css`` (``frontend/vite.config.ts``) and only
+Latin: a curated set of SIL OFL families. Inter (the default) is bundled with the app; the
+others are built into ``/theme-fonts/{id}.css`` (``frontend/vite.config.ts``) and only
 fetched by pages whose theme uses them.
 
 Thaana: the install's list (``JUSTFORMS_THAANA_FONTS``). With a css2-style font service as
@@ -29,10 +29,13 @@ class Font:
 LATIN: dict[str, Font] = {
     f.id: f
     for f in (
+        Font("inter", "Inter", "'Inter Variable'", None),
         Font(
-            "atkinson", "Atkinson Hyperlegible Next", "'Atkinson Hyperlegible Next Variable'", None
+            "atkinson",
+            "Atkinson Hyperlegible Next",
+            "'Atkinson Hyperlegible Next Variable'",
+            "/theme-fonts/atkinson.css",
         ),
-        Font("inter", "Inter", "'Inter Variable'", "/theme-fonts/inter.css"),
         Font(
             "ibm-plex-sans",
             "IBM Plex Sans",

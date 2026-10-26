@@ -34,7 +34,7 @@ from app.branding.service import Brand, image_bytes
 from app.branding.service import resolve as resolve_brand
 from app.config import Settings
 from app.models import FormRecord, Organization
-from app.pdf.faces import thaana_face
+from app.pdf.faces import LATIN_VERSION, thaana_face
 from app.sharing import image as og
 from app.storage import ObjectNotFoundError, Storage
 from app.theme import resolve as themes
@@ -186,6 +186,7 @@ class Preview:
         c = self.card
         parts = [
             og.RENDER_VERSION,
+            LATIN_VERSION,
             c.title,
             c.description or "",
             c.org_name,
@@ -356,7 +357,14 @@ class SitePreview:
     @property
     def version(self) -> str:
         c = self.card
-        parts = [og.RENDER_VERSION, c.title, c.address, self.logo_version, c.thaana.version]
+        parts = [
+            og.RENDER_VERSION,
+            LATIN_VERSION,
+            c.title,
+            c.address,
+            self.logo_version,
+            c.thaana.version,
+        ]
         return hashlib.sha256("\x1f".join(parts).encode()).hexdigest()[:16]
 
     @property

@@ -81,8 +81,9 @@ UI change. Source of truth: [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md) and
 
 ## C. Typography
 
-- [ ] Latin text is Atkinson Hyperlegible Next; code-like values (keys, hashes, embed code)
-      use Atkinson Hyperlegible Mono and nothing else does.
+- [ ] Latin text is Inter (or the form theme's font); code-like values (keys, hashes, embed
+      code) use Atkinson Hyperlegible Mono and nothing else does. References, dates, counts,
+      amounts and table numbers are `tabular-nums`, never mono.
 - [ ] Thaana is visibly larger than adjacent Latin (≈1.12×) with generous line-height; fili
       (vowel marks) never clip or collide between lines, including in inputs, buttons,
       badges, table cells, selects and toasts.

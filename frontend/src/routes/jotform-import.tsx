@@ -341,6 +341,7 @@ function Preview({ preview, language, orgId, orgSlug }: { preview: FormImport; l
       <CardContent>
         <div
           {...scope}
+          data-df-device={device}
           className={cn(
             scope.className,
             'mx-auto w-full overflow-hidden bg-background text-foreground',

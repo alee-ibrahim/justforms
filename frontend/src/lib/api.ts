@@ -213,7 +213,7 @@ export interface ThemeColors {
 
 export interface FormTheme {
   colors: ThemeColors
-  latinFont?: 'atkinson' | 'inter' | 'ibm-plex-sans' | 'source-serif-4' | 'noto-sans'
+  latinFont?: 'inter' | 'atkinson' | 'ibm-plex-sans' | 'source-serif-4' | 'noto-sans'
   thaanaFont?: string
   textSize?: 's' | 'm' | 'l' | 'xl'
   headingScale?: 'compact' | 'standard' | 'large'

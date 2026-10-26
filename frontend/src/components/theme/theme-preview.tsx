@@ -86,6 +86,7 @@ export function ThemePreview({
           data-testid="theme-preview"
           {...scope}
           data-df-frame="page"
+          data-df-device={device}
           className={cn(
             scope.className,
             'overflow-hidden rounded-md border bg-background text-foreground',

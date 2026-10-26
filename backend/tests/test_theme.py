@@ -98,19 +98,19 @@ def _org() -> Organization:
 def test_resolve_defaults_and_overrides() -> None:
     settings = Settings(environment="test")
     plain = resolve(settings, _org(), FormTheme())
-    assert plain.resolved.latin_font == "atkinson" and plain.resolved.thaana_font == "faruma"
+    assert plain.resolved.latin_font == "inter" and plain.resolved.thaana_font == "faruma"
     assert plain.resolved.color_scheme == "light"
     assert plain.imports == []  # nothing beyond what every page loads
     assert plain.variables["--radius"] == "0.5rem"
 
-    org = FormTheme(latin_font="inter", thaana_font="mv-faseyha", text_size="l", radius="none")
+    org = FormTheme(latin_font="atkinson", thaana_font="mv-faseyha", text_size="l", radius="none")
     form = FormTheme(thaana_font="mv-a-waheed", page_width="wide", header_image="none")
     result = resolve(settings, _org(), org, form)
-    assert result.variables["--df-font-latin"] == "'Inter Variable'"
+    assert result.variables["--df-font-latin"] == "'Atkinson Hyperlegible Next Variable'"
     assert result.variables["--df-font-thaana"] == "'MV A Waheed'"
     assert result.variables["--df-text-scale"] == "1.125"
     assert result.variables["--df-page-width"] == "48rem"
-    assert result.imports[0] == "/theme-fonts/inter.css"
+    assert result.imports[0] == "/theme-fonts/atkinson.css"
     assert "family=MV+A+Waheed" in result.imports[1]
     assert result.options()["headerImageUrl"] is None
 
@@ -144,7 +144,7 @@ def test_css_has_imports_root_and_dark_blocks() -> None:
 def test_font_catalogue_follows_settings() -> None:
     settings = Settings(environment="test")
     fonts = catalogue(settings)
-    assert [f["id"] for f in fonts["latin"]][:2] == ["atkinson", "inter"]
+    assert [f["id"] for f in fonts["latin"]][:2] == ["inter", "atkinson"]
     assert fonts["thaana"][0]["name"] == "Faruma"
     assert fonts["thaana"][-1]["id"] == "noto-sans-thaana"
     # A self-hosted stylesheet: families come from /fonts/fonts.css, no per-family URLs.
@@ -208,9 +208,9 @@ async def test_org_theme_api(
     org = me["orgs"][0]["id"]
     got = (await client.get(f"/api/v1/orgs/{org}/form-theme")).json()
     assert got["theme"] == {"colors": {}} and got["canEdit"] is True
-    assert got["fonts"]["latin"][0]["id"] == "atkinson"
+    assert got["fonts"]["latin"][0]["id"] == "inter"
 
-    body = {"colors": {"primary": "#FFE45C"}, "latinFont": "inter", "colorScheme": "auto"}
+    body = {"colors": {"primary": "#FFE45C"}, "latinFont": "atkinson", "colorScheme": "auto"}
     res = await client.put(f"/api/v1/orgs/{org}/form-theme", json=body)
     assert res.status_code == 200, res.text
     out = res.json()
