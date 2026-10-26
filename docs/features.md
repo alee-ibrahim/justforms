@@ -117,6 +117,12 @@ is part of the signed PDF's approval record and shows on the verify page.
 A submissions table with search, filters, status (New, In review, Approved, Rejected),
 comments, an activity log and export to Excel. Sensitive answers are masked.
 
+**Insights** (Submissions › Insights) summarises every question under the same filters: counts
+and shares per option with the "Other" answers, averages, medians and histograms for numbers
+and ratings, answers per month for dates, the newest text answers, rows of repeaters (older
+versions' questions mapped onto a repeater count as rows). Click a bar to open the submissions
+behind it; any chart can be shown as a table or downloaded as a PNG. No AI is involved.
+
 ## Emails and webhooks
 
 - Email to the form's owners or up to 10 other addresses, and a receipt for the respondent
@@ -138,8 +144,17 @@ only to people who answered Yes"), or upload a **blank** paper form to recreate 
 
 The AI only calls schema tools; each change is validated and shown on the canvas as a
 suggestion to apply (one Undo reverts it) or discard. Only the form's questions go to the
-provider, never responses, and paper forms must be confirmed blank each time. Dhivehi wording
+provider from the builder, never responses, and paper forms must be confirmed blank each time. Dhivehi wording
 from the AI is a draft to check. Unset, every AI feature is hidden.
+
+**Ask your submissions** (on Insights) answers questions such as "how many organisations want
+to know about disability rights?" for anyone who can see the submissions. The AI counts with a
+small, safe query language that runs on the server (it never writes SQL), every number comes
+from those counts, and each answer shows how it was calculated with a link to the matching
+submissions. By default only the questions and counts go to the provider; an owner can turn on
+**Settings › AI › Allow AI to read answers** so it can summarise written answers (at most 200
+submissions per read). Sensitive questions, files, signatures, email addresses, phone numbers
+and IP addresses are never sent.
 
 Behind your own reverse proxy, see [Deployment](deployment.md#reverse-proxies) for the
 streaming settings the assistant needs.

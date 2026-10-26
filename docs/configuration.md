@@ -153,7 +153,7 @@ Optional. With no provider every AI feature is hidden. See [Features](features.m
 | `JUSTFORMS_AI_BASE_URL` | | Endpoint; required for `openai_compat` (e.g. `http://ollama:11434/v1`) |
 | `JUSTFORMS_AI_VISION_MODEL` | `JUSTFORMS_AI_MODEL` | Model for "Start from a paper form" |
 | `JUSTFORMS_AI_VISION` | on for `gemini`/`anthropic`, off for `openai_compat` | Whether the model reads images |
-| `JUSTFORMS_AI_PROVIDER_LABEL` | | Provider name shown in the paper-form dialog ("The pages are sent to ...") |
+| `JUSTFORMS_AI_PROVIDER_LABEL` | | Provider name shown in the paper-form dialog ("The pages are sent to ..."), on Insights › Ask your submissions and in Settings › AI |
 | `JUSTFORMS_AI_DAILY_TOKENS_PER_USER`, `_PER_ORG` | `300000`, `3000000` | Daily token allowances (input + output); `0` turns one off |
 | `JUSTFORMS_AI_MAX_OUTPUT_TOKENS`, `_MAX_TOOL_CALLS`, `_TURN_SECONDS`, `_REQUEST_TIMEOUT_SECONDS`, `_MAX_FORM_CHARS` | `4096`, `40`, `120`, `90`, `80000` | Limits per turn; forms larger than `_MAX_FORM_CHARS` are not sent |
 
@@ -216,7 +216,7 @@ are made again when it changes. Restart the API and worker after replacing the f
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `JUSTFORMS_RATE_LIMIT_ENABLED`, `JUSTFORMS_RATE_LIMITS` | on, built-in limits | e.g. `public_submit=20/60,upload_init=60/60`; invitations: `invite_user` (50 addresses an hour per admin), `invite_org` (200 a day per organisation), `invite_resend` (3 an hour per invitation); `notify_test` (5 test-email sends an hour per person) |
+| `JUSTFORMS_RATE_LIMIT_ENABLED`, `JUSTFORMS_RATE_LIMITS` | on, built-in limits | e.g. `public_submit=20/60,upload_init=60/60`; invitations: `invite_user` (50 addresses an hour per admin), `invite_org` (200 a day per organisation), `invite_resend` (3 an hour per invitation); `notify_test` (5 test-email sends an hour per person); `insights` (120 Insights summaries an hour per person); "Ask your submissions" shares `ai_request` / `ai_request_org` with the builder's assistant |
 | `JUSTFORMS_CAPTCHA_PROVIDER` | `none` | `altcha` (proof of work, no third party), `turnstile` or `hcaptcha` |
 | `JUSTFORMS_CAPTCHA_SITE_KEY`, `_SECRET_KEY`, `_BUSY_THRESHOLD` | | Provider keys; responses per hour that count as "busy" (default `1000`) |
 | `JUSTFORMS_ALTCHA_MAX_NUMBER` | `100000` | ALTCHA proof-of-work difficulty |
