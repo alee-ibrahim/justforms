@@ -82,6 +82,8 @@ class FormOut(ApiModel):
     card_fields: list[str] | None = None
     # Older versions' fixed questions shown as rows of a newer repeater (export).
     version_mappings: list[dict[str, Any]] = Field(default_factory=list)
+    # "Ask your submissions" may send the text of answers to the AI provider (Settings > AI).
+    ai_read_answers: bool = False
     submission_count: int = 0
     new_count: int = 0
     created_at: datetime
@@ -177,6 +179,8 @@ class FormPatch(ApiModel):
     version_mappings: list[VersionMappingIn] | None = Field(
         default=None, max_length=version_map.MAX_MAPPINGS
     )
+    # Owners: let "Ask your submissions" send the text of answers to the AI provider.
+    ai_read_answers: bool | None = None
 
 
 class DraftOut(ApiModel):
@@ -276,6 +280,7 @@ async def form_out(
         version_mappings=[
             m.as_json() for m in version_map.parse((form.settings or {}).get("versionMappings"))
         ],
+        ai_read_answers=bool((form.settings or {}).get("aiReadAnswers", False)),
         submission_count=counts[0],
         new_count=counts[1],
         created_at=form.created_at,
@@ -532,6 +537,7 @@ async def patch_form(
             body.captcha,
             body.save_progress,
             body.save_progress_days,
+            body.ai_read_answers,
         )
     )
     if owner_only and not has_form_role(access.role, FormRole.OWNER):
@@ -556,6 +562,8 @@ async def patch_form(
         extra["saveProgress"] = body.save_progress
     if body.save_progress_days is not None:
         extra["saveProgressDays"] = body.save_progress_days
+    if body.ai_read_answers is not None:
+        extra["aiReadAnswers"] = body.ai_read_answers
     if extra:
         form.settings = {**(form.settings or {}), **extra}
     if body.card_fields is not None:

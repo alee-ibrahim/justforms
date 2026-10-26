@@ -2,8 +2,10 @@
 
 A session belongs to one person on one form. Its ``working_schema`` is the AI's pending
 suggestion (``None`` when there is none); nothing reaches the form's draft until the person
-applies it. Messages hold the person's requests, the AI's replies and its tool steps, never
-submission data, and are erased after 90 days.
+applies it. Builder messages hold the person's requests, the AI's replies and its tool steps,
+never submission data. "Ask your submissions" chats (mode ``ask``) hold questions, answers
+and the counts behind them (never the text of answers the AI read). Both are erased after 90
+days.
 """
 
 import uuid
@@ -23,6 +25,7 @@ class AiMode(StrEnum):
     CREATE = "create"
     EDIT = "edit"
     IMPORT = "import"
+    ASK = "ask"  # "Ask your submissions" (questions about the answers, not form edits)
 
 
 class AiSessionStatus(StrEnum):

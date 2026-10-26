@@ -9,6 +9,7 @@ from app.api.v1 import (
     files,
     forms,
     imports,
+    insights,
     meta,
     notify,
     orgs,
@@ -37,6 +38,7 @@ router.include_router(verify.router)
 router.include_router(approvals.router)
 router.include_router(approvals.public)
 router.include_router(ai.router)
+router.include_router(insights.router)
 router.include_router(branding.router)
 router.include_router(branding.public)
 router.include_router(branding.site)

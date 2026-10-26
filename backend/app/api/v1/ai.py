@@ -138,6 +138,7 @@ async def _load(db: DbDep, access: FormAccess, session_id: uuid.UUID) -> AiSessi
         or session.form_id != access.form.id
         or session.user_id != access.user.id
         or session.status == AiSessionStatus.CLOSED
+        or session.mode == AiMode.ASK
     ):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "ai_session_not_found")
     return session
@@ -155,6 +156,7 @@ async def open_session(
             AiSession.form_id == form.id,
             AiSession.user_id == user.id,
             AiSession.status != AiSessionStatus.CLOSED,
+            AiSession.mode != AiMode.ASK,
         )
         .order_by(AiSession.created_at.desc())
         .limit(1)
@@ -168,6 +170,7 @@ async def open_session(
                 AiSession.form_id == form.id,
                 AiSession.user_id == user.id,
                 AiSession.status != AiSessionStatus.CLOSED,
+                AiSession.mode != AiMode.ASK,
             )
             .values(status=AiSessionStatus.CLOSED, working_schema=None, base_schema=None)
         )
