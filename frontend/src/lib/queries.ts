@@ -55,6 +55,14 @@ export const formQuery = (formId: string) =>
 export const versionsQuery = (formId: string) =>
   queryOptions({ queryKey: ['versions', formId], queryFn: () => api.versions(formId) })
 
+/** Changes since live version `version`, for the saved draft at `revision` (Review changes). */
+export const draftChangesQuery = (formId: string, revision: number, version: number | null) =>
+  queryOptions({
+    queryKey: ['draft-changes', formId, revision, version],
+    queryFn: () => api.draftChanges(formId),
+    staleTime: Infinity,
+  })
+
 export const versionQuery = (formId: string, n: number | null) =>
   queryOptions({
     queryKey: ['version', formId, n],

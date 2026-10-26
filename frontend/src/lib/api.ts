@@ -305,6 +305,71 @@ export interface Draft {
   canRedo: boolean
 }
 
+/** A piece of a change's text: form-language content (labels, options) or English words. */
+export interface DiffPiece {
+  text: string
+  content: boolean
+}
+
+export type DiffStatus = 'added' | 'removed' | 'changed' | 'moved'
+
+export interface PropertyChange {
+  property: string
+  /** English name of the property ("Label", "Help text", "Shown when"). */
+  name: string
+  kind: string
+  before: DiffPiece[] | null
+  after: DiffPiece[] | null
+  summary: string
+  options?: {
+    added: { value: string; label: string }[]
+    removed: { value: string; label: string }[]
+    renamed: { value: string; before: string; after: string }[]
+    reordered: boolean
+  }
+}
+
+export interface ElementChange {
+  id: string
+  kind: 'field' | 'content' | 'section' | 'repeater'
+  type: string
+  typeName: string
+  label: string
+  /** Sections and repeaters it sits in, outermost first (form content). */
+  within: string[]
+  status: DiffStatus
+  summary: string
+  changes: PropertyChange[]
+  /** Where it was before it moved to another page or container. */
+  movedFrom: DiffPiece[] | null
+  moveSummary?: string
+}
+
+export interface PageChange {
+  pageId: string
+  number: number
+  title: string
+  /** null: the page itself is unchanged, only questions on it changed. */
+  status: DiffStatus | null
+  summary: string
+  movedFrom: number | null
+  changes: PropertyChange[]
+  elements: ElementChange[]
+}
+
+/** GET /draft/changes: what publishing would change, against the live version. */
+export interface DraftChanges {
+  /** null before the first publish. */
+  baseVersion: number | null
+  revision: number
+  hasChanges: boolean
+  summary: string
+  counts: Record<DiffStatus, number>
+  language: 'en' | 'dv'
+  settings: PropertyChange[]
+  pages: PageChange[]
+}
+
 export interface Version {
   id: string
   version: number
@@ -806,6 +871,9 @@ export const api = {
     request<Draft>('POST', `/forms/${formId}/draft/undo`, { baseRevision }),
   redo: (formId: string, baseRevision: number) =>
     request<Draft>('POST', `/forms/${formId}/draft/redo`, { baseRevision }),
+  draftChanges: (formId: string) => request<DraftChanges>('GET', `/forms/${formId}/draft/changes`),
+  discardDraft: (formId: string, baseRevision: number) =>
+    request<Draft>('POST', `/forms/${formId}/draft/discard`, { baseRevision }),
   publish: (formId: string) => request<Version>('POST', `/forms/${formId}/publish`),
   versions: (formId: string) => request<Version[]>('GET', `/forms/${formId}/versions`),
   listSubmissions: (formId: string, f: ListFilters & { cursor?: number }) => {

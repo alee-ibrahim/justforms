@@ -35,15 +35,21 @@ export function usePublish(form: FormSummary) {
       toast.error(`Couldn't publish. ${message}`, { action: { label: 'Retry', onClick: () => mutation.mutate() } })
     },
   })
-  /** Start publishing: problems first, a confirmation on the first publish, else publish now. */
-  const start = () => {
+  /** Start publishing: problems first, else a confirmation with what changes. Coming from
+   * Review changes (`reviewed`), the changes were just shown: publish now unless something needs
+   * attention. */
+  const start = (opts: PublishOptions = {}) => {
     const schema = store.get().schema
     const checks = approvalChecks(approvals, schema)
     const attention = formProblems(schema).length + checks.errors.length + checks.warnings.length
-    if (attention || form.currentVersion === null) store.setPublishing(true)
+    if (attention || form.currentVersion === null || !opts.reviewed) store.setPublishing(true)
     else mutation.mutate()
   }
   return { start, mutation }
+}
+
+export interface PublishOptions {
+  reviewed?: boolean
 }
 
 export type PublishMutation = ReturnType<typeof usePublish>['mutation']

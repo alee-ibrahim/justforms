@@ -1054,6 +1054,11 @@ All endpoints are JSON. OpenAPI is served at `/api/v1/openapi.json`, and the TS 
 - `GET /forms/{formId}/draft` → `{schema, revision}`
 - `PATCH /forms/{formId}/draft` with `{baseRevision, patch: RFC6902[]}`. Returns 409 on revision mismatch.
 - `POST /forms/{formId}/draft/undo`, `POST /forms/{formId}/draft/redo`
+- `GET /forms/{formId}/draft/changes` → what publishing would change against the live version
+  (pages, sections and questions added/removed/moved, property changes before → after, versioned
+  form settings; docs/ux/REVIEW-CHANGES-SCREENS.md)
+- `POST /forms/{formId}/draft/discard` `{baseRevision}` → the draft reset to the live version as
+  one undoable edit (owner/editor, audit `form.draft_discard`; 409 `never_published`)
 - `POST /forms/{formId}/publish` → new version (validates, cycle check)
 - `GET /forms/{formId}/versions`, `GET /forms/{formId}/versions/{n}`
 - `POST /forms/{formId}/duplicate`

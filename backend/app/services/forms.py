@@ -34,6 +34,10 @@ class DraftPatchError(Exception):
     """The patch could not be applied (bad path, failed test op...)."""
 
 
+class NeverPublishedError(Exception):
+    """The form has no published version to go back to."""
+
+
 class PublishError(Exception):
     def __init__(self, issues: list[Issue]) -> None:
         super().__init__("form cannot be published")
@@ -168,6 +172,35 @@ async def step_history(
     )
     await db.flush()
     return True
+
+
+async def live_schema(db: AsyncSession, form: FormRecord) -> tuple[int, dict[str, Any]] | None:
+    """The live (latest published) version's number and document, None before the first publish."""
+    if form.current_version_id is None:
+        return None
+    version = await db.get(FormVersion, form.current_version_id)
+    return (version.version, version.schema) if version else None
+
+
+async def discard_draft(
+    db: AsyncSession, form: FormRecord, base_revision: int, actor_id: uuid.UUID
+) -> int | None:
+    """Reset the draft to the live version as one ordinary (undoable) edit.
+
+    Returns the live version number, or None when the draft already matches it. Raises
+    DraftConflictError on a stale base revision and NeverPublishedError before the first publish.
+    """
+    if base_revision != form.draft_revision:
+        raise DraftConflictError
+    live = await live_schema(db, form)
+    if live is None:
+        raise NeverPublishedError
+    number, schema = live
+    ops = jsonpatch.make_patch(form.draft_schema, schema).patch
+    if not ops:
+        return None
+    await apply_draft_patch(db, form, base_revision, ops, actor_id)
+    return number
 
 
 async def publish(db: AsyncSession, form: FormRecord, actor_id: uuid.UUID) -> FormVersion:

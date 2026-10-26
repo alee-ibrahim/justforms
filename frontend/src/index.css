@@ -51,6 +51,8 @@
     --color-marker: var(--marker);
     --color-marker-edge: var(--marker-edge);
     --color-marker-wash: var(--accent);
+    /* Review changes: added (green) next to removed (destructive). */
+    --color-added: var(--added);
     --color-sheet: var(--card);
     /* Paper stays white in dark mode where ink must read as ink (signature images). */
     --color-paper: oklch(1 0 0);
@@ -119,6 +121,7 @@
     --input: oklch(0.635 0.037 272.5);
     --ring: oklch(0.454 0.198 273.9);
     --marker: #ffe45c;
+    --added: oklch(0.500 0.130 152);
     --marker-edge: oklch(0.566 0.116 91.8);
     --chart-1: oklch(0.454 0.198 273.9);
     --chart-2: #6e72d9;
@@ -156,6 +159,7 @@
     --input: oklch(0.561 0.051 273.7);
     --ring: oklch(0.746 0.133 280.3);
     --marker: #e8d34a;
+    --added: oklch(0.780 0.150 152);
     --marker-edge: #e8d34a;
     --chart-1: oklch(0.746 0.133 280.3);
     --chart-2: #9da2ff;

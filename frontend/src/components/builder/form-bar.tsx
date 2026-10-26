@@ -11,6 +11,7 @@ import {
   CloudOffIcon,
   EllipsisIcon,
   EllipsisVerticalIcon,
+  FileDiffIcon,
   Redo2Icon,
   SendIcon,
   SparklesIcon,
@@ -421,6 +422,15 @@ function CompactMenu({ form, store, nav, active, canPublish, onPublish, onLogic,
             </DropdownMenuItem>
           </>
         )}
+        {store && onPublish && canPublish && form.currentVersion !== null && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => store.setReviewing(true)}>
+              <FileDiffIcon />
+              Review changes
+            </DropdownMenuItem>
+          </>
+        )}
         {store && onPublish && !canPublish && (
           <>
             <DropdownMenuSeparator />
@@ -457,7 +467,7 @@ function CompactBar(props: CompactProps) {
       </div>
       {store && <SaveIcon />}
       {store && onPublish && canPublish && (
-        <Button size="sm" className="shrink-0" onClick={onPublish}>
+        <Button size="sm" className="shrink-0" onClick={() => onPublish()}>
           Publish
         </Button>
       )}
@@ -555,6 +565,17 @@ export function FormBar({
               Unpublished changes
             </Badge>
           )}
+          {store && onPublish && unpublished && form.currentVersion !== null && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="sm" onClick={() => store.setReviewing(true)}>
+                  <FileDiffIcon />
+                  <span className="max-xl:sr-only">Review changes</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>What publishing would change</TooltipContent>
+            </Tooltip>
+          )}
           {store && onPublish && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -562,7 +583,7 @@ export function FormBar({
                   tabIndex={!canPublish ? 0 : -1}
                   className="rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
-                  <Button size="sm" onClick={onPublish} disabled={!canPublish}>
+                  <Button size="sm" onClick={() => onPublish()} disabled={!canPublish}>
                     Publish
                   </Button>
                 </span>

@@ -41,6 +41,8 @@ export interface BuilderState {
   /** Command dialog "Add a question" is open. */
   inserting: boolean
   publishing: boolean
+  /** The Review changes sheet is open. */
+  reviewing: boolean
   /** Publish was tried once: the inspector shows missing-text errors without waiting for a blur. */
   publishTried: boolean
   /** An AI suggestion is shown on the canvas: nothing can be edited until it is applied or discarded. */
@@ -94,6 +96,7 @@ export class BuilderStore {
       confirm: null,
       inserting: false,
       publishing: false,
+      reviewing: false,
       publishTried: false,
       locked: false,
     }
@@ -184,6 +187,10 @@ export class BuilderStore {
 
   setPublishing(publishing: boolean) {
     this.set(publishing ? { publishing, publishTried: true } : { publishing })
+  }
+
+  setReviewing(reviewing: boolean) {
+    this.set({ reviewing })
   }
 
   setHighlight(ids: Iterable<string>) {
@@ -334,6 +341,35 @@ export class BuilderStore {
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) this.set({ conflict: true, status: 'error' })
       else this.set({ status: 'error', error: errorMessage(err) })
+    }
+  }
+
+  /** Reset the draft to the live version (`POST /draft/discard`): saves pending edits first so
+   * one Undo brings everything back. Returns false when it could not (conflict, error). */
+  async discard(): Promise<boolean> {
+    if (this.readOnly || this.state.locked) return false
+    await this.flush()
+    if (this.dirty || this.state.status !== 'saved') return false
+    this.set({ status: 'saving' })
+    try {
+      const draft = await api.discardDraft(this.formId, this.state.saved.revision)
+      this.set({
+        schema: draft.schema,
+        saved: { schema: draft.schema, revision: draft.revision },
+        serverCanUndo: draft.canUndo,
+        serverCanRedo: draft.canRedo,
+        undoStack: [],
+        redoStack: [],
+        status: 'saved',
+        error: null,
+        ...this.fixSelection(draft.schema),
+      })
+      return true
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409 && err.detail === 'revision_conflict')
+        this.set({ conflict: true, status: 'error' })
+      else this.set({ status: 'saved', error: null })
+      throw err
     }
   }
 

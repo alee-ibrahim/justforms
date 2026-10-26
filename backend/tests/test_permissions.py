@@ -20,6 +20,7 @@ ENDPOINTS: dict[str, tuple[str, str, Any]] = {
     "get_form": ("GET", "/api/v1/forms/{id}", None),
     "list_versions": ("GET", "/api/v1/forms/{id}/versions", None),
     "get_draft": ("GET", "/api/v1/forms/{id}/draft", None),
+    "draft_changes": ("GET", "/api/v1/forms/{id}/draft/changes", None),
     "patch_draft": (
         "PATCH",
         "/api/v1/forms/{id}/draft",
@@ -36,7 +37,15 @@ ENDPOINTS: dict[str, tuple[str, str, Any]] = {
 
 ALLOWED: dict[str, set[str]] = {
     "viewer": {"get_form", "list_versions"},
-    "editor": {"get_form", "list_versions", "get_draft", "patch_draft", "patch_slug", "publish"},
+    "editor": {
+        "get_form",
+        "list_versions",
+        "get_draft",
+        "draft_changes",
+        "patch_draft",
+        "patch_slug",
+        "publish",
+    },
     "owner": set(ENDPOINTS),
     "org_admin": set(ENDPOINTS),
     "superadmin": set(ENDPOINTS),

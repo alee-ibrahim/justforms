@@ -65,7 +65,7 @@ function PublishFirst() {
 
 function PublishNow({ form }: { form: FormSummary }) {
   const { start } = usePublish(form)
-  return <Button onClick={start}>Publish</Button>
+  return <Button onClick={() => start()}>Publish</Button>
 }
 
 function LinkCard({ form, url }: { form: FormSummary; url: string }) {

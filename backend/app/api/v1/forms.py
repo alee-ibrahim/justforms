@@ -46,8 +46,8 @@ from app.permissions import (
     org_role,
 )
 from app.schemas.form import Form, FormLanguage
+from app.services import form_diff, slugs
 from app.services import forms as svc
-from app.services import slugs
 from app.services.progress import DEFAULT_SAVE_PROGRESS_DAYS, MAX_SAVE_PROGRESS_DAYS, progress_out
 from app.services.users import audit
 from app.submissions import version_map
@@ -193,6 +193,20 @@ class HistoryStep(ApiModel):
 class DraftPatch(ApiModel):
     base_revision: int
     patch: list[dict[str, Any]]
+
+
+class DraftChangesOut(ApiModel):
+    """What publishing would change: the draft against the live version (form_diff)."""
+
+    # None before the first publish (everything is new; no list).
+    base_version: int | None
+    revision: int
+    has_changes: bool
+    summary: str
+    counts: dict[str, int]
+    language: FormLanguage
+    settings: list[dict[str, Any]]
+    pages: list[dict[str, Any]]
 
 
 class VersionOut(ApiModel):
@@ -656,6 +670,55 @@ async def undo_draft(body: HistoryStep, db: DbDep, access: FormEditor) -> Any:
 @router.post("/forms/{form_id}/draft/redo", response_model=DraftOut)
 async def redo_draft(body: HistoryStep, db: DbDep, access: FormEditor) -> Any:
     return await _step(body, db, access, redo=True)
+
+
+@router.get("/forms/{form_id}/draft/changes", response_model=DraftChangesOut)
+async def draft_changes(db: DbDep, access: FormEditor) -> DraftChangesOut:
+    """Changes in the draft that publishing would make live (DESIGN 17, Review changes)."""
+    form = access.form
+    live = await svc.live_schema(db, form)
+    language = form.draft_schema.get("settings", {}).get("language", "en")
+    if live is None:
+        return DraftChangesOut(
+            base_version=None,
+            revision=form.draft_revision,
+            has_changes=True,
+            summary="Not published yet",
+            counts={"added": 0, "removed": 0, "changed": 0, "moved": 0},
+            language="dv" if language == "dv" else "en",
+            settings=[],
+            pages=[],
+        )
+    number, schema = live
+    result = form_diff.diff(schema, form.draft_schema)
+    return DraftChangesOut(base_version=number, revision=form.draft_revision, **result)
+
+
+@router.post("/forms/{form_id}/draft/discard", response_model=DraftOut)
+async def discard_draft(body: HistoryStep, db: DbDep, access: FormEditor) -> Any:
+    """Reset the draft to the live version (one undoable edit). 409 before the first publish."""
+    form = access.form
+    try:
+        version = await svc.discard_draft(db, form, body.base_revision, access.user.id)
+    except svc.DraftConflictError:
+        current = form.draft_revision
+        await db.rollback()
+        return _conflict(current)
+    except svc.NeverPublishedError:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "never_published") from None
+    if version is not None:
+        await audit(
+            db,
+            "form.draft_discard",
+            org_id=form.org_id,
+            actor_id=access.user.id,
+            target_type="form",
+            target_id=form.id,
+            meta={"version": version, "revision": form.draft_revision},
+        )
+    await db.commit()
+    return await draft_out(db, form)
 
 
 @router.post(

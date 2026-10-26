@@ -5,7 +5,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate, useParams, useRouterState } from '@tanstack/react-router'
 import { compare } from 'fast-json-patch'
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 
 import { AiContext, AiController } from '@/components/ai/controller'
 import { ConfirmDialogs, ConflictDialog } from '@/components/builder/dialogs'
@@ -13,6 +13,7 @@ import { FormBar } from '@/components/builder/form-bar'
 import { FormContext, useFormSummary } from '@/components/builder/form-context'
 import { PublishDialog } from '@/components/builder/publish'
 import { PublishedContext } from '@/components/builder/published'
+import { ReviewChangesSheet } from '@/components/builder/review-changes'
 import { BuilderContext, BuilderStore, useBuilder } from '@/components/builder/store'
 import { usePublish } from '@/components/builder/use-publish'
 import { Button } from '@/components/ui/button'
@@ -110,7 +111,8 @@ function EditorChrome({
     return new Set<string>([...index.elements.keys()])
   }, [liveSchema])
   const { start, mutation } = usePublish(form)
-  useShortcuts(store, start)
+  const publish = useCallback(() => start(), [start])
+  useShortcuts(store, publish)
   useEffect(() => {
     if (!dirty) return
     const handler = (e: BeforeUnloadEvent) => e.preventDefault()
@@ -123,10 +125,11 @@ function EditorChrome({
       {/* The builder fills the screen under the app header and scrolls inside; dvh follows the
           phone's address bar, so no gap opens or content hides when it shows or hides. */}
       <div className={editing ? 'flex h-[calc(100dvh-var(--app-bar-h,0px))] flex-col overflow-hidden' : 'contents'}>
-        <FormBar form={form} store={store} unpublished={unpublished} onPublish={start} sticky={!editing} />
+        <FormBar form={form} store={store} unpublished={unpublished} onPublish={publish} sticky={!editing} />
         {children}
       </div>
       <PublishDialog form={form} mutation={mutation} />
+      <ReviewChangesSheet form={form} onPublish={() => start({ reviewed: true })} />
       <ConfirmDialogs />
       <ConflictDialog />
     </PublishedContext.Provider>

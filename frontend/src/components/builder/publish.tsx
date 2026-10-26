@@ -22,7 +22,9 @@ import { formLanguage } from '@/schema/language'
 import { approvalChecks, useApprovalConfig } from './approval-problems'
 import { blockLabel } from './block-types'
 import { blockPosition, formProblems } from './problems'
+import { ChangeList, ChangesSkeleton } from './review-changes'
 import { useBuilder, useStore } from './store'
+import { useDraftChanges } from './use-draft-changes'
 import type { PublishMutation } from './use-publish'
 import { findElement, formCounts } from './tree'
 
@@ -40,6 +42,8 @@ export function PublishDialog({ form, mutation }: { form: FormSummary; mutation:
   const counts = formCounts(schema)
   const lang = formLanguage(schema)
   const close = () => store.setPublishing(false)
+  const republish = form.currentVersion !== null
+  const changes = useDraftChanges(form, open && republish && !problems.length)
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="sm:max-w-lg">
@@ -116,14 +120,26 @@ export function PublishDialog({ form, mutation }: { form: FormSummary; mutation:
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Publish this form?</DialogTitle>
+              <DialogTitle>{republish ? `Publish version ${(form.currentVersion ?? 0) + 1}?` : 'Publish this form?'}</DialogTitle>
               <DialogDescription>
-                {counts.pages} {counts.pages === 1 ? 'page' : 'pages'}, {counts.questions}{' '}
-                {counts.questions === 1 ? 'question' : 'questions'}, {counts.rules}{' '}
-                {counts.rules === 1 ? 'logic rule' : 'logic rules'}.
+                {republish
+                  ? changes.data
+                    ? `${changes.data.summary} since version ${form.currentVersion}. New responses use the new version.`
+                    : `Changes since version ${form.currentVersion}.`
+                  : `${counts.pages} ${counts.pages === 1 ? 'page' : 'pages'}, ${counts.questions} ${
+                      counts.questions === 1 ? 'question' : 'questions'
+                    }, ${counts.rules} ${counts.rules === 1 ? 'logic rule' : 'logic rules'}.`}
               </DialogDescription>
             </DialogHeader>
-            <p className="text-sm">After publishing, question keys are locked so your data stays consistent.</p>
+            {republish ? (
+              <ScrollArea className="-mx-1 [&>[data-slot=scroll-area-viewport]]:max-h-[min(20rem,45dvh)]">
+                <div className="px-1 pe-3">
+                  {changes.data ? <ChangeList changes={changes.data} compact /> : <ChangesSkeleton />}
+                </div>
+              </ScrollArea>
+            ) : (
+              <p className="text-sm">After publishing, question keys are locked so your data stays consistent.</p>
+            )}
             {checks.warnings.length > 0 && (
               <Alert>
                 <TriangleAlertIcon />
@@ -139,6 +155,18 @@ export function PublishDialog({ form, mutation }: { form: FormSummary; mutation:
               </Alert>
             )}
             <DialogFooter>
+              {republish && (
+                <Button
+                  variant="ghost"
+                  className="sm:me-auto"
+                  onClick={() => {
+                    close()
+                    store.setReviewing(true)
+                  }}
+                >
+                  Review changes
+                </Button>
+              )}
               <DialogClose asChild>
                 <Button variant="outline">Cancel</Button>
               </DialogClose>

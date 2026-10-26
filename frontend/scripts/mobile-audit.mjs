@@ -470,6 +470,17 @@ function scenarios(d) {
       await closeOverlays(page)
       await clickIf(page, page.getByRole('button', { name: 'AI assistant' }))
     }],
+    // Review changes (REVIEW-CHANGES-SCREENS): only while the form has unpublished changes.
+    ['review-changes', async (page) => {
+      await closeOverlays(page)
+      if (await clickIf(page, page.getByRole('button', { name: 'Form menu' })))
+        await clickIf(page, page.getByRole('menuitem', { name: 'Review changes' }))
+      else await clickIf(page, page.getByRole('button', { name: 'Review changes' }))
+    }],
+    ['publish-dialog', async (page) => {
+      await closeOverlays(page)
+      await clickIf(page, page.getByRole('button', { name: 'Publish', exact: true }))
+    }],
   ])
   // Jotform import (JOTFORM-IMPORT-SCREENS): source tabs, the result with its report, and the
   // responses import up to the column-mapping step (a tiny CSV; nothing is imported).
