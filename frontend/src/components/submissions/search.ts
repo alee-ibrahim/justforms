@@ -1,5 +1,5 @@
 /** Submissions view state kept in the URL (PHASE-3-SCREENS 4): shareable, and Back works. */
-import type { FieldFilter, FilterOp, SubmissionStatus } from '@/lib/api'
+import type { Condition, FieldFilter, FilterOp, SubmissionStatus } from '@/lib/api'
 
 export type Tab = SubmissionStatus | 'all'
 
@@ -10,6 +10,11 @@ export interface SubmissionsSearch {
   to?: string
   version?: number
   fields?: FieldFilter[]
+  /** Conditions from an Insights bar or an AI answer ("Show these submissions"). */
+  where?: Condition[]
+  whereAny?: Condition[]
+  /** What those conditions mean, in words (the filter chip). */
+  whereLabel?: string
   /** Submission to open in the detail sheet (links from notification emails). */
   open?: string
 }
@@ -31,6 +36,25 @@ function fieldFilters(raw: unknown): FieldFilter[] | undefined {
   return out.length ? out.slice(0, 20) : undefined
 }
 
+const KEY = /^(_status|_submitted|_version|[a-z][a-z0-9_]{0,62})$/
+const SCALAR = ['string', 'number', 'boolean']
+
+function conditions(raw: unknown): Condition[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const out = raw.filter(
+    (c): c is Condition =>
+      typeof c === 'object' &&
+      c !== null &&
+      typeof (c as Condition).field === 'string' &&
+      KEY.test((c as Condition).field) &&
+      typeof (c as Condition).op === 'string' &&
+      ((c as Condition).value == null || SCALAR.includes(typeof (c as Condition).value)) &&
+      ((c as Condition).values == null ||
+        (Array.isArray((c as Condition).values) && (c as Condition).values!.every((v) => SCALAR.includes(typeof v)))),
+  )
+  return out.length ? out.slice(0, 20) : undefined
+}
+
 export function validateSubmissionsSearch(search: Record<string, unknown>): SubmissionsSearch {
   return {
     status: typeof search.status === 'string' && TABS.has(search.status) ? (search.status as Tab) : undefined,
@@ -39,6 +63,9 @@ export function validateSubmissionsSearch(search: Record<string, unknown>): Subm
     to: typeof search.to === 'string' && DAY.test(search.to) ? search.to : undefined,
     version: typeof search.version === 'number' && search.version > 0 ? search.version : undefined,
     fields: fieldFilters(search.fields),
+    where: conditions(search.where),
+    whereAny: conditions(search.whereAny),
+    whereLabel: typeof search.whereLabel === 'string' && search.whereLabel ? search.whereLabel.slice(0, 300) : undefined,
     open: typeof search.open === 'string' && /^[0-9a-f-]{36}$/i.test(search.open) ? search.open : undefined,
   }
 }

@@ -3,6 +3,7 @@ import {
   createRootRouteWithContext,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   Outlet,
   redirect,
   type RouterHistory,
@@ -169,6 +170,14 @@ const formSubmissionsRoute = createRoute({
   component: FormSubmissionsPage,
 })
 
+/** Insights and "Ask your submissions" (INSIGHTS-SCREENS); lazy: it carries the charts. */
+const submissionsInsightsRoute = createRoute({
+  getParentRoute: () => formRoute,
+  path: '/submissions/insights',
+  validateSearch: validateSubmissionsSearch,
+  component: lazyRouteComponent(() => import('@/routes/form-insights'), 'FormInsightsPage'),
+})
+
 const submissionsImportRoute = createRoute({
   getParentRoute: () => formRoute,
   path: '/submissions/import',
@@ -203,6 +212,7 @@ const routeTree = rootRoute.addChildren([
       formPreviewRoute,
       formShareRoute,
       formSubmissionsRoute,
+      submissionsInsightsRoute,
       submissionsImportRoute,
       submissionViewRoute,
       formSettingsRoute,

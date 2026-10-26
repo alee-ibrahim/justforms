@@ -608,6 +608,20 @@ function scenarios(d) {
       await clickIf(page, page.getByRole('checkbox', { name: /^Select #/ }).nth(1))
     }],
   ], { scroll: true })
+  // Insights and "Ask your submissions" (INSIGHTS-SCREENS): summaries, a card as a table, the
+  // card menu, and Settings › AI when the install has an AI provider.
+  add('submissions-insights', `${formPath}/submissions/insights`, [
+    ['', null],
+    ['card-menu', async (page) => void (await clickIf(page, page.getByRole('button', { name: /^More for / }).first()))],
+    ['table', async (page) => {
+      await clickIf(page, page.getByRole('menuitem', { name: 'Show as table' }))
+    }],
+    ['other-answers', async (page) => {
+      await closeOverlays(page)
+      await clickIf(page, page.getByRole('button', { name: /^“Other” answers/ }).first())
+    }],
+  ], { fullPage: true, scroll: true })
+  add('settings-ai', `${formPath}/settings#ai`, undefined, { fullPage: true })
   add('submissions-cards', `${formPath}/submissions?status=all`, [
     ['', async (page) => void (await clickIf(page, page.getByRole('radio', { name: 'Cards' })))],
   ], { fullPage: true })

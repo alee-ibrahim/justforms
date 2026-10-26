@@ -21,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useFormSummary } from '@/components/builder/form-context'
 import { PageContainer } from '@/components/layout/page'
+import { ConditionChip, SubmissionsTabs } from '@/components/insights/nav'
 import { BulkBar } from '@/components/submissions/bulk-bar'
 import { CheckPdfDialog } from '@/components/submissions/check-pdf-dialog'
 import { ColumnPicker } from '@/components/submissions/column-picker'
@@ -146,8 +147,20 @@ export function FormSubmissionsPage() {
   const fieldFilters = useMemo(() => search.fields ?? [], [search.fields])
 
   const filters: ListFilters = useMemo(
-    () => listFilters({ q: search.q, from: search.from, to: search.to, version: search.version, fields: fieldFilters }, tab),
-    [tab, search.q, search.from, search.to, search.version, fieldFilters],
+    () =>
+      listFilters(
+        {
+          q: search.q,
+          from: search.from,
+          to: search.to,
+          version: search.version,
+          fields: fieldFilters,
+          where: search.where,
+          whereAny: search.whereAny,
+        },
+        tab,
+      ),
+    [tab, search.q, search.from, search.to, search.version, fieldFilters, search.where, search.whereAny],
   )
   // A link like ?open=<id> (from a notification email) opens that submission's page.
   useEffect(() => {
@@ -200,7 +213,8 @@ export function FormSubmissionsPage() {
   const canDelete = form.role === 'owner'
   const sensitive = fields.filter((f) => f.sensitive).map((f) => f.label)
   const url = form.url
-  const filtered = !!(search.q || search.from || search.to || search.version || fieldFilters.length)
+  const conditions = !!(search.where?.length || search.whereAny?.length)
+  const filtered = !!(search.q || search.from || search.to || search.version || fieldFilters.length || conditions)
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id))
   const someSelected = rows.some((r) => selected.has(r.id))
 
@@ -241,7 +255,17 @@ export function FormSubmissionsPage() {
   const clearFilters = () => {
     window.clearTimeout(typing.current)
     setQuery('')
-    setSearch({ status: 'all', q: undefined, from: undefined, to: undefined, version: undefined, fields: undefined })
+    setSearch({
+      status: 'all',
+      q: undefined,
+      from: undefined,
+      to: undefined,
+      version: undefined,
+      fields: undefined,
+      where: undefined,
+      whereAny: undefined,
+      whereLabel: undefined,
+    })
   }
   const toggle = (id: string, on: boolean) =>
     setSelected((prev) => {
@@ -339,6 +363,7 @@ export function FormSubmissionsPage() {
           </DropdownMenu>
         </div>
       </div>
+      <SubmissionsTabs formId={form.id} current="responses" search={viewSearch} />
       {none ? (
         <Empty className="border bg-card">
           <EmptyHeader>
@@ -465,6 +490,12 @@ export function FormSubmissionsPage() {
                     language={language}
                     onRemove={(i) => setSearch({ fields: fieldFilters.filter((_, j) => j !== i) })}
                   />
+                  {conditions && (
+                    <ConditionChip
+                      label={search.whereLabel}
+                      onRemove={() => setSearch({ where: undefined, whereAny: undefined, whereLabel: undefined })}
+                    />
+                  )}
                   <Button variant="link" size="sm" onClick={clearFilters}>
                     Clear filters
                   </Button>

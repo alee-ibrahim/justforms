@@ -1,16 +1,18 @@
 /**
  * Settings (PHASE-4-SCREENS 1, APPROVALS-SCREENS 1, FORM-THEME-SCREENS 3.3, SAVED-PROGRESS-SCREENS 3,
  * SHARING-PREVIEW-SCREENS 3): appearance, the link's sharing preview, who can respond and saved progress, spam protection, emails, approvals, webhooks,
- * retention.
+ * retention, AI (INSIGHTS-SCREENS 5).
  *
  * One section at a time (REVIEW P2-12): a section list at the start edge on desktop, a select on
  * phones. The open section is kept in the URL hash (`#approvals`), so links can point at one.
  */
+import { useQuery } from '@tanstack/react-query'
 import { type ReactNode, useEffect, useState } from 'react'
 
 import { useFormSummary } from '@/components/builder/form-context'
 import { PageContainer } from '@/components/layout/page'
 import { FormAppearanceCard } from '@/components/theme/form-theme-cards'
+import { AiCard } from '@/components/settings/ai-card'
 import { ApprovalsCard } from '@/components/settings/approvals-card'
 import { NotificationsCard } from '@/components/settings/notifications-card'
 import { ProgressCard } from '@/components/settings/progress-card'
@@ -23,6 +25,7 @@ import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import type { FormSummary } from '@/lib/api'
+import { metaQuery } from '@/lib/queries'
 
 interface Section {
   id: string
@@ -54,9 +57,16 @@ const SECTIONS: Section[] = [
   { id: 'retention', label: 'Data retention', render: (form, canManage) => <RetentionCard form={form} canManage={canManage} /> },
 ]
 
+/** Shown only when the install has an AI provider. */
+const AI_SECTION: Section = { id: 'ai', label: 'AI', render: (form, canManage) => <AiCard form={form} canManage={canManage} /> }
+
+function sectionsFor(ai: boolean): Section[] {
+  return ai ? [...SECTIONS, AI_SECTION] : SECTIONS
+}
+
 function sectionFromHash(): string {
   const id = window.location.hash.slice(1)
-  return SECTIONS.some((s) => s.id === id) ? id : SECTIONS[0].id
+  return [...SECTIONS, AI_SECTION].some((s) => s.id === id) ? id : SECTIONS[0].id
 }
 
 function useSection() {
@@ -77,7 +87,8 @@ export function FormSettingsPage() {
   const form = useFormSummary()
   const canManage = form.role === 'owner'
   const [section, choose] = useSection()
-  const current = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0]
+  const sections = sectionsFor(!!useQuery(metaQuery).data?.features.ai)
+  const current = sections.find((s) => s.id === section) ?? sections[0]
   return (
     <PageContainer>
       <div className="flex flex-col gap-1">
@@ -87,7 +98,7 @@ export function FormSettingsPage() {
       <Field className="lg:hidden">
         <FieldLabel htmlFor="settings-section">Section</FieldLabel>
         <NativeSelect id="settings-section" className="w-full sm:w-72" value={section} onChange={(e) => choose(e.target.value)}>
-          {SECTIONS.map((s) => (
+          {sections.map((s) => (
             <NativeSelectOption key={s.id} value={s.id}>
               {s.label}
             </NativeSelectOption>
@@ -96,7 +107,7 @@ export function FormSettingsPage() {
       </Field>
       <div className="grid items-start gap-6 lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-8">
         <nav aria-label="Settings sections" className="flex flex-col gap-0.5 max-lg:hidden lg:sticky lg:top-[calc(var(--studio-top)+1rem)]">
-          {SECTIONS.map((s) => (
+          {sections.map((s) => (
             <Button
               key={s.id}
               variant="ghost"

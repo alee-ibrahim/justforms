@@ -166,6 +166,8 @@ export interface FormSummary {
   cardFields?: string[] | null
   /** Older versions' fixed questions read as rows of a newer repeater in the export (DESIGN 15.2). */
   versionMappings?: { repeater: string; rows: Record<string, string>[] }[]
+  /** "Ask your submissions" may send the text of answers to the AI provider (Settings › AI). */
+  aiReadAnswers?: boolean
   submissionCount: number
   newCount: number
   createdAt: string
@@ -559,6 +561,15 @@ export interface FieldFilter {
   value?: string | number | boolean
 }
 
+/** A condition in the submissions query language (backend app/insights/dsl.py): Insights
+ * bars and the AI's "Show these submissions" links carry these. */
+export interface Condition {
+  field: string
+  op: string
+  value?: string | number | boolean | null
+  values?: (string | number | boolean)[] | null
+}
+
 /** Submission list filters (also the body of an export request). */
 export interface ListFilters {
   status?: SubmissionStatus
@@ -568,6 +579,24 @@ export interface ListFilters {
   version?: number
   fields?: FieldFilter[]
   ids?: string[]
+  /** All must hold. */
+  where?: Condition[]
+  /** At least one must hold. */
+  whereAny?: Condition[]
+}
+
+/** Query string of the list filters (the list, Insights). */
+export function filterParams(f: ListFilters): URLSearchParams {
+  const qs = new URLSearchParams()
+  if (f.status) qs.set('status', f.status)
+  if (f.q) qs.set('q', f.q)
+  if (f.from) qs.set('from', f.from)
+  if (f.to) qs.set('to', f.to)
+  if (f.version) qs.set('version', String(f.version))
+  if (f.fields?.length) qs.set('filter', JSON.stringify(f.fields))
+  if (f.where?.length || f.whereAny?.length)
+    qs.set('where', JSON.stringify({ where: f.where ?? [], whereAny: f.whereAny ?? [] }))
+  return qs
 }
 
 export interface ExportJob {
@@ -706,6 +735,8 @@ export type FormPatch = Partial<{
   retentionDays: number
   /** Questions on submission cards; [] goes back to the automatic choice. */
   cardFields: string[]
+  /** Owners: let "Ask your submissions" send the text of answers to the AI provider. */
+  aiReadAnswers: boolean
 }>
 
 export type RuleType = 'owner_email' | 'respondent_receipt'
@@ -877,13 +908,7 @@ export const api = {
   publish: (formId: string) => request<Version>('POST', `/forms/${formId}/publish`),
   versions: (formId: string) => request<Version[]>('GET', `/forms/${formId}/versions`),
   listSubmissions: (formId: string, f: ListFilters & { cursor?: number }) => {
-    const qs = new URLSearchParams()
-    if (f.status) qs.set('status', f.status)
-    if (f.q) qs.set('q', f.q)
-    if (f.from) qs.set('from', f.from)
-    if (f.to) qs.set('to', f.to)
-    if (f.version) qs.set('version', String(f.version))
-    if (f.fields?.length) qs.set('filter', JSON.stringify(f.fields))
+    const qs = filterParams(f)
     if (f.cursor !== undefined) qs.set('cursor', String(f.cursor))
     return request<{ items: SubmissionSummary[]; nextCursor: number | null; total: number }>(
       'GET',

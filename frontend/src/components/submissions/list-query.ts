@@ -14,6 +14,8 @@ export function listFilters(search: SubmissionsSearch, tab: Tab): ListFilters {
     to: search.to,
     version: search.version,
     fields: search.fields ?? [],
+    where: search.where,
+    whereAny: search.whereAny,
   }
 }
 
