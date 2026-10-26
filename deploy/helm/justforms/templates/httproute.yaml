@@ -25,4 +25,8 @@ spec:
       backendRefs:
         - name: {{ include "justforms.fullname" . }}-frontend
           port: {{ .Values.frontend.port }}
+      {{- with .Values.httpRoute.timeouts }}
+      timeouts:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 {{- end }}

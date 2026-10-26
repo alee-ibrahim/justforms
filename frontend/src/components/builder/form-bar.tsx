@@ -12,6 +12,7 @@ import {
   EllipsisIcon,
   EllipsisVerticalIcon,
   FileDiffIcon,
+  MessageSquareTextIcon,
   Redo2Icon,
   SendIcon,
   SparklesIcon,
@@ -23,6 +24,7 @@ import { useThaanaKeyboard } from '@yashau/thaana-react'
 import { type RefObject, useRef, useState } from 'react'
 
 import { useAi, useAiController } from '@/components/ai/controller'
+import { isSubmissionsPath, useAsk } from '@/components/insights/ask-state'
 import { Badge } from '@/components/ui/badge'
 import {
   Breadcrumb,
@@ -121,10 +123,39 @@ function useAiToggle(formId: string) {
   }
 }
 
-/** Opens the AI assistant panel (PHASE-5-SCREENS 1); absent when AI is off. */
+/** The form bar's AI entry, by page: on Submissions (Responses, Insights, a submission) it
+ * opens "Ask your submissions"; elsewhere the builder's assistant ("Edit with AI", going to
+ * Edit first). Null when neither is available. */
+function useAiEntry(formId: string) {
+  const edit = useAiToggle(formId)
+  const ask = useAsk()
+  const onSubmissions = useRouterState({ select: (s) => isSubmissionsPath(s.location.pathname) })
+  if (ask?.available && onSubmissions)
+    return {
+      label: 'Ask about submissions',
+      tip: 'Ask questions about these submissions',
+      close: 'Close Ask your submissions',
+      icon: MessageSquareTextIcon,
+      shown: ask.open,
+      toggle: () => ask.setOpen(!ask.open),
+    }
+  if (edit)
+    return {
+      label: 'Edit with AI',
+      tip: 'Change this form with the AI assistant',
+      close: 'Close AI assistant',
+      icon: SparklesIcon,
+      shown: edit.shown,
+      toggle: edit.toggle,
+    }
+  return null
+}
+
+/** Opens the page's AI panel (PHASE-5-SCREENS 1, INSIGHTS-SCREENS 4); absent when AI is off. */
 function AiButton({ formId }: { formId: string }) {
-  const ai = useAiToggle(formId)
+  const ai = useAiEntry(formId)
   if (!ai) return null
+  const Icon = ai.icon
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -132,15 +163,15 @@ function AiButton({ formId }: { formId: string }) {
           variant="outline"
           size="sm"
           aria-pressed={ai.shown}
-          aria-label="AI assistant"
+          aria-label={ai.label}
           className={ai.shown ? 'bg-secondary' : undefined}
           onClick={ai.toggle}
         >
-          <SparklesIcon />
-          <span className="max-xl:hidden">AI assistant</span>
+          <Icon />
+          <span className="max-xl:hidden">{ai.label}</span>
         </Button>
       </TooltipTrigger>
-      <TooltipContent className="xl:hidden">AI assistant</TooltipContent>
+      <TooltipContent>{ai.tip}</TooltipContent>
     </Tooltip>
   )
 }
@@ -385,7 +416,8 @@ type CompactProps = {
  * the reason when there is nothing to publish. */
 function CompactMenu({ form, store, nav, active, canPublish, onPublish, onLogic, trigger }: CompactProps) {
   const navigate = useNavigate()
-  const ai = useAiToggle(form.id)
+  const ai = useAiEntry(form.id)
+  const AiIcon = ai?.icon
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -406,16 +438,19 @@ function CompactMenu({ form, store, nav, active, canPublish, onPublish, onLogic,
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
+        {ai && AiIcon && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={ai.toggle}>
+              <AiIcon />
+              {ai.shown ? ai.close : ai.label}
+            </DropdownMenuItem>
+          </>
+        )}
         {store && (
           <>
             <DropdownMenuSeparator />
             <UndoRedoItems store={store} />
-            {ai && (
-              <DropdownMenuItem onSelect={ai.toggle}>
-                <SparklesIcon />
-                {ai.shown ? 'Close AI assistant' : 'AI assistant'}
-              </DropdownMenuItem>
-            )}
             <DropdownMenuItem onSelect={onLogic}>
               <SplitIcon />
               View all logic
@@ -543,7 +578,7 @@ export function FormBar({
         </Breadcrumb>
         {store && <SaveStatus />}
         <div className="ms-auto flex shrink-0 items-center gap-2">
-          {store && <AiButton formId={form.id} />}
+          <AiButton formId={form.id} />
           {store && <UndoRedo store={store} />}
           <nav aria-label="Form" className="flex items-center">
             {nav.map((n) => (

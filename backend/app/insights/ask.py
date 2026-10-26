@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -29,16 +31,21 @@ from zoneinfo import ZoneInfo
 
 from pydantic import Field, StringConstraints, ValidationError
 from sqlalchemy import ColumnElement, func, select
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.orchestrator import BudgetExceeded
 from app.ai.providers.http import clean_schema
 from app.ai.types import AIProvider, ChatMessage, ProviderError, ToolResult, ToolSpec, Usage
-from app.insights.catalogue import CONTACT_TYPES, OBJECT_TYPES, Catalogue, outline
+from app.insights.catalogue import CHOICE_TYPES, CONTACT_TYPES, OBJECT_TYPES, Catalogue, outline
 from app.insights.dsl import (
     MAX_LIST,
+    META_STATUS,
+    META_SUBMITTED,
+    META_VERSION,
     Compiler,
     Condition,
+    GroupBy,
     Key,
     Policy,
     Query,
@@ -52,7 +59,19 @@ from app.insights.dsl import (
 )
 from app.models import Submission
 
+log = logging.getLogger(__name__)
+
 MAX_ERRORS = 8
+LIST_ROWS = 50  # submissions in a "who" list (show_result display "list")
+# Lists are shown to the person, who can see these answers anyway: free text is fine there,
+# contact details, sensitive questions, files and signatures still aren't.
+SHOW_POLICY = Policy(for_ai=True, text_allowed=True)
+NO_VALUE_OPS = frozenset({"answered", "unanswered", "is_other"})
+NAME_LABEL = re.compile(r"(name|organi[sz]ation|title|company)", re.I)
+# Whole numbers in a reply, not part of "#12", a decimal or a percentage.
+NUMBER = re.compile(
+    r"(?<![\w#.,])\d{1,3}(?:,\d{3})+(?![\d.,]*\d|%)|(?<![\w#.,])\d+(?![\d.,]*\d|\s?%)"
+)
 READ_MAX_SUBMISSIONS = 200
 READ_TOTAL_CHARS = 40_000
 RESULT_CHARS = 30_000  # a tool result sent back to the model, at most
@@ -73,13 +92,21 @@ class ReadAnswers(_Model):
 
 
 class ShowResult(_Model):
-    """Show the result of an earlier query_submissions call (its queryId) to the person as a
-    bar chart or a table, under your answer. Use it when groups are easier to read as a
-    chart (bar) or when there are several numbers per group (table)."""
+    """Show the result of an earlier query_submissions call (its queryId) to the person under
+    your answer: a bar chart (bar) when groups are easier to read as a chart, a table when
+    there are several numbers per group, or a list of the matching submissions (list) for
+    "who"/"which" questions. A list shows each submission's number and the answers to
+    `fields` (for example the question that names the person or organisation); those answers
+    go to the person only, never to you."""
 
     query_id: Annotated[str, StringConstraints(pattern=r"^q[0-9]{1,3}$")]
-    display: Literal["bar", "table"] = "bar"
+    display: Literal["bar", "table", "list"] = "bar"
     title: Annotated[str, StringConstraints(max_length=120)] = ""
+    fields: list[Key] = Field(
+        default_factory=list,
+        max_length=3,
+        description="list only: question keys to show next to each submission",
+    )
 
 
 def tool_specs(read_allowed: bool) -> list[ToolSpec]:
@@ -124,12 +151,28 @@ How to work:
 - Get every number from the tools. Never estimate, round away, or invent a number, a name or
   an answer. Every number in your reply must appear in a tool result of this conversation.
 - Use query_submissions for counts, groups, averages and lists of submission numbers. Match
-  choices by option value; for "how many ticked X" use includes_any on a multi choice and eq
-  on a single choice. Say what the count is out of (for example "42 of 310 submissions").
+  choices by option value; for "how many ticked X" filter with where (includes_any on a multi
+  choice, eq on a single choice) rather than group_by, so the answer links to exactly those
+  submissions. Say what the count is out of (for example "42 of 310 submissions").
+- People word questions loosely. Match their words to questions and options by meaning, not
+  exact spelling or case (for example "human rights" fits an option such as "HUMAN RIGHTS
+  AND GENDER"; "who want to know about X" usually means the question about interests or
+  areas). When several options or questions could fit, count the best match and say which
+  option of which question you counted, then name the other close candidates in one short
+  line. If no single best match stands out, count each candidate (one query each) and give
+  the counts briefly.
+- "Who" and "which" questions (who wants..., which organisations...): count the matching
+  submissions with a where filter, then call show_result with display "list" and that
+  queryId, with fields set to the question that names the respondent (a name or
+  organisation question) when the form has one. The person sees a table of those
+  submissions; you never see the names, so don't write any: say how many match and that
+  they are listed below.
 - Results count submissions unless they say rows (questions inside a repeater are counted
   per row). In a multi choice people can tick several options, so shares don't add to 100%.
 - When a breakdown would help, call show_result with the queryId so the person sees a chart
   or table drawn from the result itself.
+- Tool results may carry notes (for example which option a loose word was matched to);
+  mention a matched option by its label in your reply.
 - {reading}
 - Sensitive questions, files, signatures and contact details are never available to you:
   only whether they were answered.
@@ -155,6 +198,8 @@ class AskOutcome:
     usage: Usage = field(default_factory=Usage)
     # (field keys, submissions returned) per read_answers call, for the audit log.
     reads: list[tuple[list[str], int]] = field(default_factory=list)
+    # The submissions the answer is about ("Show these N submissions"), see answer_link.
+    link: dict[str, Any] | None = None
 
 
 class Tools:
@@ -168,12 +213,14 @@ class Tools:
         *,
         tz: ZoneInfo,
         read_allowed: bool,
+        total: int | None = None,
     ) -> None:
         self.db = db
         self.cat = cat
         self.form_id = form_id
         self.tz = tz
         self.read_allowed = read_allowed
+        self.total = total
         self.policy = Policy(for_ai=True, text_allowed=read_allowed)
         self.results: dict[str, tuple[Query, dict[str, Any]]] = {}
 
@@ -182,13 +229,24 @@ class Tools:
     ) -> tuple[bool, dict[str, Any], dict[str, Any]]:
         """(ok, result for the model, step for the transcript)."""
         try:
-            if name == "query_submissions":
-                return await self._query(args)
-            if name == "read_answers":
-                return await self._read(args)
-            if name == "show_result":
-                return self._show(args)
-            raise QueryError(f"unknown tool {name!r}")
+            # A savepoint per call: a query the database refuses fails this call only and
+            # leaves the session usable for the next one (and for saving the answer).
+            async with self.db.begin_nested():
+                if name == "query_submissions":
+                    return await self._query(args)
+                if name == "read_answers":
+                    return await self._read(args)
+                if name == "show_result":
+                    return await self._show(args)
+                raise QueryError(f"unknown tool {name!r}")
+        except DBAPIError:
+            # The database's message can quote stored answers: it is logged, not sent.
+            log.warning("ask: the database refused a %s call", name, exc_info=True)
+            msg = (
+                "The database couldn't run that query. Check the operators and value types"
+                " against the question types, or ask for something simpler."
+            )
+            return False, {"error": msg}, {"tool": name, "ok": False, "error": "database"}
         except ValidationError as exc:
             msg = "; ".join(
                 f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors()[:5]
@@ -199,9 +257,18 @@ class Tools:
 
     async def _query(self, args: dict[str, Any]) -> tuple[bool, dict[str, Any], dict[str, Any]]:
         query = Query.model_validate(args)
+        notes: list[str] = []
+        query = query.model_copy(
+            update={
+                "where": self._resolve(query.where, notes),
+                "where_any": self._resolve(query.where_any, notes),
+            }
+        )
         result = await run_query(
             self.db, self.cat, self.form_id, query, policy=self.policy, tz=self.tz
         )
+        if notes:
+            result["notes"] = [*notes, *result.get("notes", [])]
         qid = f"q{len(self.results) + 1}"
         self.results[qid] = (query, result)
         step = {
@@ -224,6 +291,26 @@ class Tools:
             ]
         out = {"queryId": qid, **result}
         return True, _fit(out), step
+
+    def _resolve(self, conds: list[Condition], notes: list[str]) -> list[Condition]:
+        """Choice values as the options' values (a label or a loose word becomes the option it
+        names), so the step, the link and its description say what was counted."""
+        comp = Compiler(self.cat, self.policy, self.tz)
+        out: list[Condition] = []
+        for c in conds:
+            q = self.cat.question(c.field)
+            if q is None or q.type not in CHOICE_TYPES or c.op in NO_VALUE_OPS:
+                out.append(c)
+                continue
+            vals = [comp._choice_value(q, v) for v in comp._values(c)]
+            if c.values is not None:
+                out.append(c.model_copy(update={"values": vals}))
+            elif vals:
+                out.append(c.model_copy(update={"value": vals[0]}))
+            else:
+                out.append(c)
+        notes.extend(n for n in comp.notes if "matched to the option" in n)
+        return out
 
     async def _read(self, args: dict[str, Any]) -> tuple[bool, dict[str, Any], dict[str, Any]]:
         if not self.read_allowed:
@@ -285,16 +372,80 @@ class Tools:
             result["truncated"] = True
         return True, result, step
 
-    def _show(self, args: dict[str, Any]) -> tuple[bool, dict[str, Any], dict[str, Any]]:
+    async def _show(self, args: dict[str, Any]) -> tuple[bool, dict[str, Any], dict[str, Any]]:
         req = ShowResult.model_validate(args)
         found = self.results.get(req.query_id)
         if found is None:
             raise QueryError(f"no query {req.query_id!r} in this answer")
         query, result = found
+        if req.display == "list":
+            listed = await self._list(req, query)
+            return (
+                True,
+                {"shown": True, "listed": len(listed["rows"]), "matched": listed["total"]},
+                {"tool": "show_result", "ok": True, "chart": listed},
+            )
         chart = chart_spec(req, query, result)
         if chart is None:
             raise QueryError("that result has nothing to chart (no groups or numbers)")
         return True, {"shown": True}, {"tool": "show_result", "ok": True, "chart": chart}
+
+    async def _list(self, req: ShowResult, query: Query) -> dict[str, Any]:
+        """The matching submissions as a table for the person: number plus the answers to
+        ``req.fields`` (or the form's name question). Read on the server and shown to the
+        person only; the model gets the count."""
+        keys = list(dict.fromkeys(req.fields)) or [k for k in [name_question(self.cat)] if k]
+        shown: list[str] = []
+        for key in keys:
+            q = self.cat.question(key)
+            if q is None:
+                raise QueryError(f"{key!r} is not a question of this form")
+            if q.sensitive or q.type in OBJECT_TYPES or q.type in CONTACT_TYPES:
+                raise QueryError(f"{key!r} can't be listed (sensitive, file, signature or contact)")
+            shown.append(key)
+        listing = Query(
+            where=query.where,
+            where_any=query.where_any,
+            list_limit=LIST_ROWS,
+            list_fields=shown,
+        )
+        result = await run_query(
+            self.db, self.cat, self.form_id, listing, policy=SHOW_POLICY, tz=self.tz
+        )
+        rows = [
+            {
+                "label": f"#{item['ref']}",
+                "ref": item["ref"],
+                "values": {k: (item.get("answers") or {}).get(k) or None for k in shown},
+            }
+            for item in result.get("submissions", [])
+        ]
+        total = int(result["matched"]["submissions"])
+        labels = {}
+        for k in shown:
+            q = self.cat.question(k)
+            labels[k] = q.label if q else k
+        return {
+            "queryId": req.query_id,
+            "display": "list",
+            "title": req.title,
+            "unit": "submissions",
+            "columns": shown,
+            "columnLabels": labels,
+            "rows": rows,
+            "total": total,
+            "truncated": total > len(rows),
+        }
+
+
+def name_question(cat: Catalogue) -> str | None:
+    """The question that most likely names the respondent (for "who" lists): a top-level
+    short text whose label says name, organisation or title; else the first short text."""
+    texts = [q for q in cat.top_level() if q.type == "short_text" and not q.sensitive]
+    for q in texts:
+        if NAME_LABEL.search(q.label):
+            return q.key
+    return texts[0].key if texts else None
 
 
 def chart_spec(req: ShowResult, query: Query, result: dict[str, Any]) -> dict[str, Any] | None:
@@ -330,6 +481,87 @@ def chart_spec(req: ShowResult, query: Query, result: dict[str, Any]) -> dict[st
             "truncated": False,
         }
     return None
+
+
+def group_condition(cat: Catalogue, g: GroupBy, value: Any) -> Condition | None:
+    """The condition selecting one group of a single group_by (None: can't be expressed)."""
+    if g.field == META_SUBMITTED or g.bucket != "value":
+        return None
+    if g.field in (META_STATUS, META_VERSION):
+        return None if value is None else Condition(field=g.field, op="eq", value=value)
+    q = cat.question(g.field)
+    if q is None:
+        return None
+    if value is None:
+        return Condition(field=g.field, op="unanswered")
+    if q.type in CHOICE_TYPES and value == "Other" and "Other" not in q.option_values:
+        return Condition(field=g.field, op="is_other")
+    if q.type == "multi_choice":
+        return Condition(field=g.field, op="includes_any", values=[value])
+    if isinstance(value, (str, int, float, bool)):
+        return Condition(field=g.field, op="eq", value=value)
+    return None
+
+
+def answer_link(tools: Tools, text: str) -> dict[str, Any] | None:
+    """Which counted submissions the reply is about, for its "Show these N submissions".
+
+    The first whole number in the reply that is the count of a query (or of one group of a
+    grouped query) picks it: "16 of 40 ticked X" links to the 16, not the 40. A reply that
+    quotes two or more groups of one query is a breakdown and links to the whole query.
+    Otherwise the newest query with conditions, else the newest query."""
+    if not tools.results:
+        return None
+    # (count, queryId, where, kind, label of the group)
+    cands: list[tuple[int, str, Where, str, str]] = []
+    groups_of: dict[str, set[int]] = {}
+    newest = list(reversed(tools.results.items()))
+    for qid, (query, result) in newest:
+        whole = Where(where=query.where, where_any=query.where_any)
+        cands.append((int(result["matched"]["submissions"]), qid, whole, "count", ""))
+        if len(query.group_by) != 1:
+            continue
+        g = query.group_by[0]
+        for entry in result.get("groups", []):
+            cond = group_condition(tools.cat, g, entry["key"].get(g.field))
+            n = entry.get("submissions", entry.get("count"))
+            if cond is None or not isinstance(n, int):
+                continue
+            groups_of.setdefault(qid, set()).add(n)
+            where = Where(where=[*query.where, cond], where_any=query.where_any)
+            cands.append((n, qid, where, "group", str(entry["label"].get(g.field, ""))))
+    numbers = [int(m.replace(",", "")) for m in NUMBER.findall(text)]
+    folded = text.casefold()
+    chosen: tuple[int, str, Where, str, str] | None = None
+    for n in numbers:
+        hits = [c for c in cands if c[0] == n]
+        if not hits:
+            continue
+        # Groups with the same count: the one the reply names.
+        hit = next((c for c in hits if c[4] and c[4].casefold() in folded), hits[0])
+        if hit[3] == "group" and len(groups_of[hit[1]] & set(numbers)) >= 2:
+            whole_hit = next(c for c in cands if c[1] == hit[1] and c[3] == "count")
+            hit = (whole_hit[0], hit[1], whole_hit[2], "breakdown", "")
+        chosen = hit
+        break
+    if chosen is None:
+        qid, (query, result) = next(
+            ((k, v) for k, v in newest if v[0].where or v[0].where_any), newest[0]
+        )
+        kind = "breakdown" if query.group_by else "count"
+        whole = Where(where=query.where, where_any=query.where_any)
+        chosen = (int(result["matched"]["submissions"]), qid, whole, kind, "")
+    count, qid, where, kind, _label = chosen
+    if kind == "count" and not where.where and not where.where_any:
+        kind = "all"
+    return {
+        "queryId": qid,
+        "kind": kind,
+        "count": count,
+        "total": tools.total,
+        "description": describe(tools.cat, where),
+        "where": where.model_dump(mode="json", by_alias=True),
+    }
 
 
 def _fit(result: dict[str, Any]) -> dict[str, Any]:
@@ -399,8 +631,11 @@ async def run_ask(
             )
             if not result.tool_calls:
                 outcome.text = result.text
+                outcome.link = answer_link(tools, result.text)
                 if result.text:
                     await emit("message.delta", {"text": result.text})
+                if outcome.link:
+                    await emit("link", outcome.link)
                 return
             results: list[ToolResult] = []
             for call in result.tool_calls:
@@ -452,4 +687,12 @@ def today(tz: ZoneInfo) -> str:
     return datetime.now(tz).date().isoformat()
 
 
-__all__ = ["MAX_LIST", "AskOutcome", "Tools", "run_ask", "system_prompt", "tool_specs"]
+__all__ = [
+    "MAX_LIST",
+    "AskOutcome",
+    "Tools",
+    "answer_link",
+    "run_ask",
+    "system_prompt",
+    "tool_specs",
+]

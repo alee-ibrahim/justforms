@@ -10,7 +10,7 @@ import { useMemo } from 'react'
 
 import { useFormSummary } from '@/components/builder/form-context'
 import { insightsApi, type QuestionSummary } from '@/components/insights/api'
-import { AskPanel } from '@/components/insights/ask-panel'
+import { AskEntry } from '@/components/insights/ask-entry'
 import { ConditionChip, SubmissionsTabs } from '@/components/insights/nav'
 import { QuestionCard } from '@/components/insights/question-card'
 import { PageContainer } from '@/components/layout/page'
@@ -24,7 +24,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Condition } from '@/lib/api'
-import { metaQuery, versionQuery, versionsQuery } from '@/lib/queries'
+import { versionQuery, versionsQuery } from '@/lib/queries'
 import { useDelayed } from '@/lib/use-delayed'
 import { buildIndex } from '@/logic/form-index'
 import type { FieldElement } from '@/schema'
@@ -83,7 +83,6 @@ export function FormInsightsPage() {
     } as never)
   const tab: Tab = search.status ?? 'all'
   const filters = useMemo(() => listFilters(search, tab), [search, tab])
-  const aiOn = !!useQuery(metaQuery).data?.features.ai
   const live = useQuery(versionQuery(form.id, form.currentVersion))
   const versions = useQuery({ ...versionsQuery(form.id), enabled: form.currentVersion !== null })
   const summary = useQuery({
@@ -211,7 +210,7 @@ export function FormInsightsPage() {
         )}
       </div>
 
-      {aiOn && <AskPanel formId={form.id} role={form.role} insights={data} />}
+      <AskEntry schema={schema} language={language} />
 
       {summary.isError && (
         <Alert variant="destructive">

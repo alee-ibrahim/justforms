@@ -116,12 +116,28 @@ export interface QueryStep {
 
 export interface ChartSpec {
   queryId: string
-  display: 'bar' | 'table'
+  /** list: the matching submissions ("who" questions), with answers to `columns`. */
+  display: 'bar' | 'table' | 'list'
   title: string
   unit: string
   columns: string[]
-  rows: { label: string; values: Record<string, number | string | null> }[]
+  /** list: the questions' labels. */
+  columnLabels?: Record<string, string>
+  rows: { label: string; ref?: number; values: Record<string, number | string | null> }[]
+  /** list: how many submissions match (rows holds the newest of them). */
+  total?: number
   truncated: boolean
+}
+
+/** The submissions an answer is about ("Show these N submissions"): the count it quotes. */
+export interface AnswerLink {
+  queryId: string
+  /** count / group: one number (shown big); breakdown: a grouped query; all: every submission. */
+  kind: 'count' | 'group' | 'breakdown' | 'all'
+  count: number
+  total: number | null
+  description: string
+  where: { where: Condition[]; whereAny: Condition[] }
 }
 
 export type AskStatus = 'ok' | 'error' | 'cancelled'
@@ -133,6 +149,7 @@ export interface AskMessage {
     text?: string
     steps?: QueryStep[]
     charts?: ChartSpec[]
+    link?: AnswerLink | null
     status?: AskStatus
     error?: string | null
   }
@@ -150,6 +167,7 @@ export type AskEvent =
   | { event: 'message.delta'; data: { text: string } }
   | { event: 'tool.applied' | 'tool.error'; data: QueryStep }
   | { event: 'chart'; data: ChartSpec }
+  | { event: 'link'; data: AnswerLink }
   | { event: 'error'; data: { code: string } }
   | { event: 'cancelled'; data: Record<string, never> }
   | { event: 'done'; data: { usage: { in: number; out: number } } }
@@ -205,6 +223,8 @@ export function askErrorText(code: string | null | undefined): string {
       return "The AI couldn't work out how to count that. Try asking it another way."
     case 'ai_busy':
       return 'Still answering your last question.'
+    case 'internal':
+      return 'Something went wrong while counting. Try again.'
     default:
       return "Couldn't get an answer. Try again."
   }

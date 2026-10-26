@@ -105,29 +105,81 @@ computed colours on the card background with the question as title, 2x.
 
 ## 4. Ask your submissions
 
-- Card "Ask your submissions", description naming the provider and what is sent:
-  - reading answers off: "Answers are counted from this form's submissions. Your question, the
-    form's questions and counts go to {provider}; the text of answers doesn't."
-  - on: "…Your question, the form's questions, counts and, when needed, the text of answers go
-    to {provider}."
-- Empty chat: "Try asking:" with up to three questions built from the form (first multi-choice
-  option, a number's average, submissions per month; a summary of a long-text question when
-  reading answers is on). A chip sends at once.
-- Composer: `InputGroupTextarea` "Ask a question about the submissions…", Enter sends,
-  Shift+Enter new line, Esc stops; the send button turns into "Stop" while answering. Over
-  2,000 characters: "Keep questions under 2,000 characters."
-- While answering: the question bubble (end side, `bg-secondary`), then each count as it runs
-  ("Submissions where … : 14 submissions") and "Counting…" with a spinner (`aria-live`).
-- Answer: the reply text (`dir="auto"`), any chart/table the AI asked for (drawn from the
-  counted result, never from the AI's words), then:
-  - "Show these N submissions" (link button): Responses filtered to the main query.
-  - "How this was calculated" (collapsible): each query in words with its count and
-    "Show them"; reading steps say which questions were read and for how many submissions.
-- Errors (plain, in place): allowance used up, too many questions, too slow, provider down,
-  "The AI couldn't work out how to count that. Try asking it another way."
-- Last three exchanges show; "Show N earlier questions" reveals the rest. "New chat" (icon,
-  tooltip) starts over. Chats are personal and kept 90 days.
-- Owners with reading off see: "To let the AI summarise written answers, turn on Settings › AI."
+### 4.1 Where it lives
+
+- One panel for the whole Submissions area (Responses, Insights, a submission), built like the
+  builder's assistant panel: a header (title, "New chat", close), the conversation, and the
+  composer with a one-line note at the bottom.
+- From 1024px it is docked at the end of the page under the form bar (`aside`, 26rem, 28rem
+  from `xl`); the page stays usable beside it, so "Show these N submissions" filters the list
+  while the chat stays open. Below 1024px it is a full-height `Sheet` (right, full width,
+  `max-w-md` from `sm`); opening a list closes it.
+- The form bar's AI button says what it does on each page: **Ask about submissions** on
+  Submissions (opens or closes this panel; tooltip "Ask questions about these submissions"),
+  **Edit with AI** elsewhere (the builder's assistant, going to Edit first). On phones the
+  form menu has the same item ("Close Ask your submissions" while open). Viewers get the
+  Ask entry too.
+- Insights shows a short card "Ask your submissions" ("Ask in your own words. Answers are
+  counted from the submissions and link to them."), a question box that opens the panel and up
+  to three example questions that open it and ask at once. Hidden while the panel is open.
+- Shown only when `GET /meta` reports `features.ai` and the form has been published.
+
+### 4.2 Conversation
+
+- Empty chat: "Ask about this form's submissions" / "Answers are counted from the
+  submissions, and every answer links to the ones it counted.", then "Try asking" with up to
+  four questions built from the form's choice questions ("How many ticked “<option>”?",
+  "Who ticked “<option>”?" when the form has a name question, "Breakdown by “<question>”"), a
+  number's average, submissions per month (and a summary of a long text when reading answers
+  is on). Long labels are cut at a word with "…". A chip asks at once.
+- Composer: `InputGroupTextarea` "Ask a question about the submissions…", hint "Enter to send,
+  Shift+Enter for a new line" (hidden on phones), Enter sends, Shift+Enter new line, Esc
+  stops; the send button turns into "Stop" while answering. Over 2,000 characters: "Keep
+  questions under 2,000 characters." Focus returns to the composer after each answer.
+- Note under the composer (info icon, `text-xs`): reading off "Your question, the form's
+  questions and counts go to {provider}; the text of answers doesn't." / on "…counts and, when
+  needed, the text of answers go to {provider}." plus a "Settings › AI" link for owners and
+  editors.
+- Question: bubble at the end side (`bg-secondary`).
+- While answering: a card with each count as it runs ("Submissions where … : 14
+  submissions"), the reply when it arrives, and "Reading your question…" / "Counting…" with a
+  spinner (`aria-busy` on the log). The log follows new content unless the person scrolled
+  up; when the answer lands its question scrolls to the top.
+- Answer card (flat, hairline border): the counted number large (`text-3xl`, tabular) with
+  "of N submissions" when the answer is one count; the reply text (`dir="auto"`); any chart,
+  table or list (drawn from the counted result, never from the AI's words); "How this was
+  calculated" (collapsible: each query in words with its count and "Show them"; reading steps
+  say which questions were read for how many submissions). Footer: **Show these N
+  submissions** (outline button: Responses filtered to exactly what the answer counted, with
+  the chip naming it) and "Copy answer" (icon, tooltip; "Copied" for two seconds).
+- "Who …" answers list the matching submissions in a compact table: "Number" (`#12`, a link
+  to the submission) and the form's name question (or the questions the AI chose; never
+  sensitive questions, contact details, files or signatures), newest 50, "Showing the newest
+  50 of N submissions." These answers are read on the server and shown to the person only;
+  the AI gets the count.
+- Errors in place: the reason (allowance used up, too many questions, too slow, provider
+  down, "The AI couldn't work out how to count that. Try asking it another way.", "Something
+  went wrong while counting. Try again.") and **Try again**; a stopped answer says "Stopped
+  before an answer." with **Ask again**.
+- Last three exchanges show; "Show N earlier questions" reveals the rest. "New chat" starts
+  over. Chats are personal and kept 90 days.
+
+### 4.3 Which submissions an answer links to
+
+The server picks them from the reply: the first whole number in it that is the count of a
+query, or of one group of a grouped query, wins ("16 of 40 ticked X" links to the 16, not the
+40; groups with the same count go to the one the reply names). A reply quoting two or more
+groups of one query is a breakdown and links to that query. Otherwise the newest query with
+conditions, else the newest query.
+
+### 4.4 Loose wording
+
+People ask in their own words ("who want to know about human rights"). The AI is told to match
+questions and options by meaning, to count the best match and say which option of which
+question it counted, and to name close alternatives in one line. On the server a choice value
+that is not an option's value or label matches the one option whose label contains its words
+(with a note the AI repeats); several such options are an error naming them, for the AI to
+choose.
 
 ## 5. Settings › AI
 

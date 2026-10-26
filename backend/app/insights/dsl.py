@@ -240,6 +240,15 @@ def _text(x: ColumnElement[Any]) -> ColumnElement[Any]:
     return case((func.jsonb_typeof(x) == "string", x.op("#>>", return_type=Text)(_SCALAR)))
 
 
+_NON_WORD = re.compile(r"[\W_]+")
+
+
+def _words(text: str) -> str:
+    """Lower-case words separated by single spaces, padded so ``in`` matches whole words."""
+    joined = _NON_WORD.sub(" ", text.casefold()).strip()
+    return f" {joined} " if joined else ""
+
+
 def _escape_like(text: str) -> str:
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
@@ -332,6 +341,23 @@ class Compiler:
         for o in q.options:
             if o.label.strip().casefold() == s.casefold():
                 return o.value
+        # Loose wording ("human rights" for "HUMAN RIGHTS AND GENDER"): one option whose label
+        # or value contains the words is taken (with a note); several are an error naming them.
+        words = _words(s)
+        hits = (
+            [o for o in q.options if words in _words(o.label) or words in _words(o.value)]
+            if words
+            else []
+        )
+        if len(hits) == 1:
+            self.notes.append(f"{s!r} was matched to the option {hits[0].label!r} of {q.key!r}")
+            return hits[0].value
+        if len(hits) > 1:
+            listed = "; ".join(f"{o.value} ({o.label})" for o in hits[:10])
+            raise QueryError(
+                f"{s!r} matches several options of {q.key!r}: {listed}. Use their values"
+                " (several values count submissions with any of them)."
+            )
         self.notes.append(f"{s!r} is not an option of {q.key!r}; matched as typed")
         return s
 

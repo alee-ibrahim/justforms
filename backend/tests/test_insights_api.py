@@ -3,13 +3,15 @@
 
 from __future__ import annotations
 
+import asyncio
+import gc
 import json
 import uuid
 from typing import Any
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.providers.fake import ScriptedProvider, turn
@@ -218,7 +220,7 @@ async def test_ask_how_many_ticked(
         ]
     )
     evs = await ask(client, fid, "How many CSOs want to know about disability rights?")
-    assert [n for n, _ in evs] == ["tool.applied", "message.delta", "done"]
+    assert [n for n, _ in evs] == ["tool.applied", "message.delta", "link", "done"]
     step = evs[0][1]
     assert step["matched"] == {"submissions": 2}
     assert step["description"] == ("Submissions where “Areas of work” includes “Disability rights”")
@@ -301,6 +303,7 @@ async def test_ask_summary_with_read_answers(
         "tool.applied",
         "chart",
         "message.delta",
+        "link",
         "done",
     ]
     read_step = evs[0][1]
@@ -460,3 +463,288 @@ def test_tools_offered() -> None:
     params = specs["query_submissions"].parameters
     assert "$defs" not in json.dumps(params) and "where" in params["properties"]
     assert uuid  # imported for fixtures elsewhere
+
+
+async def test_ask_link_is_the_counted_answer(
+    client: AsyncClient,
+    db: AsyncSession,
+    settings: Settings,
+    queue: RecordingQueue,
+    provider: ScriptedProvider,
+) -> None:
+    """A reply "2 of 5 ticked X" links to the 2 (the group the reply names), not to all 5; a
+    reply quoting several groups links to the whole breakdown."""
+    s = await setup(client, db, settings, queue)
+    fid = str(s.form.id)
+    provider.steps.extend(
+        [
+            turn(calls=[("query_submissions", {"groupBy": [{"field": "areas"}]})]),
+            turn("2 of 5 submissions ticked Disability rights."),
+        ]
+    )
+    evs = await ask(client, fid, "How many want to know about disability?")
+    link = dict(evs)["link"]
+    assert (link["kind"], link["count"], link["total"]) == ("group", 2, 5)
+    assert link["where"]["where"] == [
+        {"field": "areas", "op": "includes_any", "value": None, "values": ["disability"]}
+    ]
+    assert link["description"] == "Submissions where “Areas of work” includes “Disability rights”"
+    res = await client.get(
+        f"/api/v1/forms/{fid}/submissions", params={"where": json.dumps(link["where"])}
+    )
+    assert res.json()["total"] == 2
+    stored = (await client.get(f"/api/v1/forms/{fid}/ask")).json()["messages"][-1]["content"]
+    assert stored["link"] == link
+
+    provider.steps.extend(
+        [
+            turn(calls=[("query_submissions", {"groupBy": [{"field": "atoll"}]})]),
+            turn("By atoll: Malé 2, Addu 2 and Fuvahmulah 1 (written in as Other)."),
+        ]
+    )
+    link = dict(await ask(client, fid, "Breakdown by atoll"))["link"]
+    assert link["kind"] == "breakdown" and link["count"] == 5
+    assert link["where"] == {"where": [], "whereAny": []}
+
+    # A filtered count beats the total it is "of".
+    provider.steps.extend(
+        [
+            turn(calls=[("query_submissions", {})]),
+            turn(
+                calls=[
+                    (
+                        "query_submissions",
+                        {"where": [{"field": "registered", "op": "eq", "value": True}]},
+                    )
+                ]
+            ),
+            turn("3 of 5 submissions are registered."),
+        ]
+    )
+    link = dict(await ask(client, fid, "How many are registered?"))["link"]
+    assert (link["kind"], link["count"], link["queryId"]) == ("count", 3, "q2")
+
+
+async def test_ask_who_lists_submissions_without_sending_names(
+    client: AsyncClient,
+    db: AsyncSession,
+    settings: Settings,
+    queue: RecordingQueue,
+    provider: ScriptedProvider,
+) -> None:
+    """A loose option word matches the one option it names; "who" lists the matching
+    submissions with the name question for the person, while the AI gets only counts."""
+    s = await setup(client, db, settings, queue)
+    fid = str(s.form.id)
+    seen: dict[str, Any] = {}
+
+    async def listed(messages: list[ChatMessage]) -> TurnResult:
+        seen.update(messages[-1].tool_results[0].content)
+        return turn("2 organisations want to know about Disability rights. They are listed below.")
+
+    where = [{"field": "areas", "op": "includes_any", "values": ["RIGHTS"]}]
+    provider.steps.extend(
+        [
+            turn(calls=[("query_submissions", {"where": where})]),
+            turn(calls=[("show_result", {"queryId": "q1", "display": "list"})]),
+            listed,
+        ]
+    )
+    evs = await ask(client, fid, "who want to know about rights")
+    assert [n for n, _ in evs] == ["tool.applied", "chart", "message.delta", "link", "done"]
+    step = evs[0][1]
+    assert step["matched"] == {"submissions": 2}
+    assert step["description"] == "Submissions where “Areas of work” includes “Disability rights”"
+    chart = evs[1][1]
+    assert chart["display"] == "list" and chart["columns"] == ["org_name"]
+    assert chart["columnLabels"] == {"org_name": "Organisation name"}
+    assert chart["total"] == 2 and not chart["truncated"]
+    assert sorted(r["values"]["org_name"] for r in chart["rows"]) == [
+        "Access For All",
+        "Care Network",
+    ]
+    assert all(r["label"] == f"#{r['ref']}" for r in chart["rows"])
+    assert seen == {"shown": True, "listed": 2, "matched": 2}
+    sent = provider.sent_text()
+    assert "Access For All" not in sent and "Care Network" not in sent
+    assert "matched to the option" in sent  # the note tells the AI what it counted
+    link = dict(evs)["link"]
+    assert (link["kind"], link["count"]) == ("count", 2)
+
+    # A word in several options is an error naming them; contact details are never listed.
+    provider.steps.extend(
+        [
+            turn(
+                calls=[
+                    (
+                        "query_submissions",
+                        {"where": [{"field": "areas", "op": "eq", "value": "i"}]},
+                    ),
+                    ("query_submissions", {}),
+                    ("show_result", {"queryId": "q1", "display": "list", "fields": ["contact"]}),
+                ]
+            ),
+            turn("Sorry."),
+        ]
+    )
+    evs = await ask(client, fid, "who")
+    assert [n for n, _ in evs][:3] == ["tool.applied", "tool.applied", "tool.error"]
+    one = ask_mod.Query.model_validate(
+        {"where": [{"field": "areas", "op": "includes_any", "values": ["rights", "a"]}]}
+    )
+    assert one.where[0].values == ["rights", "a"]
+
+
+async def test_ask_tool_database_error_is_a_tool_error(
+    client: AsyncClient,
+    db: AsyncSession,
+    settings: Settings,
+    queue: RecordingQueue,
+    provider: ScriptedProvider,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A query the database refuses fails that call only; the answer still completes and is
+    stored (the session stays usable)."""
+    s = await setup(client, db, settings, queue)
+    fid = str(s.form.id)
+    real = ask_mod.run_query
+    calls = 0
+
+    async def flaky(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            await args[0].execute(text("SELECT 1/0"))  # a real database error
+        return await real(*args, **kwargs)
+
+    monkeypatch.setattr(ask_mod, "run_query", flaky)
+    provider.steps.extend(
+        [
+            turn(calls=[("query_submissions", {})]),
+            turn(calls=[("query_submissions", {})]),
+            turn("5 submissions."),
+        ]
+    )
+    evs = await ask(client, fid, "How many?")
+    assert [n for n, _ in evs] == ["tool.error", "tool.applied", "message.delta", "link", "done"]
+    assert evs[0][1]["error"] == "database"
+    assert "division" not in provider.sent_text()
+    stored = (await client.get(f"/api/v1/forms/{fid}/ask")).json()["messages"][-1]["content"]
+    assert stored["status"] == "ok" and stored["text"] == "5 submissions."
+
+
+async def test_ask_stream_dropped_mid_answer(
+    app: Any,
+    client: AsyncClient,
+    db: AsyncSession,
+    settings: Settings,
+    queue: RecordingQueue,
+    provider: ScriptedProvider,
+    redis: Any,
+) -> None:
+    """Regression: the connection closing (a proxy timeout, a closed tab) while the AI is
+    still answering, after a tool call that queried the database. The stream used to touch
+    the request's expired ORM objects there (MissingGreenlet) and left a queue getter
+    pending. Now the stop is recorded, the lock is released and nothing raises."""
+    s = await setup(client, db, settings, queue)
+    fid = str(s.form.id)
+    sid = (await client.post(f"/api/v1/forms/{fid}/ask/sessions", json={})).json()["id"]
+    never = asyncio.Event()
+
+    async def hang(messages: list[ChatMessage]) -> TurnResult:
+        await never.wait()
+        raise AssertionError("not reached")
+
+    where = [{"field": "areas", "op": "includes_any", "values": ["climate"]}]
+    provider.steps.extend([turn(calls=[("query_submissions", {"where": where})]), hang])
+    path = f"/api/v1/forms/{fid}/ask/sessions/{sid}/messages"
+    cookies = "; ".join(f"{k}={v}" for k, v in client.cookies.items())
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.3"},
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode(),
+        "root_path": "",
+        "query_string": b"",
+        "headers": [
+            (b"host", b"testserver"),
+            (b"content-type", b"application/json"),
+            (b"cookie", cookies.encode()),
+            (b"x-csrf-token", client.headers["X-CSRF-Token"].encode()),
+        ],
+        "server": ("testserver", 80),
+        "client": ("127.0.0.1", 50000),
+    }
+    body = json.dumps({"content": "Which ones work on climate?"}).encode()
+    sent: list[dict[str, Any]] = []
+    gone = asyncio.Event()
+    requested = False
+
+    async def receive() -> dict[str, Any]:
+        nonlocal requested
+        if not requested:
+            requested = True
+            return {"type": "http.request", "body": body, "more_body": False}
+        await gone.wait()
+        return {"type": "http.disconnect"}
+
+    async def send(message: dict[str, Any]) -> None:
+        sent.append(message)
+        chunk = message.get("body", b"") if message["type"] == "http.response.body" else b""
+        if b"tool.applied" in chunk:
+            gone.set()  # the tool ran against the database; now the client goes away
+
+    loop = asyncio.get_running_loop()
+    errors: list[dict[str, Any]] = []
+    loop.set_exception_handler(lambda _loop, ctx: errors.append(ctx))
+    try:
+        await asyncio.wait_for(app(scope, receive, send), 20)
+        await asyncio.sleep(0.05)
+        gc.collect()
+    finally:
+        loop.set_exception_handler(None)
+    assert sent[0]["type"] == "http.response.start" and sent[0]["status"] == 200
+    assert gone.is_set()
+    assert not errors, errors  # e.g. "Task was destroyed but it is pending!"
+    assert not await redis.exists(f"ai:lock:{sid}")
+    stored = (await client.get(f"/api/v1/forms/{fid}/ask")).json()["messages"]
+    assert [m["role"] for m in stored] == ["user", "assistant"]
+    assert stored[1]["content"]["status"] == "cancelled"
+    rows = (await db.scalars(select(AuditLog).where(AuditLog.action == "ai.ask"))).all()
+    assert [r.meta["outcome"] for r in rows] == ["cancelled"]
+    # The chat is free again: the next question is answered.
+    provider.steps.append(turn("2 of 5 work on climate."))
+    evs = await ask(client, fid, "And now?")
+    assert dict(evs)["message.delta"]["text"] == "2 of 5 work on climate."
+
+
+async def test_ask_stream_keeps_a_quiet_connection_open(
+    client: AsyncClient,
+    db: AsyncSession,
+    settings: Settings,
+    queue: RecordingQueue,
+    provider: ScriptedProvider,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """While the AI is quiet the stream sends comment lines, so proxies don't close it."""
+    from app.api.v1 import insights as insights_api
+
+    monkeypatch.setattr(insights_api, "HEARTBEAT_SECONDS", 0.05)
+    s = await setup(client, db, settings, queue)
+    fid = str(s.form.id)
+
+    async def slow(messages: list[ChatMessage]) -> TurnResult:
+        await asyncio.sleep(0.3)
+        return turn("5 submissions.")
+
+    provider.steps.append(slow)
+    res = await client.post(f"/api/v1/forms/{fid}/ask/sessions", json={})
+    sid = res.json()["id"]
+    res = await client.post(
+        f"/api/v1/forms/{fid}/ask/sessions/{sid}/messages", json={"content": "How many?"}
+    )
+    assert ": keep-alive" in res.text
+    assert [n for n, _ in events(res.text)] == ["message.delta", "done"]

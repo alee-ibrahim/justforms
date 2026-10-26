@@ -24,6 +24,7 @@ from fastapi import APIRouter, HTTPException, Query, Response, status
 from fastapi.responses import StreamingResponse
 from pydantic import Field, StringConstraints
 from sqlalchemy import ColumnElement, func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai import service as ai_svc
 from app.ai.orchestrator import BudgetExceeded
@@ -46,6 +47,8 @@ log = logging.getLogger(__name__)
 router = APIRouter(tags=["insights"])
 
 MAX_QUESTION_CHARS = 2000
+# A comment line on a quiet stream at least this often (seconds).
+HEARTBEAT_SECONDS = 10.0
 
 
 def read_allowed(access: FormAccess) -> bool:
@@ -245,75 +248,76 @@ async def ask_message(
     session = await _load(db, access, session_id)
     await enforce(redis, settings, "ai_request", str(access.user.id))
     await enforce(redis, settings, "ai_request_org", str(access.form.org_id))
-    user_id, org_id, form = access.user.id, access.form.org_id, access.form
+    # Plain values only from here on: the stream outlives this request's session, and an
+    # expired ORM attribute would need IO to reload (MissingGreenlet in the generator).
+    sid, user_id, org_id = session.id, access.user.id, access.form.org_id
+    form_id, form_title = access.form.id, access.form.title
+    question = body.content
     try:
         await ai_svc.check_budget(redis, settings, user_id, org_id)
     except BudgetExceeded:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "ai_budget_exceeded") from None
-    if not await redis.set(_lock_key(session.id), "1", nx=True, ex=settings.ai_turn_seconds + 60):
+    if not await redis.set(_lock_key(sid), "1", nx=True, ex=settings.ai_turn_seconds + 60):
         raise HTTPException(status.HTTP_409_CONFLICT, "ai_busy")
-    await redis.delete(_cancel_key(session.id))
+    await redis.delete(_cancel_key(sid))
     try:
-        cat = await catalogue.load(db, form)
+        cat = await catalogue.load(db, access.form)
         allowed = read_allowed(access)
         total = int(
             await db.scalar(
                 select(func.count()).where(
-                    Submission.form_id == form.id, Submission.deleted_at.is_(None)
+                    Submission.form_id == form_id, Submission.deleted_at.is_(None)
                 )
             )
             or 0
         )
         system = system_prompt(
             cat,
-            title=form.title,
+            title=form_title,
             total=total,
             read_allowed=allowed,
             provider_label=settings.ai_label,
             today=today(settings.tz),
         )
-        history = await ai_svc.history(db, session.id)
-        db.add(AiMessage(session_id=session.id, role="user", content={"text": body.content}))
+        history = await ai_svc.history(db, sid)
+        db.add(AiMessage(session_id=sid, role="user", content={"text": question}))
         await db.commit()
     except BaseException:
-        await redis.delete(_lock_key(session.id))
+        await redis.delete(_lock_key(sid))
         raise
-    tools = Tools(db, cat, form.id, tz=settings.tz, read_allowed=allowed)
-    queue: asyncio.Queue[tuple[str, dict[str, Any]]] = asyncio.Queue()
+    engine = db.bind
+    max_tool_calls = min(settings.ai_max_tool_calls, 20)
 
-    async def emit(event: str, data: dict[str, Any]) -> None:
-        await queue.put((event, data))
-
-    async def should_cancel() -> bool:
-        return bool(await redis.exists(_cancel_key(session.id)))
-
-    async def check() -> None:
-        await ai_svc.check_budget(redis, settings, user_id, org_id)
-
-    async def charge(usage: Any) -> None:
-        await ai_svc.charge(redis, settings, user_id, org_id, usage)
-
-    async def finish(outcome: AskOutcome | None) -> list[bytes]:
+    async def finish(work: AsyncSession, outcome: AskOutcome | None) -> list[bytes]:
+        """Store the answer (or that it stopped) and audit it; returns the closing events."""
         status_ = outcome.status if outcome else "cancelled"
         if outcome:
-            session.tokens_in += outcome.usage.input_tokens
-            session.tokens_out += outcome.usage.output_tokens
-        db.add(
+            await work.execute(
+                update(AiSession)
+                .where(AiSession.id == sid)
+                .values(
+                    tokens_in=AiSession.tokens_in + outcome.usage.input_tokens,
+                    tokens_out=AiSession.tokens_out + outcome.usage.output_tokens,
+                )
+            )
+        ok = outcome is not None and outcome.status == "ok"
+        work.add(
             AiMessage(
-                session_id=session.id,
+                session_id=sid,
                 role="assistant",
                 content={
-                    "text": outcome.text if outcome and outcome.status == "ok" else "",
+                    "text": outcome.text if outcome and ok else "",
                     "steps": outcome.steps if outcome else [],
                     "charts": outcome.charts if outcome else [],
+                    "link": outcome.link if outcome and ok else None,
                     "status": status_,
                     "error": outcome.error if outcome else None,
                 },
             )
         )
         meta = {
-            "session": str(session.id),
-            "chars": len(body.content),
+            "session": str(sid),
+            "chars": len(question),
             "outcome": status_,
             "error": outcome.error if outcome else None,
             "toolCalls": len(outcome.steps) if outcome else 0,
@@ -322,26 +326,26 @@ async def ask_message(
             "readAnswers": allowed,
         }
         await audit(
-            db,
+            work,
             "ai.ask",
             org_id=org_id,
             actor_id=user_id,
             target_type="form",
-            target_id=form.id,
+            target_id=form_id,
             meta=meta,
         )
         for fields, count in outcome.reads if outcome else []:
             # Which questions' answers went to the provider, and for how many submissions.
             await audit(
-                db,
+                work,
                 "ai.read_answers",
                 org_id=org_id,
                 actor_id=user_id,
                 target_type="form",
-                target_id=form.id,
-                meta={"session": str(session.id), "fields": fields, "count": count},
+                target_id=form_id,
+                meta={"session": str(sid), "fields": fields, "count": count},
             )
-        await db.commit()
+        await work.commit()
         if outcome is None:
             return []
         events: list[bytes] = []
@@ -358,14 +362,32 @@ async def ask_message(
         return events
 
     async def stream() -> AsyncIterator[bytes]:
+        # The answer runs in its own task with its own database session; nothing here
+        # touches the request's session, which may already be closed.
+        work = AsyncSession(engine, expire_on_commit=False)
+        queue: asyncio.Queue[tuple[str, dict[str, Any]]] = asyncio.Queue()
+
+        async def emit(event: str, data: dict[str, Any]) -> None:
+            queue.put_nowait((event, data))
+
+        async def should_cancel() -> bool:
+            return bool(await redis.exists(_cancel_key(sid)))
+
+        async def check() -> None:
+            await ai_svc.check_budget(redis, settings, user_id, org_id)
+
+        async def charge(usage: Any) -> None:
+            await ai_svc.charge(redis, settings, user_id, org_id, usage)
+
+        tools = Tools(work, cat, form_id, tz=settings.tz, read_allowed=allowed, total=total)
         task = asyncio.create_task(
             run_ask(
                 provider,
                 tools,
                 system=system,
                 history=history,
-                question=body.content,
-                max_tool_calls=min(settings.ai_max_tool_calls, 20),
+                question=question,
+                max_tool_calls=max_tool_calls,
                 max_output_tokens=settings.ai_max_output_tokens,
                 turn_seconds=settings.ai_turn_seconds,
                 emit=emit,
@@ -374,37 +396,57 @@ async def ask_message(
                 charge=charge,
             )
         )
+        getter: asyncio.Future[tuple[str, dict[str, Any]]] | None = None
         finished = False
         try:
             yield b": started\n\n"
             while True:
-                getter = asyncio.ensure_future(queue.get())
-                done, _ = await asyncio.wait({getter, task}, return_when=asyncio.FIRST_COMPLETED)
+                if getter is None:
+                    getter = asyncio.ensure_future(queue.get())
+                waiting: set[asyncio.Future[Any]] = {getter, task}
+                done, _ = await asyncio.wait(
+                    waiting, timeout=HEARTBEAT_SECONDS, return_when=asyncio.FIRST_COMPLETED
+                )
                 if getter in done:
                     event, data = getter.result()
+                    getter = None
                     yield _sse(event, data)
                     continue
-                getter.cancel()
-                while not queue.empty():
-                    event, data = queue.get_nowait()
-                    yield _sse(event, data)
+                if not done:
+                    # A comment keeps proxies from closing a quiet connection while it counts.
+                    yield b": keep-alive\n\n"
+                    continue
                 break
-            for chunk in await finish(task.result()):
+            while not queue.empty():
+                event, data = queue.get_nowait()
+                yield _sse(event, data)
+            try:
+                outcome = task.result()
+            except Exception:
+                log.exception("ask: the answer failed")
+                await work.rollback()
+                outcome = AskOutcome(status="error", error="internal")
+            for chunk in await finish(work, outcome):
                 yield chunk
             finished = True
         finally:
             with anyio.CancelScope(shield=True):
+                if getter is not None and not getter.done():
+                    getter.cancel()
+                    await asyncio.gather(getter, return_exceptions=True)
                 if not task.done():
                     task.cancel()
                     with anyio.move_on_after(5):
                         await asyncio.gather(task, return_exceptions=True)
                 if not finished:
+                    # The person left or the connection dropped: record that it stopped.
                     try:
-                        await db.rollback()
-                        await finish(None)
+                        await work.rollback()
+                        await finish(work, None)
                     except Exception:  # pragma: no cover - best effort on disconnect
                         log.exception("could not record a stopped question")
-                await redis.delete(_lock_key(session.id))
+                await work.close()
+                await redis.delete(_lock_key(sid))
 
     return StreamingResponse(
         stream(),

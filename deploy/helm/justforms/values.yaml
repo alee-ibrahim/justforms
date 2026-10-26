@@ -449,6 +449,11 @@ httpRoute:
   #    namespace: gateway-system
   #    sectionName: https
   hostnames: []     # empty = host of publicUrl
+  # Gateway API rule timeouts. AI answers stream for up to JUSTFORMS_AI_TURN_SECONDS (120 s by
+  # default), and some gateways end a request after 15 s unless the route says otherwise.
+  # {} leaves the gateway's defaults.
+  timeouts:
+    request: 300s
 
 # ------------------------------------------------------------------------------------------
 # NetworkPolicy (off by default)

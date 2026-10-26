@@ -307,6 +307,7 @@ unless noted.
 | `httpRoute.enabled` / `.annotations` | `false` / `{}` | Gateway API `HTTPRoute` (v1) |
 | `httpRoute.parentRefs` | `[]` | Required when enabled |
 | `httpRoute.hostnames` | `[]` | Empty: host of `publicUrl` |
+| `httpRoute.timeouts` | `{request: 300s}` | Rule timeouts. AI answers stream for up to `JUSTFORMS_AI_TURN_SECONDS`, and some gateways end a request after 15 s by default. `{}`: the gateway's defaults |
 | `networkPolicy.enabled` | `false` | |
 | `networkPolicy.frontend.from` | `[]` | NetworkPolicy peers allowed to reach the frontend (empty: any) |
 | `networkPolicy.egress.enabled` | `false` | Restrict egress too |

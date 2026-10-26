@@ -32,7 +32,7 @@ Nothing new needs adding from shadcn: `input-group` (with `InputGroupTextarea`),
 
 | Where | What | When |
 |---|---|---|
-| Form bar, before Undo/Redo | `Button variant="outline" size="sm"` with `SparklesIcon` and "AI assistant". `aria-pressed` while the panel is open. Below `sm` it is icon-only with a `Tooltip` "AI assistant". | editors and owners, `features.ai` |
+| Form bar, before Undo/Redo | `Button variant="outline" size="sm"` with `SparklesIcon` and "Edit with AI" (on Submissions pages the same place holds "Ask about submissions", INSIGHTS-SCREENS 4.1). `aria-pressed` while the panel is open. Below `xl` it is icon-only with a `Tooltip` "Change this form with the AI assistant". | editors and owners, `features.ai` |
 | Empty canvas (`Empty` "No questions on this page yet") | Second action next to "Add question": `Button variant="outline"` "Describe your form" | first page empty, `features.ai` |
 | Panel empty state | "Start from a paper form" (`FileScanIcon`) | `features.aiVision` |
 
@@ -48,7 +48,7 @@ the canvas never shrinks further. Closing it brings the inspector back with the 
 selection. Selecting a question on the canvas while the panel is open does not close it.
 
 ```
-┌ Forms / Volunteer sign-up   ✓ Saved     [✦ AI assistant] [↶][↷]  Edit Preview …  [Publish] ┐
+┌ Forms / Volunteer sign-up   ✓ Saved     [✦ Edit with AI] [↶][↷]  Edit Preview …  [Publish] ┐
 ├────────────┬───────────────────────────────────────────┬──────────────────────────────────┤
 │ Palette    │ ┌ Suggestion ─────────────────────────┐   │ AI assistant               [✕]   │
 │ (inert     │ │ ⓘ Showing the AI's suggestion.      │   │ ──────────────────────────────── │

@@ -16,6 +16,7 @@ import { PublishedContext } from '@/components/builder/published'
 import { ReviewChangesSheet } from '@/components/builder/review-changes'
 import { BuilderContext, BuilderStore, useBuilder } from '@/components/builder/store'
 import { usePublish } from '@/components/builder/use-publish'
+import { AskArea, AskProvider } from '@/components/insights/ask-context'
 import { Button } from '@/components/ui/button'
 import {
   Empty,
@@ -198,16 +199,22 @@ export function FormLayout() {
 
   return (
     <FormContext.Provider value={form.data}>
-      {canEdit && draft.data ? (
-        <EditorScope key={formId} form={form.data} draft={draft.data}>
-          <Outlet />
-        </EditorScope>
-      ) : (
-        <>
-          <FormBar form={form.data} store={null} unpublished={false} />
-          <Outlet />
-        </>
-      )}
+      <AskProvider key={formId} form={form.data}>
+        {canEdit && draft.data ? (
+          <EditorScope key={formId} form={form.data} draft={draft.data}>
+            <AskArea>
+              <Outlet />
+            </AskArea>
+          </EditorScope>
+        ) : (
+          <>
+            <FormBar form={form.data} store={null} unpublished={false} />
+            <AskArea>
+              <Outlet />
+            </AskArea>
+          </>
+        )}
+      </AskProvider>
     </FormContext.Provider>
   )
 }

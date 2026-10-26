@@ -468,7 +468,7 @@ function scenarios(d) {
     }],
     ['ai', async (page) => {
       await closeOverlays(page)
-      await clickIf(page, page.getByRole('button', { name: 'AI assistant' }))
+      await clickIf(page, page.getByRole('button', { name: 'Edit with AI' }))
     }],
     // Review changes (REVIEW-CHANGES-SCREENS): only while the form has unpublished changes.
     ['review-changes', async (page) => {
@@ -619,6 +619,11 @@ function scenarios(d) {
     ['other-answers', async (page) => {
       await closeOverlays(page)
       await clickIf(page, page.getByRole('button', { name: /^“Other” answers/ }).first())
+    }],
+    // The "Ask your submissions" panel (a full-height sheet on phones).
+    ['ask', async (page) => {
+      await closeOverlays(page)
+      await clickIf(page, page.getByRole('button', { name: 'Ask a question about the submissions…' }))
     }],
   ], { fullPage: true, scroll: true })
   add('settings-ai', `${formPath}/settings#ai`, undefined, { fullPage: true })
