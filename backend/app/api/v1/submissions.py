@@ -24,6 +24,8 @@ from app.api.v1.files import PREVIEWABLE, content_disposition
 from app.approvals import service as approvals
 from app.auth.deps import CurrentUser, DbDep, SettingsDep, StorageDep
 from app.importers.imported_files import pending_links, stored_entry, stored_files
+from app.insights import catalogue
+from app.insights.dsl import Condition, Where, submission_where
 from app.integrity import append_event, verify_submission
 from app.logic.index import FormIndex
 from app.models import (
@@ -167,6 +169,8 @@ class ExportIn(ApiModel):
     version: int | None = None
     fields: list[FieldFilter] = Field(default_factory=list)
     ids: Annotated[list[uuid.UUID], Field(max_length=10_000)] | None = None
+    where: list[Condition] = Field(default_factory=list, max_length=20)
+    where_any: list[Condition] = Field(default_factory=list, max_length=20)
 
 
 class ExportOut(ApiModel):
@@ -207,9 +211,11 @@ def _list_filters(
     to: date | None,
     version: int | None,
     filter_: str | None,
+    where: str | None = None,
 ) -> ListFilters:
     try:
         fields = [FieldFilter.model_validate(f) for f in json.loads(filter_)] if filter_ else []
+        conditions = Where.model_validate(json.loads(where)) if where else Where()
         return ListFilters.model_validate(
             {
                 "status": status_,
@@ -218,6 +224,8 @@ def _list_filters(
                 "to": to,
                 "version": version,
                 "fields": fields,
+                "where": conditions.where,
+                "whereAny": conditions.where_any,
             }
         )
     except (ValueError, TypeError, ValidationError) as exc:
@@ -235,13 +243,18 @@ async def list_submissions(
     to: date | None = None,
     version: Annotated[int | None, Query(ge=1)] = None,
     filter_: Annotated[str | None, Query(alias="filter", max_length=4000)] = None,
+    where: Annotated[str | None, Query(max_length=8000)] = None,
     cursor: int | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> SubmissionPage:
-    filters = _list_filters(status_, q, from_, to, version, filter_)
+    filters = _list_filters(status_, q, from_, to, version, filter_, where)
+    cat = await catalogue.load(db, access.form) if filters.where or filters.where_any else None
     try:
         base = apply_filters(
-            select(Submission).where(Submission.form_id == access.form.id), filters, settings.tz
+            select(Submission).where(Submission.form_id == access.form.id),
+            filters,
+            settings.tz,
+            cat,
         )
     except ValueError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_filter") from exc
@@ -626,12 +639,22 @@ def _export_out(e: Export) -> ExportOut:
 @router.post(
     "/forms/{form_id}/exports", response_model=ExportOut, status_code=status.HTTP_201_CREATED
 )
-async def start_export(body: ExportIn, db: DbDep, access: FormViewer, queue: QueueDep) -> ExportOut:
+async def start_export(
+    body: ExportIn, db: DbDep, access: FormViewer, queue: QueueDep, settings: SettingsDep
+) -> ExportOut:
     """Export the matching (or selected) submissions to .xlsx in the worker. Viewers get
     sensitive answers masked."""
-    filters = ListFilters.model_validate(body.model_dump(by_alias=True)).model_dump(
-        mode="json", by_alias=True, exclude_none=True
-    )
+    parsed = ListFilters.model_validate(body.model_dump(by_alias=True))
+    if parsed.where or parsed.where_any:
+        try:
+            submission_where(
+                await catalogue.load(db, access.form),
+                Where(where=parsed.where, where_any=parsed.where_any),
+                settings.tz,
+            )
+        except ValueError as exc:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_filter") from exc
+    filters = parsed.model_dump(mode="json", by_alias=True, exclude_none=True)
     filters["maskSensitive"] = not has_form_role(access.role, FormRole.EDITOR)
     export = Export(form_id=access.form.id, requested_by=access.user.id, filters=filters)
     db.add(export)

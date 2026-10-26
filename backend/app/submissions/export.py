@@ -35,6 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.answers import answer_text, mask
 from app.config import Settings
+from app.insights import catalogue
 from app.logic.index import FormIndex
 from app.models import Export, ExportStatus, FormRecord, FormVersion, Signature, Submission
 from app.pdf.render import leaf_fields
@@ -248,8 +249,12 @@ async def _build(db: AsyncSession, storage: Storage, settings: Settings, export:
     raw = dict(export.filters or {})
     masked = bool(raw.pop("maskSensitive", False))
     filters = ListFilters.model_validate(raw)
+    cat = catalogue.build(
+        [(v.version, v.id, f) for v, f in zip(versions, forms, strict=True)],
+        (form_rec.settings or {}).get("versionMappings"),
+    )
     base = apply_filters(
-        select(Submission).where(Submission.form_id == form_rec.id), filters, settings.tz
+        select(Submission).where(Submission.form_id == form_rec.id), filters, settings.tz, cat
     )
     total = await db.scalar(select(func.count()).select_from(base.subquery()))
     export.status = ExportStatus.RUNNING

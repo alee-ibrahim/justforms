@@ -19,6 +19,8 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from sqlalchemy import Numeric, Select, and_, cast, func, not_, select
 
+from app.insights.catalogue import Catalogue
+from app.insights.dsl import Condition, Where, submission_where
 from app.models import FormVersion, Submission, SubmissionStatus
 
 FilterOp = Literal["contains", "eq", "neq", "gte", "lte", "includes", "answered", "unanswered"]
@@ -45,6 +47,12 @@ class ListFilters(BaseModel):
     version: Annotated[int, Field(ge=1)] | None = None
     fields: Annotated[list[FieldFilter], Field(max_length=20)] = Field(default_factory=list)
     ids: Annotated[list[uuid.UUID], Field(max_length=10_000)] | None = None
+    # Conditions in the submissions query language (app/insights/dsl.py): the "Show these
+    # submissions" link of an answer and Insights' bars on repeater or "Other" answers.
+    where: Annotated[list[Condition], Field(max_length=20)] = Field(default_factory=list)
+    where_any: Annotated[list[Condition], Field(max_length=20)] = Field(
+        default_factory=list, alias="whereAny"
+    )
 
 
 def _escape_like(text: str) -> str:
@@ -82,8 +90,15 @@ def _field_clause(f: FieldFilter) -> Any:
     return and_(func.jsonb_typeof(item) == "string", cond)
 
 
-def apply_filters(query: Select[Any], filters: ListFilters, tz: ZoneInfo) -> Select[Any]:
-    """Add ``filters`` to a query that selects from ``Submission`` (not deleted)."""
+def apply_filters(
+    query: Select[Any],
+    filters: ListFilters,
+    tz: ZoneInfo,
+    catalogue: Catalogue | None = None,
+) -> Select[Any]:
+    """Add ``filters`` to a query that selects from ``Submission`` (not deleted). Conditions
+    in ``where`` need the form's ``catalogue``; a condition that does not fit the form
+    raises ``ValueError``."""
     query = query.where(Submission.deleted_at.is_(None))
     if filters.ids is not None:
         query = query.where(Submission.id.in_(filters.ids))
@@ -109,4 +124,10 @@ def apply_filters(query: Select[Any], filters: ListFilters, tz: ZoneInfo) -> Sel
         )
     for f in filters.fields:
         query = query.where(_field_clause(f))
+    if filters.where or filters.where_any:
+        if catalogue is None:
+            raise ValueError("conditions need the form's questions")
+        where = Where(where=filters.where, where_any=filters.where_any)
+        for clause in submission_where(catalogue, where, tz):
+            query = query.where(clause)
     return query
