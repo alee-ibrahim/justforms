@@ -32,7 +32,9 @@ the changes and the image digests, with SPDX SBOMs attached.
 Pin a full version (or `version@sha256:digest`) in production and upgrade by changing it: the
 new release's migrations run automatically (see [Upgrades](#upgrades-and-migrations)).
 JustForms follows semantic versioning; before 1.0 a minor release (0.X) may need a config change,
-which its release notes say.
+which its release notes say. A patch release (X.Y.Z) never changes the chart's templates or
+values (the release workflow refuses it), so the chart of X.Y.0 runs every X.Y.Z image: it is safe
+to pin the chart and let an image updater follow `X.Y.*` tags.
 
 ### Helm
 

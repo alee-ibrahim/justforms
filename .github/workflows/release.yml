@@ -64,6 +64,24 @@ jobs:
           if [ "$chart_version" != "$version" ]; then
             echo "::warning::Chart.yaml says version $chart_version; the published chart uses $version (from the tag)"
           fi
+      - name: Patch releases keep the chart of their minor release
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+          MINOR: ${{ steps.v.outputs.minor }}
+        run: |
+          # Deployments that pin the chart of X.Y.0 and follow X.Y.* image tags automatically must keep
+          # working, so a patch release may not change the chart's templates or values. Release a
+          # chart change as a new minor version instead.
+          patch="${VERSION#"$MINOR".}"; patch="${patch%%-*}"
+          [ "$patch" != 0 ] || exit 0
+          base="v$MINOR.0"
+          git rev-parse -q --verify "refs/tags/$base" >/dev/null || { echo "no $base tag, skipping"; exit 0; }
+          changed="$(git diff --name-only "$base" "$GITHUB_SHA" -- \
+            deploy/helm/justforms/templates deploy/helm/justforms/values.yaml deploy/helm/justforms/values.schema.json)"
+          if [ -n "$changed" ]; then
+            echo "::error::the chart changed since $base ($changed); a chart change needs a new minor release, not a patch"
+            exit 1
+          fi
       - name: Commit is on main
         run: |
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
