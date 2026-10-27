@@ -101,3 +101,29 @@ async def test_published_form_cannot_go_back_to_draft(
     assert (await client.get(pub.base)).status_code == 404
     body = pub.submit_body({"name": "x"})
     assert (await client.post(f"{pub.base}/submissions", json=body)).status_code == 404
+
+
+async def test_webhook_urls_are_masked_for_non_owners(
+    app: Any, client: AsyncClient, db: AsyncSession, settings: Settings, queue: RecordingQueue
+) -> None:
+    me = await admin_client(client, db, settings, queue)
+    pub = await publish(client, me, [field("name")])
+    secret_url = "https://hooks.example.com/catch/123/abc?token=s3cret"
+    url = f"/api/v1/forms/{pub.id}/webhooks"
+    res = await client.post(url, json={"url": secret_url, "events": ["submission.created"]})
+    assert res.status_code == 201, res.text
+    assert [h["url"] for h in (await client.get(url)).json()] == [secret_url]
+    await _editor(db, me, pub)
+    async with make_client(app) as editor:
+        await login(editor, queue, "editor@example.org")
+        listed = (await editor.get(url)).json()
+        assert [h["url"] for h in listed] == ["https://hooks.example.com/…"]
+        assert "s3cret" not in (await editor.get(url)).text
+
+
+def test_mask_url() -> None:
+    from app.api.v1.notify import mask_url
+
+    assert mask_url("https://user:pw@example.org:8443/x?y=1") == "https://example.org:8443/…"
+    assert mask_url("https://example.org") == "https://example.org"
+    assert mask_url("https://example.org/") == "https://example.org"

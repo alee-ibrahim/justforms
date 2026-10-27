@@ -6,6 +6,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import EmailStr, Field, StringConstraints
@@ -20,6 +21,7 @@ from app.models import (
     DeliveryStatus,
     EmailDelivery,
     EmailStatus,
+    FormRole,
     NotificationRule,
     RuleType,
     Webhook,
@@ -29,7 +31,7 @@ from app.notifications import emails
 from app.notifications import webhooks as wh
 from app.notifications.events import TEST_KINDS, email_fields, latest_schema
 from app.notifications.ssrf import UrlRefused, check_static
-from app.permissions import FormAccess, FormOwner, FormViewer
+from app.permissions import FormAccess, FormOwner, FormViewer, has_form_role
 from app.queue import JobQueue, get_queue
 from app.schemas.form import Form
 from app.services.users import audit
@@ -338,14 +340,21 @@ class DeliveryOut(ApiModel):
     payload: dict[str, Any]
 
 
-def _hook_out(h: Webhook) -> WebhookOut:
+def mask_url(url: str) -> str:
+    """Scheme and host only: webhook paths and queries often carry a secret (catch URLs)."""
+    parts = urlsplit(url)
+    base = f"{parts.scheme}://{parts.netloc.rpartition('@')[2]}"
+    return f"{base}/…" if parts.path.strip("/") or parts.query or parts.fragment else base
+
+
+def _hook_out(h: Webhook, *, owner: bool = True) -> WebhookOut:
     now = datetime.now(UTC)
     rotating = (
         h.previous_expires_at if h.previous_expires_at and h.previous_expires_at > now else None
     )
     return WebhookOut(
         id=h.id,
-        url=h.url,
+        url=h.url if owner else mask_url(h.url),
         events=list(h.events or []),
         enabled=h.enabled,
         include_sensitive=h.include_sensitive,
@@ -387,7 +396,9 @@ async def list_webhooks(db: DbDep, access: FormViewer) -> list[WebhookOut]:
     rows = await db.scalars(
         select(Webhook).where(Webhook.form_id == access.form.id).order_by(Webhook.created_at)
     )
-    return [_hook_out(h) for h in rows]
+    # Only owners manage webhooks; others see where they go, not the secret-bearing path.
+    owner = has_form_role(access.role, FormRole.OWNER)
+    return [_hook_out(h, owner=owner) for h in rows]
 
 
 @router.post(

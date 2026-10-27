@@ -98,7 +98,9 @@ are not printed on the PDF; they stay in the studio and in the file's metadata.
 
 Webhooks are HMAC-signed; outbound URLs are resolved, checked against private ranges and
 pinned (allow private networks with `JUSTFORMS_WEBHOOK_ALLOWED_CIDRS`). Payloads, the signature
-scheme and verifiers for Python, Node and PHP are in [webhooks.md](webhooks.md).
+scheme and verifiers for Python, Node and PHP are in [webhooks.md](webhooks.md). Only owners
+see a webhook's full URL; editors and viewers see the scheme and host, since catch URLs often
+carry a secret in the path or query.
 
 ## Reporting a vulnerability
 
