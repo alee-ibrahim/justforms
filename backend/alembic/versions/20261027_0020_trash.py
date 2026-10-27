@@ -44,12 +44,20 @@ def _in(column: str, values: tuple[str, ...]) -> str:
 def upgrade() -> None:
     op.add_column("forms", sa.Column("deleted_by", sa.Uuid(), nullable=True))
     op.create_foreign_key(
-        op.f("fk_forms_deleted_by_users"), "forms", "users", ["deleted_by"], ["id"],
+        op.f("fk_forms_deleted_by_users"),
+        "forms",
+        "users",
+        ["deleted_by"],
+        ["id"],
         ondelete="SET NULL",
     )
     op.add_column("submissions", sa.Column("deleted_by", sa.Uuid(), nullable=True))
     op.create_foreign_key(
-        op.f("fk_submissions_deleted_by_users"), "submissions", "users", ["deleted_by"], ["id"],
+        op.f("fk_submissions_deleted_by_users"),
+        "submissions",
+        "users",
+        ["deleted_by"],
+        ["id"],
         ondelete="SET NULL",
     )
     op.create_index(
