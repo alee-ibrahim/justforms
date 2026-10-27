@@ -115,6 +115,8 @@ DATEISH = re.compile(r"^\d{4}(-\d{2}(-\d{2})?)?$")
 MAX_GROUPS = 100
 MAX_LIST = 50
 LIST_TEXT_CHARS = 300
+# A free-text group's key and label: the answer's first this many characters.
+GROUP_TEXT_CHARS = 200
 
 
 class QueryError(ValueError):
@@ -865,7 +867,9 @@ def group_expr(
     if q.type == "date":
         n = {"value": 10, "day": 10, "month": 7, "year": 4}[g.bucket]
         return func.substr(_text(x), 1, n)
-    return case((answered(x), func.btrim(_text(x))))
+    # Free text, contact details, hidden and time answers: the group is the answer's first
+    # GROUP_TEXT_CHARS characters, so long answers can't make a result huge.
+    return case((answered(x), func.substr(func.btrim(_text(x)), 1, GROUP_TEXT_CHARS)))
 
 
 async def other_texts(

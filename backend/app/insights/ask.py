@@ -42,12 +42,19 @@ from sqlalchemy import ColumnElement, func, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.limits import BudgetExceeded, estimate_input, run_stoppable, usage_of
+from app.ai.limits import (
+    BudgetExceeded,
+    estimate_input,
+    request_chars,
+    run_stoppable,
+    usage_of,
+)
 from app.ai.providers.http import clean_schema
 from app.ai.types import AIProvider, ChatMessage, ProviderError, ToolResult, ToolSpec, Usage
 from app.answers import answer_text
 from app.insights.catalogue import CHOICE_TYPES, OBJECT_TYPES, Catalogue, Question, outline
 from app.insights.dsl import (
+    GROUP_TEXT_CHARS,
     MAX_LIST,
     META_FIELDS,
     META_STATUS,
@@ -81,9 +88,15 @@ NAME_LABEL = re.compile(r"(name|organi[sz]ation|title|company)", re.I)
 NUMBER = re.compile(
     r"(?<![\w#.,])\d{1,3}(?:,\d{3})+(?![\d.,]*\d|%)|(?<![\w#.,])\d+(?![\d.,]*\d|\s?%)"
 )
-READ_MAX_SUBMISSIONS = 500
-# Answer text sent to the AI per question asked (read_answers and list values together).
+READ_MAX_SUBMISSIONS = 500  # submissions whose answers go to the AI per question asked
+# Characters of tool results sent to the AI per question asked (every tool's results).
 READ_TOTAL_CHARS = 150_000
+# Kept back from answer reads, so counts still fit after a big read.
+COUNT_RESERVE_CHARS = 5_000
+# A result this small is sent even when the budget is used up.
+SMALL_RESULT_CHARS = 300
+# Characters of one provider request (system prompt, history, tool calls and results).
+MAX_REQUEST_CHARS = 400_000
 # Submission details besides the answers (list_submissions columns, read_answers "meta").
 META_RESPONDENT = "_respondent"
 META_APPROVAL = "_approval"
@@ -306,8 +319,10 @@ class Tools:
         self.total = total
         self.policy = Policy(for_ai=True, text_allowed=read_allowed, contact_allowed=read_allowed)
         self.results: dict[str, tuple[Query, dict[str, Any]]] = {}
-        # Answer text still allowed to go to the AI for this question.
+        # Characters of tool results still allowed to go to the AI for this question.
         self.read_left = READ_TOTAL_CHARS
+        # Submissions whose answers went to the AI for this question.
+        self.sent_refs: set[int] = set()
         self.lists_shown: list[dict[str, Any]] = []
 
     async def run(
@@ -322,13 +337,13 @@ class Tools:
                 ms = int(QUERY_TIMEOUT_SECONDS * 1000)
                 await self.db.execute(text(f"SET LOCAL statement_timeout = {ms}"))
                 if name == "query_submissions":
-                    return await self._query(args)
+                    return self._charge(*await self._query(args))
                 if name == "read_answers":
-                    return await self._read(args)
+                    return self._charge(*await self._read(args))
                 if name == "list_submissions":
-                    return await self._list_tool(args)
+                    return self._charge(*await self._list_tool(args))
                 if name == "show_result":
-                    return await self._show(args)
+                    return self._charge(*await self._show(args))
                 raise QueryError(f"unknown tool {name!r}")
         except DBAPIError as exc:
             if _timed_out(exc):
@@ -358,6 +373,36 @@ class Tools:
             log.warning("ask: could not build a %s call", name, exc_info=True)
             msg = "That query couldn't be built. Check the operators and values and try again."
             return False, {"error": msg}, {"tool": name, "ok": False, "error": "invalid"}
+
+    def _charge(
+        self, ok: bool, content: dict[str, Any], step: dict[str, Any]
+    ) -> tuple[bool, dict[str, Any], dict[str, Any]]:
+        """Count a result against the question's size budget, cutting it to fit."""
+        content = _fit(content, max(self.read_left, SMALL_RESULT_CHARS))
+        size = len(json.dumps(content, ensure_ascii=False))
+        # A small result (a count) always goes through, so the model can still answer.
+        if size > max(self.read_left, SMALL_RESULT_CHARS):
+            msg = (
+                "The size limit for results sent to you in this question is used up. Answer"
+                " with the results you have, and say the rest couldn't be checked."
+            )
+            return False, {"error": msg}, {**step, "ok": False, "error": "size_limit"}
+        self.read_left = max(0, self.read_left - size)
+        return ok, content, step
+
+    def _data_left(self) -> int:
+        """Characters answer reads may still use (some are kept for counts)."""
+        reserve = min(COUNT_RESERVE_CHARS, READ_TOTAL_CHARS // 2)
+        return max(0, self.read_left - reserve)
+
+    def _may_send(self, ref: int) -> bool:
+        """Whether one more submission's answers may go to the AI in this question."""
+        if ref in self.sent_refs:
+            return True
+        if len(self.sent_refs) >= READ_MAX_SUBMISSIONS:
+            return False
+        self.sent_refs.add(ref)
+        return True
 
     async def _query(self, args: dict[str, Any]) -> tuple[bool, dict[str, Any], dict[str, Any]]:
         query = Query.model_validate(args)
@@ -394,7 +439,16 @@ class Tools:
                 {k: v for k, v in g.items() if k != "key"} for g in result["groups"][:30]
             ]
         out = {"queryId": qid, **result}
-        return True, _fit(out), step
+        if out.get("submissions") and any("answers" in item for item in out["submissions"]):
+            kept = [item for item in out["submissions"] if self._may_send(item["ref"])]
+            if len(kept) < len(out["submissions"]):
+                out["submissions"] = kept
+                out["listTruncated"] = True
+                out.setdefault("notes", []).append(
+                    f"Answers of at most {READ_MAX_SUBMISSIONS} submissions are sent to you per"
+                    " question; some listed submissions were left out."
+                )
+        return True, _fit(out, RESULT_CHARS), step
 
     def _resolve(self, conds: list[Condition], notes: list[str]) -> list[Condition]:
         """Choice values as the options' values (a label or a loose word becomes the option it
@@ -474,7 +528,8 @@ class Tools:
         ).scalars()
         answers: list[dict[str, Any]] = []
         used = 0
-        cut = False
+        cut = capped = False
+        budget = self._data_left()
         for sub in subs:
             data = sub.data or {}
             vid = sub.form_version_id
@@ -505,12 +560,14 @@ class Tools:
                 if out_rows:
                     item[rep_key] = out_rows
             size = len(json.dumps(item, ensure_ascii=False))
-            if used + size > self.read_left:
+            if used + size > budget:
                 cut = True
+                break
+            if not self._may_send(sub.seq):
+                capped = True
                 break
             used += size
             answers.append(item)
-        self.read_left -= used
         step = {
             "tool": "read_answers",
             "ok": True,
@@ -533,6 +590,8 @@ class Tools:
             why = (
                 "the size limit for answers sent to you"
                 if cut
+                else f"the limit of {READ_MAX_SUBMISSIONS} submissions per question"
+                if capped
                 else f"the limit of {req.limit} submissions per call"
             )
             notes.append(
@@ -632,6 +691,7 @@ class Tools:
         answered = dict.fromkeys(keys, 0)
         used = 0
         ai_cut = False
+        budget = self._data_left()
         for sub in subs:
             data = sub.data or {}
             vid = sub.form_version_id
@@ -653,7 +713,7 @@ class Tools:
             rows.append({"label": f"#{sub.seq}", "ref": sub.seq, "values": values})
             if self.read_allowed and not ai_cut:
                 size = len(json.dumps(ai, ensure_ascii=False))
-                if used + size > self.read_left:
+                if used + size > budget or not self._may_send(sub.seq):
                     ai_cut = True
                 else:
                     used += size
@@ -690,7 +750,6 @@ class Tools:
                 " say so, and that the Responses page's export has them all."
             )
         if self.read_allowed:
-            self.read_left -= used
             content["rows"] = ai_rows
             if ai_cut:
                 content["rowsTruncated"] = True
@@ -778,6 +837,8 @@ def group_condition(cat: Catalogue, g: GroupBy, value: Any) -> Condition | None:
         return Condition(field=g.field, op="is_other")
     if q.type == "multi_choice":
         return Condition(field=g.field, op="includes_any", values=[value])
+    if isinstance(value, str) and len(value) >= GROUP_TEXT_CHARS:
+        return None  # the group's key was cut, so "is" would not match it
     if isinstance(value, (str, int, float, bool)):
         return Condition(field=g.field, op="eq", value=value)
     return None
@@ -844,19 +905,59 @@ def answer_link(tools: Tools, text: str) -> dict[str, Any] | None:
     }
 
 
-def _fit(result: dict[str, Any]) -> dict[str, Any]:
-    """Keep a tool result within ``RESULT_CHARS`` by dropping listed submissions and groups."""
-    text = json.dumps(result, ensure_ascii=False)
-    while len(text) > RESULT_CHARS:
-        if result.get("submissions"):
-            result["submissions"] = result["submissions"][: len(result["submissions"]) // 2]
-            result["listTruncated"] = True
-        elif result.get("groups") and len(result["groups"]) > 5:
-            result["groups"] = result["groups"][: len(result["groups"]) // 2]
-            result["groupsTruncated"] = True
-        else:
+# Lists in a tool result that can be cut to fit, and the flag that says so.
+_CUTTABLE = (("submissions", "listTruncated"), ("rows", "rowsTruncated"), ("answers", "truncated"))
+_KEEP = ("queryId", "shown", "matched", "unit", "aggregates", "listed", "returned")
+
+
+def _size(value: Any) -> int:
+    return len(json.dumps(value, ensure_ascii=False))
+
+
+def _cut_strings(value: Any, n: int) -> Any:
+    if isinstance(value, str):
+        return value if len(value) <= n else value[:n] + "\u2026"
+    if isinstance(value, dict):
+        return {k: _cut_strings(v, n) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_cut_strings(v, n) for v in value]
+    return value
+
+
+def _fit(result: dict[str, Any], limit: int = RESULT_CHARS) -> dict[str, Any]:
+    """Keep a tool result within ``limit`` characters: halve listed submissions, rows and
+    answers, drop "Other" texts, halve groups, shorten group labels, and as a last resort keep
+    only the counts. Always ends within the limit unless even the counts don't fit."""
+    if _size(result) <= limit:
+        return result
+    for key, flag in _CUTTABLE:
+        while result.get(key) and _size(result) > limit:
+            result[key] = result[key][: len(result[key]) // 2]
+            result[flag] = True
+    if result.get("otherAnswers") and _size(result) > limit:
+        result.pop("otherAnswers")
+        result["otherAnswersTruncated"] = True
+    while result.get("groups") and len(result["groups"]) > 5 and _size(result) > limit:
+        result["groups"] = result["groups"][: len(result["groups"]) // 2]
+        result["groupsTruncated"] = True
+    for n in (100, 40, 15):
+        if not result.get("groups") or _size(result) <= limit:
             break
-        text = json.dumps(result, ensure_ascii=False)
+        result["groups"] = _cut_strings(result["groups"], n)
+        result["labelsShortened"] = True
+    while result.get("groups") and _size(result) > limit:
+        result["groups"] = result["groups"][: len(result["groups"]) // 2]
+        result["groupsTruncated"] = True
+    if _size(result) > limit:
+        result = {
+            k: v for k, v in result.items() if k in _KEEP or k.endswith(("truncated", "Truncated"))
+        }
+        result["truncated"] = True
+    result.setdefault("notes", []).append(
+        "This result was cut to fit the size limit; say so if it matters for the answer."
+    )
+    if _size(result) > limit:
+        result.pop("notes")
     return result
 
 
@@ -893,6 +994,9 @@ async def run_ask(
         while True:
             if await should_cancel():
                 outcome.status = "cancelled"
+                return
+            if request_chars(system, messages, specs) > MAX_REQUEST_CHARS:
+                outcome.status, outcome.error = "error", "too_large"
                 return
             estimated = estimate_input(system, messages, specs)
             await check_budget(estimated)
