@@ -160,7 +160,9 @@ def cell_value(col: Column, value: Any, sub: Submission, ctx: Context) -> Any:
         return value if not isinstance(value, bool) else str(value)
     if isinstance(f, FileField) and isinstance(value, list):
         return "\n".join(
-            f"{v.get('name', 'file')}: {ctx.link('files/' + str(v.get('fileId')))}"
+            # File names come from respondents: never let one start a formula.
+            f"{safe_text(str(v.get('name') or 'file'))}: "
+            f"{ctx.link('files/' + str(v.get('fileId')))}"
             for v in value
             if isinstance(v, dict)
         )

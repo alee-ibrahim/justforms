@@ -53,6 +53,9 @@ class CleanImage:
         return "png" if self.mime == "image/png" else "svg"
 
 
+# Logos are shallow; deeper nesting is refused (and would exhaust recursion when rebuilt).
+MAX_SVG_DEPTH = 64
+
 ELEMENTS = {
     "svg", "g", "defs", "title", "desc", "symbol", "use",
     "path", "rect", "circle", "ellipse", "line", "polyline", "polygon",
@@ -99,7 +102,9 @@ def _clean_svg(raw: bytes) -> CleanImage:
     if _local(root.tag) != (SVG_NS, "svg"):
         raise BrandImageError("bad_type")
 
-    def rebuild(el: ET.Element) -> ET.Element:
+    def rebuild(el: ET.Element, depth: int = 0) -> ET.Element:
+        if depth > MAX_SVG_DEPTH:
+            raise BrandImageError("svg_unsafe")
         ns, name = _local(el.tag)
         if ns != SVG_NS or name not in ELEMENTS:
             raise BrandImageError("svg_unsafe")
@@ -120,7 +125,7 @@ def _clean_svg(raw: bytes) -> CleanImage:
         out.text = el.text
         out.tail = el.tail
         for child in el:
-            out.append(rebuild(child))
+            out.append(rebuild(child, depth + 1))
         return out
 
     clean = rebuild(root)
