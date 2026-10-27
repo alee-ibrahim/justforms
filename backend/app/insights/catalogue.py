@@ -237,14 +237,16 @@ def outline(
             e["note"] = "file or signature: answered/unanswered only (never names or content)"
         elif q.type in CONTACT_TYPES and not text_allowed:
             e["note"] = (
-                "contact detail: filter and count only, you never see the values;"
+                "contact detail: answered/unanswered counts only, you never see the values;"
                 " list_submissions shows them to the person"
             )
         elif q.type in TEXT_TYPES and not text_allowed:
             e["note"] = (
-                "free text: filter (contains) and count only; reading answers is off;"
+                "free text: answered/unanswered counts only; reading answers is off;"
                 " list_submissions shows the answers to the person"
             )
+        elif q.type == "date" and not text_allowed:
+            e["note"] = "date: group by month or year; reading answers is off"
         return e
 
     for q in cat.top_level():

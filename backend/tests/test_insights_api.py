@@ -496,9 +496,11 @@ async def test_ask_link_is_the_counted_answer(
     provider: ScriptedProvider,
 ) -> None:
     """A reply "2 of 5 ticked X" links to the 2 (the group the reply names), not to all 5; a
-    reply quoting several groups links to the whole breakdown."""
+    reply quoting several groups links to the whole breakdown. (Reading answers on: with it
+    off, groups of fewer than 5 submissions are merged.)"""
     s = await setup(client, db, settings, queue)
     fid = str(s.form.id)
+    await client.patch(f"/api/v1/forms/{fid}", json={"aiReadAnswers": True})
     provider.steps.extend(
         [
             turn(calls=[("query_submissions", {"groupBy": [{"field": "areas"}]})]),

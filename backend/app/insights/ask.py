@@ -54,6 +54,8 @@ from app.ai.types import AIProvider, ChatMessage, ProviderError, ToolResult, Too
 from app.answers import answer_text
 from app.insights.catalogue import CHOICE_TYPES, OBJECT_TYPES, Catalogue, Question, outline
 from app.insights.dsl import (
+    AI_MIN_GROUP,
+    FEWER,
     GROUP_TEXT_CHARS,
     MAX_LIST,
     META_FIELDS,
@@ -225,11 +227,15 @@ def system_prompt(
         " was cut (truncated), say in your reply how many submissions it covers out of how"
         " many."
         if read_allowed
-        else "Reading answers is OFF for this form: you get counts, option labels and numbers,"
-        " never the text of answers or contact details. If a question needs you to read"
-        " answers (summaries, themes, quotes), say that an owner of the form can turn on"
-        " Settings > AI > Allow AI to read answers. Showing values to the person doesn't need"
-        " it: use list_submissions."
+        else "Reading answers is OFF for this form: you get counts, option labels, and sums,"
+        " averages and groups of at least"
+        f" {AI_MIN_GROUP} submissions; never a single submission's answers, the text of"
+        " answers or contact details. Free-text, contact, hidden and time questions can only"
+        " be counted as answered or unanswered; dates are grouped by month or year;"
+        " listLimit gives submission numbers only. If a question needs you to read answers"
+        " (summaries, themes, quotes, single values), say that an owner of the form can turn"
+        " on Settings > AI > Allow AI to read answers. Showing values to the person doesn't"
+        " need it: use list_submissions."
     )
     return f"""\
 You answer questions about the submissions (responses) of one form for the staff who run
@@ -317,7 +323,7 @@ class Tools:
         self.tz = tz
         self.read_allowed = read_allowed
         self.total = total
-        self.policy = Policy(for_ai=True, text_allowed=read_allowed, contact_allowed=read_allowed)
+        self.policy = Policy.for_ask(read_allowed)
         self.results: dict[str, tuple[Query, dict[str, Any]]] = {}
         # Characters of tool results still allowed to go to the AI for this question.
         self.read_left = READ_TOTAL_CHARS
@@ -824,7 +830,7 @@ def chart_spec(req: ShowResult, query: Query, result: dict[str, Any]) -> dict[st
 
 def group_condition(cat: Catalogue, g: GroupBy, value: Any) -> Condition | None:
     """The condition selecting one group of a single group_by (None: can't be expressed)."""
-    if g.field == META_SUBMITTED or g.bucket != "value":
+    if g.field == META_SUBMITTED or g.bucket != "value" or value == FEWER:
         return None
     if g.field in (META_STATUS, META_VERSION):
         return None if value is None else Condition(field=g.field, op="eq", value=value)

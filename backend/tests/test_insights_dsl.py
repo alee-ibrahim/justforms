@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.insights import catalogue as cat_mod
 from app.insights.dsl import (
+    FEWER,
     PEOPLE,
     Policy,
     Query,
@@ -26,7 +27,7 @@ from app.models import Submission
 from tests.insights_fixture import Seeded, seed
 
 TZ = ZoneInfo("UTC")
-AI_NO_TEXT = Policy(for_ai=True, text_allowed=False, contact_allowed=False)
+AI_NO_TEXT = Policy.for_ask(False)
 AI_TEXT = Policy(for_ai=True, text_allowed=True)
 
 
@@ -269,10 +270,53 @@ async def test_policy(db: AsyncSession) -> None:
         await q(db, s, {"groupBy": [{"field": "org_name"}]}, AI_NO_TEXT)
     res = await q(db, s, {"groupBy": [{"field": "areas"}]}, AI_NO_TEXT)
     assert "otherAnswers" not in res  # "Other" texts are answers too
-    assert any(g["key"]["areas"] == "Other" for g in res["groups"])
-    # Filtering free text by contains still works (counts only).
+    # Reading off: every group here has fewer than 5 submissions, so they are merged.
+    assert [g["key"]["areas"] for g in res["groups"]] == [FEWER]
+    assert res["groups"][0]["label"]["areas"].startswith("Fewer than 5 each")
+    assert any(
+        g["key"]["areas"] == "Other"
+        for g in (await q(db, s, {"groupBy": [{"field": "areas"}]}, AI_TEXT))["groups"]
+    )
+    # ...and listLimit gives submission numbers only; exact dates and min/max are refused.
+    res = await q(db, s, {"listLimit": 3}, AI_NO_TEXT)
+    assert res["submissions"] and all(set(i) == {"ref"} for i in res["submissions"])
+    for query in (
+        {"groupBy": [{"field": "founded"}]},
+        {"groupBy": [{"field": "founded", "bucket": "day"}]},
+        {"aggregates": [{"op": "max", "field": "staff"}]},
+        {"aggregates": [{"op": "distinct", "field": "founded"}]},
+    ):
+        with pytest.raises(QueryError, match="reading answers is off"):
+            await q(db, s, query, AI_NO_TEXT)
+    assert (await q(db, s, {"groupBy": [{"field": "founded", "bucket": "year"}]}, AI_NO_TEXT))[
+        "groups"
+    ]
+    res = await q(db, s, {"aggregates": [{"op": "avg", "field": "staff"}]}, AI_NO_TEXT)
+    assert res["aggregates"]["avg:staff"] is not None  # 5 submissions
     res = await q(
-        db, s, {"where": [{"field": "mission", "op": "contains", "value": "climate"}]}, AI_NO_TEXT
+        db,
+        s,
+        {
+            "where": [{"field": "atoll", "op": "eq", "value": "addu"}],
+            "aggregates": [{"op": "avg", "field": "staff"}],
+        },
+        AI_NO_TEXT,
+    )
+    assert res["aggregates"]["avg:staff"] is None  # 2 submissions
+    # Free text and contact details can't be filtered by value either (a probing oracle):
+    # answered/unanswered only. People and reading-on may filter.
+    for cond in (
+        {"field": "mission", "op": "contains", "value": "climate"},
+        {"field": "contact", "op": "contains", "value": "a@ex"},
+        {"field": "org_name", "op": "eq", "value": "reef watch"},
+    ):
+        with pytest.raises(QueryError, match="answered/unanswered"):
+            await q(db, s, {"where": [cond]}, AI_NO_TEXT)
+        await q(db, s, {"where": [cond]}, AI_TEXT)
+    res = await q(db, s, {"where": [{"field": "mission", "op": "answered"}]}, AI_NO_TEXT)
+    assert res["matched"]["submissions"] >= 2
+    res = await q(
+        db, s, {"where": [{"field": "mission", "op": "contains", "value": "climate"}]}, AI_TEXT
     )
     assert res["matched"]["submissions"] == 2
     assert (await q(db, s, {"listLimit": 1, "listFields": ["mission"]}, AI_TEXT))["submissions"]

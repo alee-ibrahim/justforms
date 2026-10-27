@@ -558,3 +558,62 @@ async def test_too_large_request_is_refused(
     evs = await ask(client, str(s.form.id), "q")
     assert ("error", {"code": "too_large"}) in evs
     assert provider.calls == []
+
+
+# -- M3: reading answers off ----------------------------------------------------------------
+
+
+async def test_read_off_sends_per_submission_answers(
+    client: AsyncClient,
+    db: AsyncSession,
+    settings: Settings,
+    queue: RecordingQueue,
+    provider: ScriptedProvider,
+) -> None:
+    """Regression: with "Allow AI to read answers" off, listFields sent per-submission
+    records (dates, choices, yes/no, numbers by ref), groupBy on a date sent exact dates, and
+    contains/eq on text and email worked as an oracle. All refused now."""
+    s = await setup(client, db, settings, queue)
+    fid = str(s.form.id)
+    got: list[Any] = []
+
+    async def capture(messages: list[ChatMessage]) -> TurnResult:
+        got.extend((r.is_error, r.content) for r in messages[-1].tool_results)
+        return turn("done")
+
+    provider.steps.extend(
+        [
+            turn(
+                calls=[
+                    (
+                        "query_submissions",
+                        {
+                            "listLimit": 50,
+                            "listFields": ["founded", "atoll", "areas", "registered", "staff"],
+                        },
+                    ),
+                    ("query_submissions", {"groupBy": [{"field": "founded"}]}),
+                    (
+                        "query_submissions",
+                        {"where": [{"field": "contact", "op": "contains", "value": "a@ex"}]},
+                    ),
+                    (
+                        "query_submissions",
+                        {"where": [{"field": "org_name", "op": "eq", "value": "reef watch"}]},
+                    ),
+                    ("query_submissions", {"listLimit": 50}),
+                    ("query_submissions", {"groupBy": [{"field": "atoll"}]}),
+                ]
+            ),
+            capture,
+        ]
+    )
+    await ask(client, fid, "q")
+    assert [err for err, _ in got] == [True, True, True, True, False, False]
+    refs, grouped = got[4][1], got[5][1]
+    assert all(set(item) == {"ref"} for item in refs["submissions"])
+    # Malé 2, Addu 2, Other 1: each under 5, merged into one group.
+    assert [g["submissions"] for g in grouped["groups"]] == [5]
+    sent = provider.sent_text()
+    for value in ("2019-03-01", "a@example.org", "Reef Watch", "Fuvahmulah"):
+        assert value not in sent

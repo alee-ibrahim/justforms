@@ -50,7 +50,7 @@ export function AiCard({ form, canManage }: { form: FormSummary; canManage: bool
             <FieldDescription>
               {on
                 ? 'On: answers, including contact details and fields marked sensitive, are sent to the AI service when someone asks a question.'
-                : 'Off: the AI service only gets the questions, counts and numbers, never the answers. Lists of answers you ask for are still shown to you.'}{' '}
+                : 'Off: the AI service gets the questions and their options, counts, and totals or averages over at least 5 submissions. It never gets a single submission’s answers, text answers or contact details, though a count for a narrow filter can still say something about a few submissions. Lists of answers you ask for are shown only to you.'}{' '}
               Files, signatures and respondents’ IP addresses are never sent.
             </FieldDescription>
           </FieldContent>
@@ -68,7 +68,7 @@ export function AiCard({ form, canManage }: { form: FormSummary; canManage: bool
             <AlertDialogTitle>Send answers to the AI service?</AlertDialogTitle>
             <AlertDialogDescription>
               Answers, including contact details and fields marked sensitive, are sent to the AI service when someone
-              asks a question (up to 500 submissions per question). Files, signatures and IP addresses are never sent.
+              asks a question (the answers of at most 500 submissions per question). Files, signatures and IP addresses are never sent.
               You can turn this off at any time.
             </AlertDialogDescription>
           </AlertDialogHeader>

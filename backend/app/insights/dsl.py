@@ -22,9 +22,15 @@ itself). Older versions' fixed questions mapped onto a repeater (version field m
 read as rows too.
 
 Who sees what is decided by a ``Policy``: sensitive questions only ever give answered /
-unanswered counts; for the AI, unless the form allows AI to read answers, contact details
-(email, phone) and free-text answers can be filtered and counted but are never grouped,
-listed or returned.
+unanswered counts. For the AI, unless the form allows AI to read answers, nothing of a single
+submission is returned: contact details (email, phone), free-text, hidden and time answers
+give answered/unanswered counts only (no filtering by value, so their values can't be
+probed one count at a time); no answers are listed (``listLimit`` gives submission numbers
+only); dates are grouped by month or year at the finest, and have no min, max or distinct;
+min and max of numbers are refused; and groups smaller than ``AI_MIN_GROUP`` submissions are
+merged into one "fewer than N each" group, with sums and averages only over at least that
+many submissions. Filtered counts are still exact, so a narrow filter can say something
+about a few submissions.
 """
 
 from __future__ import annotations
@@ -114,6 +120,10 @@ Key = Annotated[
 DATEISH = re.compile(r"^\d{4}(-\d{2}(-\d{2})?)?$")
 MAX_GROUPS = 100
 MAX_LIST = 50
+# Reading answers off: the fewest submissions a group or an average may describe.
+AI_MIN_GROUP = 5
+# Group key of groups merged because each is smaller than AI_MIN_GROUP.
+FEWER = "\ufdd0fewer\ufdd0"
 LIST_TEXT_CHARS = 300
 # A free-text group's key and label: the answer's first this many characters.
 GROUP_TEXT_CHARS = 200
@@ -209,15 +219,32 @@ class Where(_Model):
 
 @dataclass(frozen=True)
 class Policy:
-    """``for_ai``: the caller is the AI. ``text_allowed``: free text answers may be grouped and
-    listed; ``contact_allowed``: so may contact details (email, phone). People: always; the
-    AI: only when the form allows AI to read answers. Sensitive questions only ever give
-    answered/unanswered counts here, for everyone (their values reach the AI only through
-    ``read_answers``, see ``app.insights.ask``)."""
+    """``for_ai``: the caller is the AI. ``text_allowed``: free text answers may be grouped,
+    listed and filtered by value; ``contact_allowed``: so may contact details (email, phone).
+    ``values_allowed``: single submissions' answers may be returned (listed answers, exact
+    dates, min/max). ``min_group``: groups smaller than this are merged, and sums and
+    averages need at least this many submissions (0: no minimum). People: everything; the
+    AI: everything only when the form allows AI to read answers (``for_ask``). Sensitive
+    questions only ever give answered/unanswered counts here, for everyone (their values
+    reach the AI only through ``read_answers``, see ``app.insights.ask``)."""
 
     for_ai: bool = False
     text_allowed: bool = True
     contact_allowed: bool = True
+    values_allowed: bool = True
+    min_group: int = 0
+
+    @classmethod
+    def for_ask(cls, read_allowed: bool) -> Policy:
+        if read_allowed:
+            return cls(for_ai=True)
+        return cls(
+            for_ai=True,
+            text_allowed=False,
+            contact_allowed=False,
+            values_allowed=False,
+            min_group=AI_MIN_GROUP,
+        )
 
 
 PEOPLE = Policy()
@@ -310,8 +337,15 @@ class Compiler:
         if q.type in TEXT_TYPES and not self.policy.text_allowed:
             raise QueryError(
                 f"{q.key!r} is free text and reading answers is off for this form: it can't"
-                f" be {what} (filter it with contains and count instead)"
+                f" be {what} (only answered/unanswered counts)"
             )
+
+    def _values_hidden(self, q: Question) -> bool:
+        """Reading answers is off and ``q``'s answers are text or contact details: only
+        answered/unanswered (a value filter would reveal them one count at a time)."""
+        return (q.type in CONTACT_TYPES and not self.policy.contact_allowed) or (
+            q.type in TEXT_TYPES and not self.policy.text_allowed
+        )
 
     # -- repeater rows -------------------------------------------------------------------
 
@@ -484,6 +518,11 @@ class Compiler:
             return not_(answered(x))
         if q.sensitive or q.type in OBJECT_TYPES:
             raise QueryError(f"{q.key!r}: only answered/unanswered")
+        if self._values_hidden(q):
+            raise QueryError(
+                f"{q.key!r}: reading answers is off for this form, so its answers can only be"
+                " counted as answered/unanswered"
+            )
         t = q.type
         if t in CHOICE_TYPES:
             if op == "is_other":
@@ -707,6 +746,11 @@ async def run_query(
         comp._check_values_use(q, "grouped")
         if q.type in CONTACT_TYPES | TEXT_TYPES and g.bucket != "value":
             raise QueryError(f"{q.key}: bucket only applies to dates")
+        if q.type == "date" and g.bucket in ("value", "day") and not policy.values_allowed:
+            raise QueryError(
+                f"{q.key}: reading answers is off for this form, so dates are grouped by month"
+                ' or year (bucket "month" or "year")'
+            )
         group_specs.append((g, q))
     if sum(1 for _g, gq in group_specs if gq is not None and gq.type == "multi_choice") > 1:
         # Each would multiply the rows per submission by its ticked options.
@@ -727,8 +771,20 @@ async def run_query(
             raise QueryError(f"{a.op} needs a number or rating question, {q.key!r} is {q.type}")
         if a.op in ("min", "max") and q.type not in NUMBER_TYPES | {"date", "time"}:
             raise QueryError(f"{a.op} needs a number, rating, date or time question")
+        if not policy.values_allowed and (
+            a.op in ("min", "max") or (a.op == "distinct" and q.type == "date")
+        ):
+            raise QueryError(
+                f"{a.op} of {q.key!r} would give one submission's answer, and reading answers"
+                " is off for this form (use avg or median, or group by month or year)"
+            )
         agg_specs.append((a, q))
     list_qs: list[Question] = []
+    if query.list_fields and not policy.values_allowed:
+        raise QueryError(
+            "reading answers is off for this form: listFields isn't available (listLimit gives"
+            " submission numbers only; list_submissions shows answers to the person)"
+        )
     for k in query.list_fields:
         if k in META_FIELDS:
             continue
@@ -777,6 +833,20 @@ async def run_query(
         for j in joins:
             sel = sel.outerjoin(j, true())
         sel = sel.where(*base, *conds).group_by(*[f"g{i}" for i in range(len(group_specs))])
+        # Reading answers off: groups of fewer than min_group submissions are merged.
+        small: tuple[int, int] | None = None
+        if policy.min_group and any(gq is not None for _g, gq in group_specs):
+            every = sel.subquery()
+            n_small, subs_small = (
+                await db.execute(
+                    select(func.count(), func.coalesce(func.sum(every.c.subs), 0)).where(
+                        every.c.subs < policy.min_group
+                    )
+                )
+            ).one()
+            if n_small:
+                small = (int(n_small), int(subs_small))
+            sel = sel.having(subs_col >= policy.min_group)
         if query.sort == "key":
             sel = sel.order_by(
                 *[column(f"g{i}").asc().nulls_last() for i in range(len(group_specs))]
@@ -802,6 +872,23 @@ async def run_query(
             if rows is not None:
                 entry["submissions"] = int(m["subs"])
             groups.append(entry)
+        if small is not None:
+            n_small, subs_small = small
+            merged: dict[str, Any] = {
+                "key": {g.field: FEWER for g, _q in group_specs},
+                "label": {
+                    g.field: f"Fewer than {policy.min_group} each ({n_small} groups)"
+                    for g, _q in group_specs
+                },
+            }
+            for a, _q in agg_specs:
+                merged[agg_name(a)] = subs_small if a.op == "count" and rows is None else None
+            merged["submissions"] = subs_small
+            groups.append(merged)
+            comp.notes.append(
+                f"reading answers is off: groups of fewer than {policy.min_group} submissions"
+                " are merged into one group"
+            )
         out["groups"] = groups
         if len(result) > query.limit:
             out["groupsTruncated"] = True
@@ -819,11 +906,24 @@ async def run_query(
         out["aggregates"] = {
             agg_name(a): _num_out(v) for (a, _q), v in zip(agg_specs, vals, strict=True)
         }
+        if policy.min_group and out["matched"]["submissions"] < policy.min_group:
+            # An average of one or two submissions is their answer.
+            hidden = [agg_name(a) for a, _q in agg_specs if a.op in ("sum", "avg", "median")]
+            for name in hidden:
+                out["aggregates"][name] = None
+            if hidden:
+                comp.notes.append(
+                    f"reading answers is off: sums and averages need at least"
+                    f" {policy.min_group} submissions"
+                )
 
     if query.list_limit:
         out["submissions"] = await list_refs(
             db, cat, comp, base, conds, from_, list_qs, query.list_limit
         )
+        if not policy.values_allowed:
+            # Submission numbers only: no dates or answers of single submissions.
+            out["submissions"] = [{"ref": item["ref"]} for item in out["submissions"]]
     if comp.notes:
         out["notes"] = list(dict.fromkeys(comp.notes))
     return out
