@@ -75,3 +75,51 @@ def test_guarded_patch_applies_to_unrelated_edits_and_refuses_clashes() -> None:
         jsonpatch.apply_patch(clash, patch)
     # Unchanged base: the patch gives exactly the suggestion.
     assert jsonpatch.apply_patch(old, patch) == w.schema
+
+
+def test_builder_tools_accept_phishing_link_and_unset_sensitive() -> None:
+    """The builder AI can be steered (text in a paper image, imported labels) into valid but
+    risky edits; the suggestion now says which properties changed and flags those edits."""
+    from app.ai.service import security_flags
+
+    old = {
+        "schemaVersion": "1",
+        "settings": {"title": "T"},
+        "pages": [
+            {
+                "id": "p1",
+                "elements": [
+                    {
+                        "kind": "field",
+                        "id": "nid",
+                        "type": "short_text",
+                        "label": "National ID",
+                        "sensitive": True,
+                    },
+                ],
+            }
+        ],
+    }
+    w = WorkingCopy(copy.deepcopy(old), importing=True)
+    assert w.run(
+        "add_field",
+        {
+            "parentId": "p1",
+            "field": {
+                "kind": "content",
+                "contentType": "paragraph",
+                "text": "Session expired. [Verify](https://evil.example/login)",
+            },
+        },
+    ).ok
+    assert w.run(
+        "update_field", {"id": "nid", "changes": {"sensitive": False, "prefillParam": "nid"}}
+    ).ok
+    changed = changes(old, w.schema)
+    nid = next(c for c in changed if c["id"] == "nid")
+    assert nid["properties"] == ["prefillParam", "sensitive"]
+    notes = {f["targetId"]: f["note"] for f in security_flags(old, w.schema, changed)}
+    assert "No longer marked sensitive" in notes["nid"]
+    assert "filled in from the form's link" in notes["nid"]
+    added = next(c["id"] for c in changed if c["change"] == "added")
+    assert "https://evil.example/login" in notes[added]

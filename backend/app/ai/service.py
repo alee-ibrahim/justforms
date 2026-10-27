@@ -145,7 +145,11 @@ def changes(base: dict[str, Any], new: dict[str, Any]) -> list[dict[str, Any]]:
             if eid not in old_flat:
                 out.append({**entry, "change": "added"})
             elif _shallow(old_flat[eid]["el"]) != _shallow(loc.element):
-                out.append({**entry, "change": "changed"})
+                old_el, new_el = _shallow(old_flat[eid]["el"]), _shallow(loc.element)
+                props = sorted(
+                    k for k in set(old_el) | set(new_el) if old_el.get(k) != new_el.get(k)
+                )
+                out.append({**entry, "change": "changed", "properties": props})
             elif eid in moved:
                 out.append({**entry, "change": "moved"})
     for eid, info in old_flat.items():
@@ -204,6 +208,44 @@ def language_flags(
     return flags
 
 
+LINK = re.compile(r"(?:https?://|www\.)[^\s)\]>\"']+", re.I)
+
+
+def _links(el: dict[str, Any]) -> set[str]:
+    return {m.group(0) for t in _texts(el) for m in LINK.finditer(t)}
+
+
+def security_flags(
+    base: dict[str, Any], new: dict[str, Any], changed: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Added or changed questions to look at before applying: a question no longer marked
+    sensitive, one that can be filled from the link or is hidden, and links added to text
+    (an uploaded document or imported text can steer the AI into these)."""
+    touched = {
+        c["id"] for c in changed if c["kind"] == "element" and c["change"] in ("added", "changed")
+    }
+    old_flat = _flat(base)
+    flags: list[dict[str, Any]] = []
+    for eid, info in _flat(new).items():
+        if eid not in touched:
+            continue
+        el = info["el"]
+        old = old_flat.get(eid, {}).get("el", {})
+        notes: list[str] = []
+        if old.get("sensitive") and not el.get("sensitive"):
+            notes.append("No longer marked sensitive")
+        if el.get("prefillParam") and el.get("prefillParam") != old.get("prefillParam"):
+            notes.append("Can be filled in from the form's link")
+        if el.get("type") == "hidden" and old.get("type") != "hidden":
+            notes.append("A hidden question respondents don't see")
+        added = sorted(_links(el) - _links(old))
+        if added:
+            notes.append("Adds a link: " + ", ".join(added[:3]))
+        if notes:
+            flags.append({"targetId": eid, "note": "; ".join(notes), "source": "security"})
+    return flags
+
+
 def proposal(session: AiSession) -> dict[str, Any] | None:
     if session.status != AiSessionStatus.PROPOSAL or session.working_schema is None:
         return None
@@ -219,6 +261,7 @@ def proposal(session: AiSession) -> dict[str, Any] | None:
     flags = [f for f in session.flags if f.get("targetId") in known]
     flagged = {f["targetId"] for f in flags}
     flags += [f for f in language_flags(new, changed, language) if f["targetId"] not in flagged]
+    flags += security_flags(base, new, changed)
     labels = {info["el"]["id"]: element_label(info["el"]) for info in _flat(new).values()}
     for f in flags:
         f["label"] = labels.get(f["targetId"], f["targetId"])

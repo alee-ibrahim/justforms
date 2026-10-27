@@ -13,13 +13,15 @@ export interface Change {
   label: string
   change: ChangeKind
   pageId: string | null
+  /** changed elements: the properties that differ. */
+  properties?: string[]
 }
 
 export interface Flag {
   targetId: string
   note: string
   label?: string
-  source?: 'language'
+  source?: 'language' | 'security'
 }
 
 export interface Proposal {
