@@ -1034,6 +1034,8 @@ There is a pluggable verifier interface:
 
 The CAPTCHA is verified server-side on submit and on OTP request. A form can choose `off`, `always`, or `auto`. With `auto`, the CAPTCHA turns on when the rate-limit soft threshold is hit.
 
+The proof-of-work salt is `<random>?expires=<unix>&` (the trailing `&` ends it, as in the ALTCHA library) and the HMAC covers the challenge and the salt. The server refuses an expiry later than now + 30 minutes and a number above the maximum, and keeps the used-marker until the challenge expires. Siteverify answers must report the public host (`JUSTFORMS_PUBLIC_URL`) and, for Turnstile, the action `justforms`.
+
 ### 14.3 CSRF and CORS
 
 - Staff APIs use the session cookie with `SameSite=Lax`. Every unsafe method also requires `X-CSRF-Token` matching the `justforms_csrf` cookie (double-submit), and the `Origin` header is checked against `JUSTFORMS_PUBLIC_URL`.

@@ -33,6 +33,11 @@ problem. Abuse-control settings are in [Configuration](configuration.md#abuse-co
   right-most untrusted hop, so a client can't choose the address used for rate limits or
   recorded with submissions and signatures. uvicorn's `FORWARDED_ALLOW_IPS=*` is refused in
   production.
+- **CAPTCHA.** The built-in proof of work signs the challenge together with its salt and
+  expiry, refuses expiries beyond the 30-minute lifetime and numbers above the maximum, and
+  remembers each solved challenge until it expires, so a token works once. Turnstile and hCaptcha
+  tokens must have been solved on the host of `JUSTFORMS_PUBLIC_URL` (and, for Turnstile, with
+  the form widget's action).
 - **Headers.** The web container sends a Content-Security-Policy, `X-Content-Type-Options`,
   `Referrer-Policy`, `Permissions-Policy` and HSTS (behind HTTPS by default, or always with
   `JUSTFORMS_HSTS`) on every response, the API included. Public forms may be framed

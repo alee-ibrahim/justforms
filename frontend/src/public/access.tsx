@@ -303,7 +303,8 @@ export function CaptchaWidget({
           'expired-callback': () => latest.current(null),
           'error-callback': () => latest.current(null),
           // The widget is system UI too: English for every form.
-          ...(provider === 'turnstile' ? { language: 'en' } : { hl: 'en' }),
+          // The server checks the Turnstile action, so a token from another widget is refused.
+          ...(provider === 'turnstile' ? { language: 'en', action: 'justforms' } : { hl: 'en' }),
         })
       })
       .catch(() => setFailed(true))

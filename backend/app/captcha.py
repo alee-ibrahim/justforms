@@ -22,9 +22,11 @@ import hashlib
 import hmac
 import json
 import logging
+import re
 import secrets
 import time
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 import httpx
 from redis.asyncio import Redis
@@ -37,6 +39,8 @@ log = logging.getLogger(__name__)
 CaptchaMode = Literal["off", "always", "auto"]
 BUSY_COUNTER = "form_submits_hour"
 CHALLENGE_TTL = 30 * 60
+# The action the studio widget sends (Turnstile); a token for another action is refused.
+WIDGET_ACTION = "justforms"
 
 VERIFY_URLS = {
     "turnstile": "https://challenges.cloudflare.com/turnstile/v0/siteverify",
@@ -68,13 +72,18 @@ def _altcha_key(settings: Settings) -> bytes:
     return hashlib.sha256(b"justforms:altcha:" + settings.secret_key_bytes).digest()
 
 
-def _sign(settings: Settings, challenge: str) -> str:
-    return hmac.new(_altcha_key(settings), challenge.encode(), "sha256").hexdigest()
+def _sign(settings: Settings, challenge: str, salt: str) -> str:
+    # The challenge is fixed-length hex, so ``challenge:salt`` is unambiguous: the signature
+    # binds the exact salt (and with it the expiry) to the challenge.
+    msg = f"{challenge}:{salt}".encode()
+    return hmac.new(_altcha_key(settings), msg, "sha256").hexdigest()
 
 
 def altcha_challenge(settings: Settings) -> dict[str, Any]:
     expires = int(time.time()) + CHALLENGE_TTL
-    salt = f"{secrets.token_hex(12)}?expires={expires}"
+    # The trailing "&" (as the ALTCHA library does) ends the salt, so digits of the number
+    # can't be moved into the expiry.
+    salt = f"{secrets.token_hex(12)}?expires={expires}&"
     number = secrets.randbelow(settings.altcha_max_number)
     challenge = hashlib.sha256(f"{salt}{number}".encode()).hexdigest()
     return {
@@ -82,7 +91,7 @@ def altcha_challenge(settings: Settings) -> dict[str, Any]:
         "challenge": challenge,
         "maxnumber": settings.altcha_max_number,
         "salt": salt,
-        "signature": _sign(settings, challenge),
+        "signature": _sign(settings, challenge, salt),
     }
 
 
@@ -98,27 +107,48 @@ def public_config(settings: Settings, needed: bool) -> dict[str, Any] | None:
     return out
 
 
+_SALT = re.compile(r"[0-9a-f]{24}\?expires=([0-9]{1,12})&")
+_HEX64 = re.compile(r"[0-9a-f]{64}")
+
+
 async def _verify_altcha(redis: Redis, settings: Settings, token: str) -> bool:
     try:
         data = json.loads(base64.b64decode(token, validate=True))
         challenge, salt = str(data["challenge"]), str(data["salt"])
-        number, signature = int(data["number"]), str(data["signature"])
+        number, signature = data["number"], str(data["signature"])
     except (ValueError, KeyError, TypeError, binascii.Error):
         return False
     if data.get("algorithm") != "SHA-256":
         return False
-    if not hmac.compare_digest(_sign(settings, challenge), signature):
+    if type(number) is not int or not 0 <= number <= settings.altcha_max_number:
         return False
-    _, _, expires = salt.partition("?expires=")
-    if not expires.isdigit() or int(expires) < time.time():
+    match = _SALT.fullmatch(salt)
+    if match is None or _HEX64.fullmatch(challenge) is None:
+        return False
+    if not hmac.compare_digest(_sign(settings, challenge, salt), signature):
+        return False
+    now = int(time.time())
+    expires = int(match.group(1))
+    # Never trust an expiry beyond what this server hands out.
+    if expires < now or expires > now + CHALLENGE_TTL + 60:
         return False
     if hashlib.sha256(f"{salt}{number}".encode()).hexdigest() != challenge:
         return False
-    # Each solved challenge works once.
-    return bool(await redis.set(f"altcha_used:{challenge}", "1", nx=True, ex=CHALLENGE_TTL))
+    # Each solved challenge works once: the marker outlives the challenge itself.
+    ttl = expires - now + 60
+    return bool(await redis.set(f"altcha_used:{challenge}", "1", nx=True, ex=ttl))
 
 
-async def _verify_remote(settings: Settings, token: str, ip: str | None) -> bool:
+def _expected_hostname(settings: Settings) -> str | None:
+    return urlsplit(settings.public_url).hostname
+
+
+async def _verify_remote(
+    settings: Settings,
+    token: str,
+    ip: str | None,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> bool:
     assert settings.captcha_secret_key is not None
     form = {"secret": settings.captcha_secret_key.get_secret_value(), "response": token}
     if ip:
@@ -126,12 +156,23 @@ async def _verify_remote(settings: Settings, token: str, ip: str | None) -> bool
     if settings.captcha_provider == "hcaptcha":
         form["sitekey"] = settings.captcha_site_key
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=10, transport=transport) as client:
             res = await client.post(VERIFY_URLS[settings.captcha_provider], data=form)
-        return bool(res.json().get("success"))
+        body = res.json()
     except (httpx.HTTPError, ValueError):
         log.warning("CAPTCHA verification request failed")
         return False
+    if not isinstance(body, dict) or body.get("success") is not True:
+        return False
+    # A token solved on another site that uses the same site key doesn't count.
+    hostname = str(body.get("hostname") or "").lower()
+    if hostname != (_expected_hostname(settings) or "").lower():
+        log.warning("CAPTCHA token was solved on another host")
+        return False
+    action = body.get("action")
+    if action and action != WIDGET_ACTION:
+        return False
+    return True
 
 
 async def verify(redis: Redis, settings: Settings, token: str | None, ip: str | None) -> bool:
