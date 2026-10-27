@@ -527,8 +527,12 @@ async def submit(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     uploads.with_file_refs(form, stripped, checked.records)
-    # Serialise reference numbers per form.
+    # Serialise reference numbers per form. The lock also makes "one response per address"
+    # hold under concurrent submits: check again once no other submit can commit meanwhile.
     await db.execute(select(FormRecord.id).where(FormRecord.id == form_record.id).with_for_update())
+    if await _already_responded(db, form_record, email):
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "already_responded")
     last = await db.scalar(
         select(func.max(Submission.seq)).where(Submission.form_id == form_record.id)
     )
