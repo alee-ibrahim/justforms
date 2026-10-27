@@ -38,6 +38,8 @@ problem. Abuse-control settings are in [Configuration](configuration.md#abuse-co
   remembers each solved challenge until it expires, so a token works once. Turnstile and hCaptcha
   tokens must have been solved on the host of `JUSTFORMS_PUBLIC_URL` (and, for Turnstile, with
   the form widget's action).
+- **Staff-only forms** accept only signed-in people in the form's organisation (or with access
+  to the form), not everyone who can sign in.
 - **Headers.** The web container sends a Content-Security-Policy, `X-Content-Type-Options`,
   `Referrer-Policy`, `Permissions-Policy` and HSTS (behind HTTPS by default, or always with
   `JUSTFORMS_HSTS`) on every response, the API included. Public forms may be framed

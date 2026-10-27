@@ -59,6 +59,7 @@ from app.models import (
 )
 from app.net import client_ip, user_agent
 from app.notifications.emails import code_message
+from app.permissions import effective_form_role, org_role
 from app.queue import JobQueue, get_queue
 from app.schemas.form import Form
 from app.services import slugs
@@ -155,10 +156,11 @@ def _otp_settings(form: FormRecord) -> tuple[list[str], bool]:
 
 
 async def _staff_email(
-    request: Request, db: DbDep, redis: RedisDep, settings: Settings
+    form: FormRecord, request: Request, db: DbDep, redis: RedisDep, settings: Settings
 ) -> str | None:
-    token = request.cookies.get(session_cookie_name(settings))
-    session = await load_session(redis, settings, token)
+    """The signed-in address for a staff-only form. Only people in the form's organisation
+    (or with access to the form, or superadmins) count as staff for it."""
+    session = await load_session(redis, settings, request.cookies.get(session_cookie_name(settings)))
     if session is None:
         return None
     if request.method not in ("GET", "HEAD"):
@@ -172,7 +174,13 @@ async def _staff_email(
         ):
             raise HTTPException(status.HTTP_403_FORBIDDEN, "csrf_failed")
     user = await db.get(User, uuid.UUID(session.user_id))
-    return user.email if user else None
+    if user is None:
+        return None
+    if await org_role(db, user, form.org_id) is None and (
+        await effective_form_role(db, user, form) is None
+    ):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "not_in_organisation")
+    return user.email
 
 
 async def respondent_email(
@@ -189,7 +197,7 @@ async def respondent_email(
     if form.access_mode == AccessMode.PUBLIC:
         return None
     if form.access_mode == AccessMode.STAFF:
-        email = await _staff_email(request, db, redis, settings)
+        email = await _staff_email(form, request, db, redis, settings)
         if email is None and required:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "login_required")
         return email

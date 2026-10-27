@@ -31,7 +31,7 @@ const OPTIONS: { value: AccessMode; label: string; description: string }[] = [
   {
     value: 'staff',
     label: 'Signed-in staff only',
-    description: 'Only people who can sign in to JustForms can respond.',
+    description: "Only signed-in people in this form's organisation can respond.",
   },
 ]
 

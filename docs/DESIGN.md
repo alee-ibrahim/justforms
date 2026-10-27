@@ -546,7 +546,7 @@ No identity is required. Abuse is handled with rate limits and an optional CAPTC
 
 ### 8.4 Staff-only forms (`access_mode = staff`)
 
-The respondent must have a staff session (OIDC). This is for internal forms. The public bundle detects the 401 and redirects to `/api/v1/auth/login?next=...`.
+The respondent must have a staff session (OIDC) and belong to the form's organisation (or have access to the form, or be a superadmin); anyone else signed in gets 403 `not_in_organisation`. This is for internal forms. The public bundle detects the 401 and redirects to `/api/v1/auth/login?next=...`.
 
 ---
 
