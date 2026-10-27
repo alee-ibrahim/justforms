@@ -163,7 +163,9 @@ async def _staff_email(
 ) -> str | None:
     """The signed-in address for a staff-only form. Only people in the form's organisation
     (or with access to the form, or superadmins) count as staff for it."""
-    session = await load_session(redis, settings, request.cookies.get(session_cookie_name(settings)))
+    session = await load_session(
+        redis, settings, request.cookies.get(session_cookie_name(settings))
+    )
     if session is None:
         return None
     if request.method not in ("GET", "HEAD"):
