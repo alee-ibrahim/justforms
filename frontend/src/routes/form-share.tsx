@@ -267,7 +267,7 @@ function EmbedCard({ form, url }: { form: FormSummary; url: string }) {
               dir="ltr"
               placeholder="https://example.org, https://intranet.example"
               value={sites}
-              disabled={form.role === 'viewer'}
+              disabled={form.role !== 'owner'}
               onChange={(e) => setSites(e.target.value)}
               onBlur={() => {
                 const list = sites.split(',').map((s) => s.trim().replace(/\/$/, '')).filter(Boolean)
@@ -278,7 +278,10 @@ function EmbedCard({ form, url }: { form: FormSummary; url: string }) {
                   patch.mutate({ embedOrigins: list }, { onSuccess: () => toast('Saved allowed websites') })
               }}
             />
-            <FieldDescription>Only these websites may show the form in a frame. Leave empty to allow any.</FieldDescription>
+            <FieldDescription>
+              Only these websites may show the form in a frame. Leave empty to allow any.
+              {form.role !== 'owner' && " Only the form's owner can change this."}
+            </FieldDescription>
             {sitesError && <FieldError>{sitesError}</FieldError>}
           </Field>
         </FieldGroup>

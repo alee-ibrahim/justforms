@@ -13,6 +13,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.approvals.config import load_config, publish_problems
+from app.logic.index import FormIndex
 from app.models import (
     ActorType,
     FormDraftHistory,
@@ -172,6 +173,22 @@ async def step_history(
     )
     await db.flush()
     return True
+
+
+def unflagged_sensitive(old: dict[str, Any], new: dict[str, Any]) -> list[tuple[str, str]]:
+    """Questions marked sensitive in ``old`` that are still in ``new`` but no longer
+    sensitive, as (key, label). Turning the flag off is for owners only (it changes what
+    webhooks, approvers, emails and the AI receive)."""
+    before = FormIndex.build(Form.model_validate(old)).elements
+    after = FormIndex.build(Form.model_validate(new)).elements
+    out: list[tuple[str, str]] = []
+    for key, info in before.items():
+        if not getattr(info.element, "sensitive", False):
+            continue
+        now = after.get(key)
+        if now is not None and not getattr(now.element, "sensitive", False):
+            out.append((key, str(getattr(now.element, "label", "") or key)))
+    return out
 
 
 async def live_schema(db: AsyncSession, form: FormRecord) -> tuple[int, dict[str, Any]] | None:

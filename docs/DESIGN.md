@@ -493,6 +493,7 @@ Superadmins act as admins of every organisation. An organisation always keeps at
 | Change submission status | — | yes | yes |
 | Edit draft, use AI, publish | — | yes | yes |
 | View sensitive answers (never masked in the studio; opening a submission with them is logged) | yes | yes | yes |
+| Turn off Sensitive on a published question (an editor's publish that would is refused, 403 `sensitive_owner_only`), change the allowed websites (403 `embed_origins_owner_only`) | — | — | yes |
 | Manage notifications & webhooks | — | — | yes |
 | Manage form permissions, close/archive/delete form, delete submissions | — | — | yes |
 | See the trash, restore or permanently delete forms and submissions (§14.5) | — | — | yes |
@@ -1196,7 +1197,7 @@ All endpoints are JSON. OpenAPI is served at `/api/v1/openapi.json` (with `/api/
 - `GET /forms/{formId}/notifications` (both rules, the email questions and the last 10 emails), `PUT /forms/{formId}/notifications/{owner_email|respondent_receipt}` (`{enabled, recipients, includeAnswers, attachPdf, emailField, subject, message, replyTo}`), `POST /forms/{formId}/notifications/test`
 - `GET /forms/{formId}/approvals` (any role: settings, issues, email questions), `PUT /forms/{formId}/approvals` (owners)
 - `GET|POST /forms/{formId}/webhooks`, `PATCH|DELETE .../{id}`, `POST .../{id}/rotate-secret`, `POST .../{id}/test`, `GET .../{id}/deliveries?before=`, `POST .../{id}/deliveries/{deliveryId}/redeliver`
-- `PATCH /forms/{formId}` also takes `accessMode`, `otpAllowedDomains`, `otpOneResponse`, `captcha` (`off|always|auto`), `retentionDays`, `saveProgress` and `saveProgressDays` (1-90)
+- `PATCH /forms/{formId}` also takes `accessMode`, `otpAllowedDomains`, `otpOneResponse`, `captcha` (`off|always|auto`), `retentionDays`, `saveProgress` and `saveProgressDays` (1-90). A form that has been published can't go back to `status: draft` (422 `cannot_return_to_draft`); a form whose status is `draft` is never served publicly.
 
 **Submissions (studio)**
 - `GET /forms/{formId}/submissions?status=&from=&to=&q=&version=&filter=<json>&where=<json>&cursor=&limit=&sort=&dir=`

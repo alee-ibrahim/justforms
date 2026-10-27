@@ -6,7 +6,7 @@ import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, us
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { EllipsisIcon, GripVerticalIcon, LockIcon, PlusIcon, XIcon } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useContext, useState } from 'react'
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
@@ -48,7 +48,8 @@ import { duplicate, requestDelete, wrap } from './actions'
 import { ContentInput, ContentTextarea } from './content-input'
 import { blockInfo } from './block-types'
 import { PageJumps, RequiredEditor, VisibilityEditor } from './logic-editor'
-import { usePublished } from './published'
+import { FormContext } from './form-context'
+import { usePublished, usePublishedSensitive } from './published'
 import { useBuilder, useStore } from './store'
 import {
   addPage,
@@ -169,12 +170,14 @@ function SwitchField({
   checked,
   onChange,
   description,
+  disabled,
 }: {
   id: string
   label: string
   checked: boolean
   onChange: (v: boolean) => void
   description?: string
+  disabled?: boolean
 }) {
   return (
     <Field orientation="horizontal">
@@ -182,7 +185,7 @@ function SwitchField({
         <FieldLabel htmlFor={id}>{label}</FieldLabel>
         {description && <FieldDescription>{description}</FieldDescription>}
       </div>
-      <Switch id={id} checked={checked} onCheckedChange={onChange} />
+      <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
     </Field>
   )
 }
@@ -593,6 +596,27 @@ function PatternTester({ pattern }: { pattern: string }) {
   )
 }
 
+/** Editors can mark a question sensitive, but only owners can turn it off once published. */
+function SensitiveSwitch({ field, onChange }: { field: FieldElement; onChange: (v: boolean) => void }) {
+  const role = useContext(FormContext)?.role
+  const publishedSensitive = usePublishedSensitive()
+  const locked = role !== undefined && role !== 'owner' && !!field.sensitive && publishedSensitive.has(field.id)
+  return (
+    <SwitchField
+      id="el-sensitive"
+      label="Sensitive"
+      description={
+        locked
+          ? "Masked in tables and left out of emails and webhooks. Only the form's owner can turn this off."
+          : 'Masked in tables and left out of emails and webhooks'
+      }
+      checked={!!field.sensitive}
+      onChange={onChange}
+      disabled={locked}
+    />
+  )
+}
+
 function KeyField({ el }: { el: Element }) {
   const store = useStore()
   const published = usePublished()
@@ -741,13 +765,7 @@ function FieldPanel({ field, form }: { field: FieldElement; form: Form }) {
         <AccordionContent>
           <FieldGroup className="gap-4">
             <KeyField key={field.id} el={field} />
-            <SwitchField
-              id="el-sensitive"
-              label="Sensitive"
-              description="Masked in tables and left out of emails and webhooks"
-              checked={!!field.sensitive}
-              onChange={(sensitive) => update({ sensitive: sensitive || undefined })}
-            />
+            <SensitiveSwitch field={field} onChange={(sensitive) => update({ sensitive: sensitive || undefined })} />
             <Field>
               <FieldLabel>Width</FieldLabel>
               <ToggleGroup type="single" variant="outline" value={field.width ?? 'full'} onValueChange={(v) => v && update({ width: v === 'full' ? undefined : 'half' })} aria-label="Width" className={toggleGroupOn}>

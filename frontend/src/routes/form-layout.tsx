@@ -12,7 +12,7 @@ import { ConfirmDialogs, ConflictDialog } from '@/components/builder/dialogs'
 import { FormBar } from '@/components/builder/form-bar'
 import { FormContext, useFormSummary } from '@/components/builder/form-context'
 import { PublishDialog } from '@/components/builder/publish'
-import { PublishedContext } from '@/components/builder/published'
+import { PublishedContext, PublishedSensitiveContext } from '@/components/builder/published'
 import { ReviewChangesSheet } from '@/components/builder/review-changes'
 import { BuilderContext, BuilderStore, useBuilder } from '@/components/builder/store'
 import { usePublish } from '@/components/builder/use-publish'
@@ -113,6 +113,11 @@ function EditorChrome({
     const index = buildIndex(liveSchema)
     return new Set<string>([...index.elements.keys()])
   }, [liveSchema])
+  const publishedSensitive = useMemo(() => {
+    if (!liveSchema) return new Set<string>()
+    const index = buildIndex(liveSchema)
+    return new Set<string>([...index.elements.values()].filter((i) => i.element.kind === 'field' && i.element.sensitive).map((i) => i.id))
+  }, [liveSchema])
   const { start, mutation } = usePublish(form)
   const publish = useCallback(() => start(), [start])
   useShortcuts(store, publish)
@@ -125,6 +130,7 @@ function EditorChrome({
   const editing = useRouterState({ select: (s) => s.location.pathname.endsWith('/edit') })
   return (
     <PublishedContext.Provider value={published}>
+      <PublishedSensitiveContext.Provider value={publishedSensitive}>
       {/* The builder fills the screen under the app header and scrolls inside; dvh follows the
           phone's address bar, so no gap opens or content hides when it shows or hides. */}
       <div className={editing ? 'flex h-[calc(100dvh-var(--app-bar-h,0px))] flex-col overflow-hidden' : 'contents'}>
@@ -135,6 +141,7 @@ function EditorChrome({
       <ReviewChangesSheet form={form} onPublish={() => start({ reviewed: true })} />
       <ConfirmDialogs />
       <ConflictDialog />
+      </PublishedSensitiveContext.Provider>
     </PublishedContext.Provider>
   )
 }

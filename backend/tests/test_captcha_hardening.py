@@ -18,9 +18,7 @@ from app.config import Settings
 
 
 def _settings(**update: Any) -> Settings:
-    return Settings(
-        environment="test", secret_key="x" * 40, captcha_provider="altcha", **update
-    )
+    return Settings(environment="test", secret_key="x" * 40, captcha_provider="altcha", **update)
 
 
 def _solve(ch: dict[str, Any]) -> int:
@@ -50,8 +48,9 @@ async def test_altcha_salt_splice_is_refused(monkeypatch: pytest.MonkeyPatch) ->
             break
     full = f"{ch['salt']}{n}"
     spliced = _payload(ch, int(full[-1]), salt=full[:-1])
-    assert hashlib.sha256(f"{spliced['salt']}{spliced['number']}".encode()).hexdigest() == (
-        ch["challenge"]
+    assert (
+        hashlib.sha256(f"{spliced['salt']}{spliced['number']}".encode()).hexdigest()
+        == (ch["challenge"])
     )
     later = time.time() + 10 * 24 * 3600
     monkeypatch.setattr(captcha.time, "time", lambda: later)

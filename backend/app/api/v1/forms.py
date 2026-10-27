@@ -544,6 +544,15 @@ async def patch_form(
     )
     if owner_only and not has_form_role(access.role, FormRole.OWNER):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "insufficient_form_role")
+    is_owner = has_form_role(access.role, FormRole.OWNER)
+    current_origins = list((form.settings or {}).get("embedOrigins", []))
+    if body.embed_origins is not None and body.embed_origins != current_origins and not is_owner:
+        # Which websites may frame the form is the owner's decision.
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "embed_origins_owner_only")
+    if body.status == FormStatus.DRAFT and form.status != FormStatus.DRAFT:
+        # Once published a form is live, closed or archived; "draft" would look unpublished
+        # in the studio while the link keeps working.
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "cannot_return_to_draft")
     if body.slug is not None and body.slug != form.slug:
         await _check_slug(db, body.slug, form.id)
         form.slug = body.slug
@@ -934,6 +943,26 @@ async def duplicate_form(db: DbDep, settings: SettingsDep, access: FormEditor) -
 @router.post("/forms/{form_id}/publish", response_model=VersionOut)
 async def publish_form(db: DbDep, access: FormEditor) -> VersionOut | JSONResponse:
     form = access.form
+    if not has_form_role(access.role, FormRole.OWNER):
+        live = await svc.live_schema(db, form)
+        unflagged = svc.unflagged_sensitive(live[1], form.draft_schema) if live else []
+        if unflagged:
+            names = ", ".join(label for _key, label in unflagged)
+            return JSONResponse(
+                {
+                    "detail": "sensitive_owner_only",
+                    "issues": [
+                        {
+                            "code": "sensitive_owner_only",
+                            "message": "Only the form's owner can turn off Sensitive on a "
+                            f"published question ({names}). Ask an owner to publish, or "
+                            "turn Sensitive back on.",
+                            "target": unflagged[0][0],
+                        }
+                    ],
+                },
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
     try:
         version = await svc.publish(db, form, access.user.id)
     except svc.PublishError as exc:

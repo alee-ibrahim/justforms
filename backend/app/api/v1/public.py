@@ -140,7 +140,8 @@ async def form_by_slug(db: DbDep, form_slug: str) -> FormRecord | None:
 
 async def _live_form(db: DbDep, form_slug: str) -> tuple[FormRecord, FormVersion]:
     form = await form_by_slug(db, form_slug)
-    if form is None or form.current_version_id is None:
+    # A draft is never live, even with a published version behind it.
+    if form is None or form.current_version_id is None or form.status == FormStatus.DRAFT:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "form_not_found")
     if form.status in (FormStatus.CLOSED, FormStatus.ARCHIVED):
         raise HTTPException(status.HTTP_410_GONE, "form_closed")

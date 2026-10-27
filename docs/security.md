@@ -54,7 +54,8 @@ problem. Abuse-control settings are in [Configuration](configuration.md#abuse-co
   turned on "Allow AI to read answers" (off by default). Lists are read from the database and
   shown to the person; every read and list is audited without the values.
 - **Sensitive questions** are shown to everyone who can see the submissions; opening a
-  submission that has them is recorded in its activity log.
+  submission that has them is recorded in its activity log. Only owners can turn the flag off
+  on a published question, or change the websites allowed to frame the form.
 - **Integrity.** Every submission has a SHA-256 content hash (RFC 8785 canonical JSON) and a
   hash-chained activity log; every change goes through that log.
 - **Demo login** (`JUSTFORMS_DEMO_LOGIN_CODE`) is for demo instances only: the API refuses to
