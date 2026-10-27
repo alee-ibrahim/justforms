@@ -4,6 +4,7 @@ JustForms runs as an API, a background worker and a web container (nginx serving
 proxying `/api`), with PostgreSQL and Redis. Use Docker Compose on one server or the Helm chart
 on Kubernetes. Settings are listed in [Configuration](configuration.md).
 
+- [Install from releases](#install-from-releases)
 - [Docker Compose](#docker-compose)
 - [Development Keycloak (OIDC)](#development-keycloak-oidc)
 - [Cloudflare Tunnel](#cloudflare-tunnel)
@@ -11,6 +12,77 @@ on Kubernetes. Settings are listed in [Configuration](configuration.md).
 - [Kubernetes (Helm)](#kubernetes-helm)
 - [Upgrades and migrations](#upgrades-and-migrations)
 - [Backups](#backups)
+
+## Install from releases
+
+Every release (`vX.Y.Z` tag) publishes, from this repository's release workflow:
+
+| Artifact | Reference |
+|---|---|
+| API, worker and migrations | `ghcr.io/alee-ibrahim/justforms-backend:X.Y.Z` |
+| Web container (nginx + SPA) | `ghcr.io/alee-ibrahim/justforms-frontend:X.Y.Z` |
+| Helm chart (version = app version) | `oci://ghcr.io/alee-ibrahim/charts/justforms`, version `X.Y.Z` |
+
+Images are built for linux/amd64 and linux/arm64. Tags: `X.Y.Z` (one release), `X.Y` (newest
+patch of that minor), `latest` (newest release) and `sha-<commit>`. A release is only cut from a
+commit on `main` whose CI passed, and images with a critical vulnerability that has a fix are not
+published (Trivy). The [releases page](https://github.com/alee-ibrahim/justforms/releases) lists
+the changes and the image digests, with SPDX SBOMs attached.
+
+Pin a full version (or `version@sha256:digest`) in production and upgrade by changing it: the
+new release's migrations run automatically (see [Upgrades](#upgrades-and-migrations)).
+JustForms follows semantic versioning; before 1.0 a minor release (0.X) may need a config change,
+which its release notes say. A patch release (X.Y.Z) never changes the chart's templates or
+values (the release workflow refuses it), so the chart of X.Y.0 runs every X.Y.Z image: it is safe
+to pin the chart and let an image updater follow `X.Y.*` tags.
+
+### Helm
+
+```sh
+helm install justforms oci://ghcr.io/alee-ibrahim/charts/justforms --version X.Y.Z \
+  -n justforms --create-namespace -f values.yaml
+helm show values oci://ghcr.io/alee-ibrahim/charts/justforms --version X.Y.Z   # every value
+```
+
+The chart's image tags default to its app version, so a chart version runs the images of the
+same release. A GitOps controller can track the same OCI chart, and an image updater can follow
+new `X.Y.Z` tags (semver constraint) for automatic upgrades.
+
+### Docker Compose
+
+```sh
+cd deploy/compose              # from a checkout of the release tag
+cp .env.example .env           # set JUSTFORMS_VERSION=X.Y.Z and the change-me values
+docker compose -f docker-compose.yml -f docker-compose.release.yml pull
+docker compose -f docker-compose.yml -f docker-compose.release.yml up -d
+```
+
+### Verify signatures and provenance
+
+Images and the chart are signed with [cosign](https://docs.sigstore.dev/cosign/) without a
+long-lived key: the signing certificate names this repository's release workflow and the tag it
+ran for, and the signature is recorded in the public Sigstore transparency log.
+
+```sh
+cosign verify ghcr.io/alee-ibrahim/justforms-backend:X.Y.Z \
+  --certificate-identity-regexp '^https://github\.com/alee-ibrahim/justforms/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+cosign verify ghcr.io/alee-ibrahim/charts/justforms:X.Y.Z \
+  --certificate-identity-regexp '^https://github\.com/alee-ibrahim/justforms/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+The same works for `justforms-frontend`. Build provenance (SLSA) and the SBOM are attestations;
+check them with the GitHub CLI:
+
+```sh
+gh attestation verify oci://ghcr.io/alee-ibrahim/justforms-backend:X.Y.Z --repo alee-ibrahim/justforms
+gh attestation verify oci://ghcr.io/alee-ibrahim/justforms-backend:X.Y.Z --repo alee-ibrahim/justforms \
+  --predicate-type https://spdx.dev/Document/v2.3
+```
+
+A registry mirror or pull-through cache serves the same digests, so the signatures also verify
+against the mirrored reference.
 
 ## Docker Compose
 
@@ -133,9 +205,11 @@ The chart never renders secrets: create a Secret with `JUSTFORMS_SECRET_KEY`,
 CAPTCHA, AI and a PDF signing certificate), then:
 
 ```sh
-helm install justforms deploy/helm/justforms -n justforms \
+helm install justforms oci://ghcr.io/alee-ibrahim/charts/justforms --version X.Y.Z -n justforms \
   --set publicUrl=https://forms.example.org --set existingSecret=justforms --set ingress.enabled=true
 ```
+
+From a checkout, `deploy/helm/justforms` works the same way; set `image.*.tag` to images you built.
 
 Every value and Secret key is listed in
 [deploy/helm/justforms/README.md](../deploy/helm/justforms/README.md). Optional HPA, PDB and
@@ -148,9 +222,14 @@ fonts go in a ConfigMap set as `frontend.fontsConfigMap`.
 Database migrations are Alembic revisions and run automatically:
 
 - **Compose:** the `migrate` job runs on every `up`, and the API and worker start only after it
-  succeeds. To upgrade, pull the new code and run `docker compose up -d --build` (with the same
-  profiles as before).
-- **Helm:** migrations run as a pre-upgrade hook Job; `helm upgrade` with the new chart.
+  succeeds. With release images, set the new `JUSTFORMS_VERSION`, then `pull` and `up -d` with
+  `docker-compose.release.yml`; from source, pull the new code and run `docker compose up -d --build`
+  (with the same profiles as before).
+- **Helm:** migrations run as a pre-upgrade hook Job; `helm upgrade` with the new chart version.
+
+Migrations only go forward. Rolling back to an older release is safe only when the newer
+release's migrations were additive (its release notes say so); otherwise restore the database
+backup taken before the upgrade.
 
 Keep `JUSTFORMS_SECRET_KEY` the same across upgrades: it encrypts the PDF signing key. If it
 must change, run `python -m app.cli init-signing-key --rotate` (see

@@ -1508,7 +1508,7 @@ Screens, layout and copy: [ux/SHARING-PREVIEW-SCREENS.md](ux/SHARING-PREVIEW-SCR
 - **Profiles:** `mailpit` under the `dev` profile (catches sign-in codes, notifications and receipts), `clamav` later.
 - **Web container:** nginx resolves `BACKEND_URL` at request time (`resolver` from `/etc/resolv.conf`, `valid=10s`), so a recreated backend container with a new address does not cause 502s; on Kubernetes the URL is the fully qualified service name. The CSP is built at start from `JUSTFORMS_THAANA_FONT_CSS_URL`, `JUSTFORMS_CAPTCHA_PROVIDER` and `JUSTFORMS_CSP_EXTRA_CONNECT_SRC`.
 - **Setup:** a single `.env.example`. `just compose-up` or `docker compose up -d` brings it up, and the first admin is created with `docker compose run --rm api justforms create-admin --email you@example.org`.
-- **Images:** `ghcr.io/alee-ibrahim/justforms-api` (used for both api and worker; the worker runs with `command: arq justforms.worker.WorkerSettings`) and `ghcr.io/alee-ibrahim/justforms-web`. Both are multi-arch (amd64 and arm64).
+- **Images:** `ghcr.io/alee-ibrahim/justforms-backend` (API, worker and migrations; the worker runs `arq app.worker.WorkerSettings`) and `ghcr.io/alee-ibrahim/justforms-frontend`, published by `.github/workflows/release.yml` for each `vX.Y.Z` tag. Both are multi-arch (amd64 and arm64), signed with cosign (keyless) and carry SLSA provenance and SPDX SBOM attestations; the Helm chart is published next to them as `oci://ghcr.io/alee-ibrahim/charts/justforms`. `docker-compose.release.yml` runs the stack from these images.
 
 ### 19.2 Helm (`deploy/helm/justforms`)
 

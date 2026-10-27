@@ -83,3 +83,4 @@ jobs:
         run: |
           docker compose --env-file .env.example --profile dev config --quiet
           docker compose --env-file .env.example -f docker-compose.yml -f docker-compose.keycloak.yml config --quiet
+          docker compose --env-file .env.example -f docker-compose.yml -f docker-compose.release.yml config --quiet

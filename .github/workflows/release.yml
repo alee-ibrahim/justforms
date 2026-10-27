@@ -1,0 +1,390 @@
+# Release: push a tag vX.Y.Z (or vX.Y.Z-rc.N) on a commit of main whose CI passed.
+#
+#   1. check    the tag is semver, the commit is on main and workflow "CI" passed for it
+#   2. images   backend + frontend, linux/amd64 + linux/arm64, pushed as ghcr.io/<owner>/justforms-*:sha-<12>;
+#               Trivy gate (no fixable CRITICAL), SPDX SBOM (syft), cosign keyless signature,
+#               build provenance + SBOM attestations (GitHub / Sigstore)
+#   3. tags     only when both images passed: X.Y.Z, X.Y and latest (pre-releases: X.Y.Z only)
+#   4. chart    Helm chart with version = appVersion = X.Y.Z, pushed to oci://ghcr.io/<owner>/charts/justforms,
+#               signed and attested the same way
+#   5. release  GitHub Release with the commits since the previous tag, digests and how to verify
+#
+# Verify:  docs/deployment.md#install-from-releases
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  # Package names under the repository owner: <owner>/justforms-backend, <owner>/justforms-frontend,
+  # <owner>/charts/justforms
+  OWNER: ${{ github.repository_owner }}
+
+jobs:
+  check:
+    name: Check tag, branch and CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      minor: ${{ steps.v.outputs.minor }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+      sha12: ${{ steps.v.outputs.sha12 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Version from the tag
+        id: v
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          re='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$'
+          [[ "$TAG" =~ $re ]] || { echo "::error::tag $TAG is not vMAJOR.MINOR.PATCH[-PRERELEASE]"; exit 1; }
+          version="${TAG#v}"
+          {
+            echo "version=$version"
+            echo "minor=${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+            echo "prerelease=$([ -n "${BASH_REMATCH[4]}" ] && echo true || echo false)"
+            echo "sha12=${GITHUB_SHA:0:12}"
+          } >> "$GITHUB_OUTPUT"
+          chart_version="$(sed -n 's/^version: *//p' deploy/helm/justforms/Chart.yaml | tr -d '"')"
+          if [ "$chart_version" != "$version" ]; then
+            echo "::warning::Chart.yaml says version $chart_version; the published chart uses $version (from the tag)"
+          fi
+      - name: Patch releases keep the chart of their minor release
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+          MINOR: ${{ steps.v.outputs.minor }}
+        run: |
+          # Deployments that pin the chart of X.Y.0 and follow X.Y.* image tags automatically must keep
+          # working, so a patch release may not change the chart's templates or values. Release a
+          # chart change as a new minor version instead.
+          patch="${VERSION#"$MINOR".}"; patch="${patch%%-*}"
+          [ "$patch" != 0 ] || exit 0
+          base="v$MINOR.0"
+          git rev-parse -q --verify "refs/tags/$base" >/dev/null || { echo "no $base tag, skipping"; exit 0; }
+          changed="$(git diff --name-only "$base" "$GITHUB_SHA" -- \
+            deploy/helm/justforms/templates deploy/helm/justforms/values.yaml deploy/helm/justforms/values.schema.json)"
+          if [ -n "$changed" ]; then
+            echo "::error::the chart changed since $base ($changed); a chart change needs a new minor release, not a patch"
+            exit 1
+          fi
+      - name: Commit is on main
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || { echo "::error::$GITHUB_SHA is not on main"; exit 1; }
+      - name: CI passed for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Waits up to 30 minutes for a CI run of this commit that is still running.
+          for _ in $(seq 60); do
+            runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&per_page=20" \
+              --jq '[.workflow_runs[] | {status, conclusion}]')"
+            if jq -e 'any(.[]; .conclusion == "success")' <<<"$runs" >/dev/null; then
+              echo "CI passed for $GITHUB_SHA"; exit 0
+            fi
+            if ! jq -e 'any(.[]; .status != "completed")' <<<"$runs" >/dev/null; then
+              echo "::error::no successful CI run for $GITHUB_SHA ($runs)"; exit 1
+            fi
+            sleep 30
+          done
+          echo "::error::timed out waiting for CI on $GITHUB_SHA"; exit 1
+
+  images:
+    name: Image ${{ matrix.component }}
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+      id-token: write          # cosign keyless + attestations (Sigstore certificate)
+      attestations: write
+      artifact-metadata: write
+    strategy:
+      fail-fast: true
+      matrix:
+        component: [backend, frontend]
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/justforms-${{ matrix.component }}
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Build and push (sha tag only)
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.component }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          # Provenance and SBOM are published as signed attestations below instead of BuildKit's
+          # unsigned ones, which would add "unknown/unknown" entries to the image index.
+          provenance: false
+          sbom: false
+          tags: ${{ env.IMAGE }}:sha-${{ needs.check.outputs.sha12 }}
+          labels: |
+            org.opencontainers.image.title=justforms-${{ matrix.component }}
+            org.opencontainers.image.description=JustForms ${{ matrix.component }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ env.VERSION }}
+            org.opencontainers.image.licenses=AGPL-3.0-only
+          annotations: |
+            index:org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            index:org.opencontainers.image.revision=${{ github.sha }}
+            index:org.opencontainers.image.version=${{ env.VERSION }}
+            index:org.opencontainers.image.licenses=AGPL-3.0-only
+            index:org.opencontainers.image.description=JustForms ${{ matrix.component }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,scope=${{ matrix.component }},mode=max
+      - name: Trivy gate (no fixable CRITICAL, both platforms)
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          TRIVY_IMAGE: ghcr.io/aquasecurity/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+        run: |
+          mkdir -p "$RUNNER_TEMP/trivy-cache"
+          for platform in linux/amd64 linux/arm64; do
+            echo "::group::Trivy $platform"
+            docker run --rm \
+              -v "$HOME/.docker/config.json:/root/.docker/config.json:ro" \
+              -v "$RUNNER_TEMP/trivy-cache:/root/.cache/trivy" \
+              "$TRIVY_IMAGE" image --quiet --platform "$platform" \
+              --scanners vuln --severity CRITICAL --ignore-unfixed --exit-code 1 \
+              "$IMAGE@$DIGEST"
+            echo "::endgroup::"
+          done
+      - name: SBOM (syft, SPDX JSON)
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ github.token }}
+          format: spdx-json
+          output-file: justforms-${{ matrix.component }}-${{ env.VERSION }}.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+          dependency-snapshot: false
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Sign (cosign keyless)
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "$IMAGE@$DIGEST"
+      - name: Attest build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+      - name: Attest SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: justforms-${{ matrix.component }}-${{ env.VERSION }}.spdx.json
+          push-to-registry: true
+      - name: Keep digest and SBOM for the release
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p out
+          echo "$DIGEST" > "out/digest-${{ matrix.component }}"
+          mv "justforms-${{ matrix.component }}-${VERSION}.spdx.json" out/
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image-${{ matrix.component }}
+          path: out/
+          retention-days: 7
+
+  tags:
+    name: Version tags
+    needs: [check, images]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: image-*
+          merge-multiple: true
+          path: out
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Tag the scanned and signed digests
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+          MINOR: ${{ needs.check.outputs.minor }}
+          PRERELEASE: ${{ needs.check.outputs.prerelease }}
+        run: |
+          for c in backend frontend; do
+            image="ghcr.io/$OWNER/justforms-$c"
+            digest="$(cat "out/digest-$c")"
+            tags=(-t "$image:$VERSION")
+            if [ "$PRERELEASE" != true ]; then
+              tags+=(-t "$image:$MINOR" -t "$image:latest")
+            fi
+            # One source: imagetools copies the index as is, so every tag points at the same digest.
+            docker buildx imagetools create "${tags[@]}" "$image@$digest"
+            got="$(docker buildx imagetools inspect "$image:$VERSION" --format '{{json .Manifest}}' | jq -r .digest)"
+            [ "$got" = "$digest" ] || { echo "::error::$image:$VERSION is $got, expected $digest"; exit 1; }
+          done
+
+  chart:
+    name: Helm chart
+    needs: [check, tags]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.22.1
+      - name: Package (version = appVersion = release)
+        run: |
+          chart=deploy/helm/justforms
+          sed -i -E "s/^version:.*/version: $VERSION/; s/^appVersion:.*/appVersion: \"$VERSION\"/" "$chart/Chart.yaml"
+          helm lint "$chart" -f "$chart/ci/local-values.yaml"
+          helm lint "$chart" -f "$chart/ci/s3-values.yaml"
+          mkdir -p out
+          helm package "$chart" -d out
+      - name: Push to ghcr.io (OCI)
+        id: push
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$GH_TOKEN" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          helm push "out/justforms-$VERSION.tgz" "oci://ghcr.io/$OWNER/charts" 2>&1 | tee out/push.log
+          digest="$(sed -n 's/^Digest: *//p' out/push.log)"
+          [ -n "$digest" ] || { echo "::error::no digest in helm push output"; exit 1; }
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "$digest" > out/digest-chart
+          rm out/push.log
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Sign the chart (cosign keyless)
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$GH_TOKEN" | cosign login ghcr.io -u "${{ github.actor }}" --password-stdin
+          cosign sign --yes "ghcr.io/$OWNER/charts/justforms@$DIGEST"
+      - name: Attest chart provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/charts/justforms
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: chart
+          path: out/
+          retention-days: 7
+
+  release:
+    name: GitHub Release
+    needs: [check, chart]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: out
+          merge-multiple: true
+      - name: Release notes
+        env:
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.check.outputs.version }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          prev="$(git describe --tags --abbrev=0 --match 'v*.*.*' "$TAG^" 2>/dev/null || true)"
+          range="$prev..$TAG"
+          b="$(cat out/digest-backend)"; f="$(cat out/digest-frontend)"; c="$(cat out/digest-chart)"
+          {
+            echo "## Changes"
+            echo
+            if [ -n "$prev" ]; then
+              git log --no-merges --pretty='- %s (%h)' "$range"
+              echo
+              echo "Full diff: $REPO_URL/compare/$prev...$TAG"
+            else
+              echo "First published release ($(git rev-list --count --no-merges "$TAG") commits). History: $REPO_URL/commits/$TAG"
+            fi
+            echo
+            echo "## Images and chart"
+            echo
+            echo '| Artifact | Reference |'
+            echo '|---|---|'
+            echo "| Backend (API, worker, migrations) | \`ghcr.io/$OWNER/justforms-backend:$VERSION@$b\` |"
+            echo "| Frontend (nginx + SPA) | \`ghcr.io/$OWNER/justforms-frontend:$VERSION@$f\` |"
+            echo "| Helm chart | \`oci://ghcr.io/$OWNER/charts/justforms\` version \`$VERSION\` (\`$c\`) |"
+            echo
+            echo 'Images are linux/amd64 and linux/arm64, scanned with Trivy (no fixable critical vulnerabilities), signed with cosign (keyless) and carry SLSA build provenance and SPDX SBOM attestations. The SBOMs are attached below.'
+            echo
+            echo '```sh'
+            echo "helm install justforms oci://ghcr.io/$OWNER/charts/justforms --version $VERSION -n justforms -f values.yaml"
+            echo
+            echo "cosign verify ghcr.io/$OWNER/justforms-backend:$VERSION \\"
+            echo "  --certificate-identity-regexp '^$REPO_URL/\\.github/workflows/release\\.yml@refs/tags/v' \\"
+            echo "  --certificate-oidc-issuer https://token.actions.githubusercontent.com"
+            echo "gh attestation verify oci://ghcr.io/$OWNER/justforms-backend:$VERSION --repo $GITHUB_REPOSITORY"
+            echo '```'
+            echo
+            echo "Upgrading: database migrations run automatically (Helm hook / compose \`migrate\` job); see $REPO_URL/blob/$TAG/docs/deployment.md#upgrades-and-migrations"
+          } > notes.md
+          cat notes.md
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.check.outputs.version }}
+          PRERELEASE: ${{ needs.check.outputs.prerelease }}
+        run: |
+          flags=(--verify-tag --title "JustForms $VERSION" --notes-file notes.md)
+          [ "$PRERELEASE" = true ] && flags+=(--prerelease) || flags+=(--latest)
+          gh release create "$TAG" "${flags[@]}" \
+            out/*.spdx.json "out/justforms-$VERSION.tgz"
