@@ -75,6 +75,7 @@ Respondents who must confirm their email before filling a form get their own cod
 |---|---|---|
 | `JUSTFORMS_RESPONDENT_CODE_TTL_SECONDS`, `_RESPONDENT_CODE_MAX_ATTEMPTS` | `600`, `5` | Respondent email codes |
 | `JUSTFORMS_RESPONDENT_TOKEN_SECONDS` | 2 hours | How long a confirmed respondent may fill the form |
+| `JUSTFORMS_CODE_LOCKOUT_FAILURES`, `_CODE_LOCKOUT_SECONDS` | `10`, `86400` | Lockout for every emailed code (staff sign-in per address, respondent codes per form and address, approver codes per step): after this many wrong guesses within the window, codes are refused until it passes, whatever new codes are requested |
 
 **Organisation roles.** Admin (everything, including organisation settings and people),
 form creator (creates forms; sees the ones they created or that are shared with them) and

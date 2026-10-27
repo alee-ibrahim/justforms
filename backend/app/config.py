@@ -230,6 +230,12 @@ class Settings(BaseSettings):
     # -- respondent access (DESIGN 8.2) ------------------------------------------------------
     respondent_code_ttl_seconds: int = Field(default=600, ge=60)
     respondent_code_max_attempts: int = Field(default=5, ge=1)
+    # Lockout for every emailed code (staff login per address, respondent codes per form and
+    # address, approver codes per step): after this many wrong guesses within
+    # code_lockout_seconds, codes are refused until the window passes, whatever codes are
+    # requested in between. Bounds guessing to a few dozen tries a day.
+    code_lockout_failures: int = Field(default=10, ge=1)
+    code_lockout_seconds: int = Field(default=86400, ge=60)
     # Lifetime of the respondent token issued after a correct code.
     respondent_token_seconds: int = Field(default=2 * 3600, ge=300)
     # Approvals: how long an approver's emailed link works (sending it again makes a new one).

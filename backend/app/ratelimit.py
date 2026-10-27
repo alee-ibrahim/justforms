@@ -83,49 +83,52 @@ def _key(name: str, ident: str) -> str:
     return f"rl:{name}:{hashlib.sha256(ident.encode()).hexdigest()[:32]}"
 
 
-async def hit(redis: Redis, settings: Settings, name: str, ident: str) -> int | None:
-    """Count one hit. Returns None when allowed, or seconds to wait when over the limit."""
-    if not settings.rate_limit_enabled:
-        return None
-    limit = limits(settings)[name]
-    key = _key(name, ident)
-    now = time.time()
-    async with redis.pipeline(transaction=True) as pipe:
-        pipe.zremrangebyscore(key, 0, now - limit.seconds)
-        pipe.zcard(key)
-        pipe.zrange(key, 0, 0, withscores=True)
-        current, oldest = (await pipe.execute())[1:]
-    if current >= limit.count:
-        first = oldest[0][1] if oldest else now
-        return max(1, int(first + limit.seconds - now) + 1)
-    async with redis.pipeline(transaction=True) as pipe:
-        pipe.zadd(key, {str(uuid7()): now})
-        pipe.expire(key, limit.seconds)
-        await pipe.execute()
-    return None
+# Sliding window, checked and counted in one step so a concurrent burst can't all pass the
+# check before any hit is counted. KEYS[1]: the window; ARGV: now, seconds, limit, n, member
+# prefix. Returns nil when the n hits were counted, else the oldest hit's time (as a string).
+_TAKE = """
+local now = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local n = tonumber(ARGV[4])
+redis.call('ZREMRANGEBYSCORE', KEYS[1], 0, now - window)
+if redis.call('ZCARD', KEYS[1]) + n > tonumber(ARGV[3]) then
+  local oldest = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
+  return oldest[2] or ARGV[1]
+end
+for i = 1, n do
+  redis.call('ZADD', KEYS[1], ARGV[1], ARGV[5] .. ':' .. i)
+end
+redis.call('EXPIRE', KEYS[1], window)
+return nil
+"""
 
 
 async def take(redis: Redis, settings: Settings, name: str, ident: str, n: int) -> int | None:
     """Count ``n`` hits at once, all or nothing. Returns None when allowed, or seconds to wait
-    when the ``n`` hits would go over the limit (then none are counted)."""
+    when the ``n`` hits would go over the limit (then none are counted). Atomic."""
     if not settings.rate_limit_enabled or n <= 0:
         return None
     limit = limits(settings)[name]
-    key = _key(name, ident)
     now = time.time()
-    async with redis.pipeline(transaction=True) as pipe:
-        pipe.zremrangebyscore(key, 0, now - limit.seconds)
-        pipe.zcard(key)
-        pipe.zrange(key, 0, 0, withscores=True)
-        current, oldest = (await pipe.execute())[1:]
-    if current + n > limit.count:
-        first = oldest[0][1] if oldest else now
-        return max(1, int(first + limit.seconds - now) + 1)
-    async with redis.pipeline(transaction=True) as pipe:
-        pipe.zadd(key, {str(uuid7()): now for _ in range(n)})
-        pipe.expire(key, limit.seconds)
-        await pipe.execute()
-    return None
+    oldest = await redis.eval(  # type: ignore[misc]
+        _TAKE,
+        1,
+        _key(name, ident),
+        repr(now),
+        str(limit.seconds),
+        str(limit.count),
+        str(n),
+        str(uuid7()),
+    )
+    if oldest is None:
+        return None
+    first = float(oldest.decode() if isinstance(oldest, bytes) else oldest)
+    return max(1, int(first + limit.seconds - now) + 1)
+
+
+async def hit(redis: Redis, settings: Settings, name: str, ident: str) -> int | None:
+    """Count one hit. Returns None when allowed, or seconds to wait when over the limit."""
+    return await take(redis, settings, name, ident, 1)
 
 
 async def count(redis: Redis, name: str, ident: str, seconds: int) -> int:

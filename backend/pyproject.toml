@@ -56,7 +56,7 @@ asyncio_default_fixture_loop_scope = "function"
 
 [dependency-groups]
 dev = [
-    "fakeredis>=2.40.0",
+    "fakeredis[lua]>=2.40.0",
     "httpx>=0.28.1",
     "moto[s3]>=5.2.4",
     "mypy>=2.4.0",

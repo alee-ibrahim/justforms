@@ -14,11 +14,11 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import json
 import secrets
 
 from redis.asyncio import Redis
 
+from app.auth import codes
 from app.config import Settings
 
 REQUESTS_PER_EMAIL = 3  # per code TTL window
@@ -49,11 +49,19 @@ async def rate_limited(redis: Redis, settings: Settings, email: str, ip: str | N
     return over
 
 
+def _code_key(email: str) -> str:
+    # v2: a hash {hmac, attempts} checked atomically (app.auth.codes).
+    return f"login_code:v2:{_email_key(email)}"
+
+
+def _lockout_key(email: str) -> str:
+    return f"login_code_fail:{_email_key(email)}"
+
+
 async def issue_code(redis: Redis, settings: Settings, email: str) -> str:
     code = f"{secrets.randbelow(1_000_000):06d}"
-    payload = {"hmac": _code_hmac(settings, email, code), "attempts": 0}
-    await redis.set(
-        f"login_code:{_email_key(email)}", json.dumps(payload), ex=settings.login_code_ttl_seconds
+    await codes.store(
+        redis, _code_key(email), _code_hmac(settings, email, code), settings.login_code_ttl_seconds
     )
     return code
 
@@ -67,24 +75,24 @@ def _demo_code_matches(settings: Settings, email: str, code: str) -> bool:
 
 
 async def verify_code(redis: Redis, settings: Settings, email: str, code: str) -> bool:
-    key = f"login_code:{_email_key(email)}"
-    raw = await redis.get(key)
-    if raw is None:
-        return False
-    data = json.loads(raw)
-    if data["attempts"] >= settings.login_code_max_attempts:
-        await redis.delete(key)
-        return False
+    """True for the emailed code (or the demo code for an allow-listed address).
+
+    At most ``login_code_max_attempts`` guesses are compared per code, even concurrently, and
+    after ``code_lockout_failures`` failures in ``code_lockout_seconds`` the address is locked
+    out (this also covers the fixed demo code across code requests)."""
     code = code.strip()
-    if hmac.compare_digest(data["hmac"], _code_hmac(settings, email, code)) or _demo_code_matches(
-        settings, email, code
-    ):
-        await redis.delete(key)  # single use
-        return True
-    data["attempts"] += 1
-    if data["attempts"] >= settings.login_code_max_attempts:
-        await redis.delete(key)
-    else:
-        ttl = await redis.ttl(key)
-        await redis.set(key, json.dumps(data), ex=max(ttl, 1))
-    return False
+
+    def matches(stored: str) -> bool:
+        return codes.same(stored, _code_hmac(settings, email, code)) or _demo_code_matches(
+            settings, email, code
+        )
+
+    result = await codes.check(
+        redis,
+        settings,
+        key=_code_key(email),
+        lockout_key=_lockout_key(email),
+        max_attempts=settings.login_code_max_attempts,
+        matches=matches,
+    )
+    return result == "ok"

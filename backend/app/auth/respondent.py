@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import json
 import secrets
 import time
 import uuid
@@ -23,6 +22,7 @@ from joserfc.errors import JoseError
 from joserfc.jwk import OctKey
 from redis.asyncio import Redis
 
+from app.auth import codes
 from app.config import Settings
 
 AUDIENCE = "justforms-respondent"
@@ -56,13 +56,23 @@ def domain_allowed(email: str, domains: list[str]) -> bool:
     return any(host == d.lower().lstrip("@") for d in domains)
 
 
+def _code_key(form_id: uuid.UUID, email: str) -> str:
+    # v2: a hash {hmac, attempts} checked atomically (app.auth.codes).
+    return f"respondent_code:v2:{_form_email_key(form_id, email)}"
+
+
+def _lockout_key(form_id: uuid.UUID, email: str) -> str:
+    # Per form and address; for approver codes the "form" is the approval step.
+    return f"respondent_code_fail:{_form_email_key(form_id, email)}"
+
+
 async def issue_code(redis: Redis, settings: Settings, form_id: uuid.UUID, email: str) -> str:
     code = f"{secrets.randbelow(1_000_000):06d}"
-    payload = {"hmac": _code_hmac(settings, form_id, email, code), "attempts": 0}
-    await redis.set(
-        f"respondent_code:{_form_email_key(form_id, email)}",
-        json.dumps(payload),
-        ex=settings.respondent_code_ttl_seconds,
+    await codes.store(
+        redis,
+        _code_key(form_id, email),
+        _code_hmac(settings, form_id, email, code),
+        settings.respondent_code_ttl_seconds,
     )
     return code
 
@@ -70,25 +80,18 @@ async def issue_code(redis: Redis, settings: Settings, form_id: uuid.UUID, email
 async def verify_code(
     redis: Redis, settings: Settings, form_id: uuid.UUID, email: str, code: str
 ) -> str:
-    """``ok``, ``wrong`` (try again) or ``expired`` (no code, or out of tries)."""
-    key = f"respondent_code:{_form_email_key(form_id, email)}"
-    raw = await redis.get(key)
-    if raw is None:
-        return "expired"
-    data = json.loads(raw)
-    if data["attempts"] >= settings.respondent_code_max_attempts:
-        await redis.delete(key)
-        return "expired"
-    if hmac.compare_digest(data["hmac"], _code_hmac(settings, form_id, email, code.strip())):
-        await redis.delete(key)
-        return "ok"
-    data["attempts"] += 1
-    if data["attempts"] >= settings.respondent_code_max_attempts:
-        await redis.delete(key)
-        return "expired"
-    ttl = await redis.ttl(key)
-    await redis.set(key, json.dumps(data), ex=max(ttl, 1))
-    return "wrong"
+    """``ok``, ``wrong`` (try again) or ``expired`` (no code, out of tries, or locked out
+    after too many failures: see :mod:`app.auth.codes`)."""
+    code = code.strip()
+    result = await codes.check(
+        redis,
+        settings,
+        key=_code_key(form_id, email),
+        lockout_key=_lockout_key(form_id, email),
+        max_attempts=settings.respondent_code_max_attempts,
+        matches=lambda stored: codes.same(stored, _code_hmac(settings, form_id, email, code)),
+    )
+    return "expired" if result == "locked" else result
 
 
 def issue_token(settings: Settings, form_id: uuid.UUID, email: str) -> str:

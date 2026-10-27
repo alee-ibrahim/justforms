@@ -1015,11 +1015,13 @@ A Redis sliding-window limiter is applied as FastAPI dependencies. Limits are co
 | Public submit | 10/min per IP per form; 1000/hour per form (then CAPTCHA forced on) |
 | Upload init | 30/min per IP |
 | OTP request | 3 per 10 min per email; 10/hour per IP |
-| OTP verify | 5 attempts per code; 30/hour per IP |
+| OTP verify | 5 attempts per code; 30/hour per IP; 10 failures a day per address (per approval step for approver codes, per address for staff sign-in), then locked out until the day passes |
 | Auth callback / login | 30/min per IP |
 | Invitations | 50 addresses/hour per admin; 200/day per organisation; 3 resends/hour per invitation; invitation page 60/min per IP |
 | Share emails ("Notify by email") | 50 people/hour per sharer; 200/day per organisation |
 | AI chat | 20/min per user, plus the token budget |
+
+Checks are atomic: the limiter trims, counts and adds a hit in one Lua script, and a code check reserves an attempt (`HINCRBY`) in one script before comparing, so concurrent requests can't all pass a check before any is counted. At most `max_attempts` guesses are compared per code.
 
 The client IP comes from `X-Forwarded-For` only when the request arrives from `JUSTFORMS_TRUSTED_PROXIES`.
 

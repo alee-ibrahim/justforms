@@ -15,6 +15,12 @@ problem. Abuse-control settings are in [Configuration](configuration.md#abuse-co
   OIDC is a confidential client with PKCE; no token reaches the browser.
 - **Public forms** use no cookies. Rate limits cover forms, submits, uploads, email codes and
   sign-in; CAPTCHA is optional per form (off, always, or only when busy).
+- **Emailed codes** (staff sign-in, respondent and approver codes) are 6 digits, stored as
+  HMACs, valid 10 minutes for 5 tries. Attempts and rate limits are counted atomically in Redis,
+  so concurrent guesses can't exceed them. After 10 wrong guesses in a day
+  (`JUSTFORMS_CODE_LOCKOUT_FAILURES`) the address (or approval step) is locked out until the day
+  passes, whatever codes are requested meanwhile. Someone who knows an address can lock its
+  email-code sign-in for that time; OIDC sign-in is not affected.
 - **Headers.** The web container sends a Content-Security-Policy, `X-Content-Type-Options`,
   `Referrer-Policy`, `Permissions-Policy` and (behind HTTPS) HSTS. Public forms may be framed
   by the form's allowed websites (any site when the list is empty); the studio, verify and
