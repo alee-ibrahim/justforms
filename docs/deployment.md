@@ -81,8 +81,8 @@ gh attestation verify oci://ghcr.io/alee-ibrahim/justforms-backend:X.Y.Z --repo 
   --predicate-type https://spdx.dev/Document/v2.3
 ```
 
-A registry mirror or pull-through cache serves the same digests, so the signatures also verify
-against the mirrored reference.
+A registry mirror or pull-through cache serves the same digests but may not carry the signatures
+(OCI referrers): verify the digest you run against `ghcr.io/alee-ibrahim/...@sha256:<digest>`.
 
 ## Docker Compose
 
