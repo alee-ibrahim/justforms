@@ -41,17 +41,22 @@ function values(chart: ChartSpec, r: ListRow): string[] {
   return [r.ref !== undefined ? `#${r.ref}` : r.label, ...chart.columns.map((c) => String(cell(r, c) ?? ''))]
 }
 
-/** Tab-separated, for pasting into a spreadsheet. */
-export function listTsv(chart: ChartSpec, rows: ListRow[]): string {
-  const clean = (s: string) => s.replace(/[\t\r\n]+/g, ' ')
-  return [header(chart), ...rows.map((r) => values(chart, r))].map((line) => line.map(clean).join('\t')).join('\n')
-}
-
 // Cells a spreadsheet would run as a formula. Phone numbers ("+960 777 1234") stay as they are.
 const FORMULA = /^[=@\t\r]|^[+-](?![\d\s().-]*$)/
 
+/** A cell a spreadsheet would run as a formula gets a leading apostrophe (shown as text). */
+function guard(s: string): string {
+  return FORMULA.test(s) ? `'${s}` : s
+}
+
+/** Tab-separated, for pasting into a spreadsheet; formulas are neutralised as in the CSV. */
+export function listTsv(chart: ChartSpec, rows: ListRow[]): string {
+  const clean = (s: string) => guard(s.replace(/[\t\r\n]+/g, ' '))
+  return [header(chart), ...rows.map((r) => values(chart, r))].map((line) => line.map(clean).join('\t')).join('\n')
+}
+
 function csvCell(s: string): string {
-  const safe = FORMULA.test(s) ? `'${s}` : s
+  const safe = guard(s)
   return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe
 }
 

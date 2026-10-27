@@ -35,7 +35,7 @@ from app.api.v1.submissions import _list_filters
 from app.auth.deps import DbDep, RedisDep, SettingsDep
 from app.config import Settings
 from app.insights import catalogue
-from app.insights.ask import AskOutcome, Tools, relist, run_ask, system_prompt, today
+from app.insights.ask import AskOutcome, FormTooLarge, Tools, relist, run_ask, system_prompt, today
 from app.insights.dsl import PEOPLE, QueryError
 from app.insights.summary import summarise
 from app.integrity import append_event
@@ -292,10 +292,15 @@ async def ask_message(
             total=total,
             read_allowed=allowed,
             today=today(settings.tz),
+            max_chars=settings.ai_max_form_chars,
         )
         history = await ai_svc.history(db, sid)
         db.add(AiMessage(session_id=sid, role="user", content={"text": question}))
         await db.commit()
+    except FormTooLarge:
+        await limits.unclaim(redis, user_id, token)
+        await redis.delete(_lock_key(sid))
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "form_too_large") from None
     except BaseException:
         await limits.unclaim(redis, user_id, token)
         await redis.delete(_lock_key(sid))

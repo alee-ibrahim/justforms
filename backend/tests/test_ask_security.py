@@ -844,3 +844,37 @@ async def test_migration_strips_stored_rows(db: AsyncSession) -> None:
     charts = msg.content["charts"]
     assert charts[0] == bar
     assert charts[1] == {"display": "list", "rows": [], "total": 1, "expired": True}
+
+
+# -- L4: form size ---------------------------------------------------------------------------
+
+
+async def test_ask_applies_the_form_size_cap(
+    client: AsyncClient,
+    db: AsyncSession,
+    settings: Settings,
+    queue: RecordingQueue,
+    provider: ScriptedProvider,
+) -> None:
+    """Regression: Ask sent every option of every question on every turn, whatever the form's
+    size. Long option lists are cut to fit ai_max_form_chars (with a note); a form that
+    still doesn't fit is refused like in the builder."""
+    await admin_client(client, db, settings, queue)
+    form = await multi_choice_form(db, subs=1, options=1000)
+    full = len(json.dumps(catalogue.outline(await catalogue.load(db, form), text_allowed=False)))
+    settings.ai_max_form_chars = full // 4
+    provider.steps.append(turn("ok"))
+    evs = await ask(client, str(form.id), "q")
+    assert dict(evs)["message.delta"]["text"] == "ok"
+    system = provider.calls[0].system
+    assert "950 more options not listed" in system and len(system) < full // 4 + 6000
+    settings.ai_max_form_chars = 1000
+    sid = await open_chat(client, str(form.id))
+    res = await client.post(
+        f"/api/v1/forms/{form.id}/ask/sessions/{sid}/messages", json={"content": "q"}
+    )
+    assert res.status_code == 413 and res.json()["detail"] == "form_too_large"
+    # The chat isn't left locked.
+    settings.ai_max_form_chars = 80_000
+    provider.steps.append(turn("again"))
+    assert dict(await ask(client, str(form.id), "q"))["message.delta"]["text"] == "again"

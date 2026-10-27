@@ -153,4 +153,14 @@ describe('Listed submissions', () => {
     // A formula is defused; a phone number is left as it is.
     expect(csv).toContain(`#7,"'=HYPERLINK(""x"")",+960 333 4444`)
   })
+
+  it('defuses formulas in the tab-separated copy too', () => {
+    const tsv = listTsv(chart, chart.rows).split('\n')
+    expect(tsv[3]).toBe(`#7\t'=HYPERLINK("x")\t+960 333 4444`)
+    const evil: ChartSpec = {
+      ...chart,
+      rows: [{ label: '#1', ref: 1, values: { org: '@SUM(A1)', phone: '-2+3' } }],
+    }
+    expect(listTsv(evil, evil.rows).split('\n')[1]).toBe(`#1\t'@SUM(A1)\t'-2+3`)
+  })
 })

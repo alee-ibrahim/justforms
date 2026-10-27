@@ -224,6 +224,41 @@ def _schema(model: type[_Model]) -> dict[str, Any]:
     return clean_schema(model.model_json_schema(by_alias=True))
 
 
+class FormTooLarge(Exception):
+    """The form's questions don't fit ``ai_max_form_chars`` even with option lists cut."""
+
+
+def _cut_options(items: list[dict[str, Any]], n: int) -> list[dict[str, Any]]:
+    out = []
+    for e in items:
+        e = dict(e)
+        if "questions" in e:
+            e["questions"] = _cut_options(e["questions"], n)
+        opts = e.get("options")
+        if isinstance(opts, list) and len(opts) > n:
+            e["options"] = opts[:n]
+            e["moreOptions"] = (
+                f"{len(opts) - n} more options not listed; match them by value or label in"
+                " where (the server knows them all)"
+            )
+        out.append(e)
+    return out
+
+
+def questions_outline(cat: Catalogue, read_allowed: bool, max_chars: int | None) -> str:
+    """The questions for the prompt, within ``max_chars``: long option lists are cut (with a
+    note) when the whole outline doesn't fit; ``FormTooLarge`` when even that doesn't."""
+    items = outline(cat, text_allowed=read_allowed, sensitive_readable=read_allowed)
+    text_ = json.dumps(items, ensure_ascii=False)
+    if max_chars is None or len(text_) <= max_chars:
+        return text_
+    for n in (50, 10):
+        text_ = json.dumps(_cut_options(items, n), ensure_ascii=False)
+        if len(text_) <= max_chars:
+            return text_
+    raise FormTooLarge
+
+
 def system_prompt(
     cat: Catalogue,
     *,
@@ -231,11 +266,9 @@ def system_prompt(
     total: int,
     read_allowed: bool,
     today: str,
+    max_chars: int | None = None,
 ) -> str:
-    questions = json.dumps(
-        outline(cat, text_allowed=read_allowed, sensitive_readable=read_allowed),
-        ensure_ascii=False,
-    )
+    questions = questions_outline(cat, read_allowed, max_chars)
     reading = (
         "Reading answers is ON for this form: read_answers returns every answer as written"
         ' (sensitive questions too), contact details (email, phone), repeater rows, "Other"'
