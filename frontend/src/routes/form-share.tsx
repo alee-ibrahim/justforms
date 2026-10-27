@@ -8,7 +8,8 @@ import { useFormSummary } from '@/components/builder/form-context'
 import { BuilderContext } from '@/components/builder/store'
 import { usePublish } from '@/components/builder/use-publish'
 import { AccessCard } from '@/components/forms/access-card'
-import { hostPrefix, normalizeSlug, useSlugCheck } from '@/components/forms/slug'
+import { ReadableAddress } from '@/components/forms/readable-address'
+import { hostPrefix, normalizeSlug, readableSlug, useSlugCheck } from '@/components/forms/slug'
 import { SlugStatus } from '@/components/forms/slug-field'
 import { usePatchForm } from '@/components/forms/use-patch-form'
 import { PageContainer } from '@/components/layout/page'
@@ -77,6 +78,8 @@ function LinkCard({ form, url }: { form: FormSummary; url: string }) {
   const open = form.status === 'live'
   const editing = slug !== null && slug !== form.slug
   const check = useSlugCheck(slug ?? '', form.id, editing)
+  const readable = slug === null && form.role !== 'viewer' ? readableSlug(form) : null
+  const previous = form.previousSlugs ?? []
   return (
     <Card className="rounded-md shadow-none ring-0 border">
       <CardHeader>
@@ -208,9 +211,23 @@ function LinkCard({ form, url }: { form: FormSummary; url: string }) {
               </FieldDescription>
             )}
             {editing && !slugError && <SlugStatus {...check} onSuggestion={setSlug} />}
-            <FieldDescription>Changing it breaks links you already shared.</FieldDescription>
+            <FieldDescription>Links to an old address keep working: they redirect to the current one.</FieldDescription>
+            {previous.length > 0 && (
+              <FieldDescription className="break-all">
+                Also redirects here:{' '}
+                {previous.map((p, i) => (
+                  <span key={p}>
+                    {i > 0 && ', '}
+                    <bdi dir="ltr" className="font-mono">
+                      /{p}
+                    </bdi>
+                  </span>
+                ))}
+              </FieldDescription>
+            )}
             {slugError && <FieldError>{slugError}</FieldError>}
           </Field>
+          {readable && <ReadableAddress form={form} suggested={readable} />}
         </FieldGroup>
       </CardContent>
     </Card>

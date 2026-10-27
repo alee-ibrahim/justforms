@@ -29,7 +29,7 @@ from sqlalchemy import func, select
 from app import captcha, ratelimit
 from app.answers import search_text
 from app.api.v1.common import ApiModel
-from app.api.v1.sharing import page_head
+from app.api.v1.sharing import alias_redirect, page_head
 from app.approvals import service as approvals
 from app.approvals.config import approver_problems as approval_problems
 from app.approvals.config import load_config as load_approvals
@@ -133,11 +133,9 @@ class FileRefOut(ApiModel):
 
 
 async def form_by_slug(db: DbDep, form_slug: str) -> FormRecord | None:
-    if slugs.shape_problem(form_slug) is not None:
-        return None
-    return await db.scalar(
-        select(FormRecord).where(FormRecord.slug == form_slug, FormRecord.deleted_at.is_(None))
-    )
+    """The form at this address or at an earlier one (an alias): requests made by a page
+    opened before the address changed still work. Pages and GETs redirect instead."""
+    return await slugs.find_form(db, form_slug)
 
 
 async def _live_form(db: DbDep, form_slug: str) -> tuple[FormRecord, FormVersion]:
@@ -238,9 +236,11 @@ async def get_public_form(
     db: DbDep,
     redis: RedisDep,
     settings: SettingsDep,
-) -> JSONResponse:
+) -> Response:
     await ratelimit.enforce(redis, settings, "public_form", client_ip(request, settings) or "-")
     form, version = await _live_form(db, form_slug)
+    if form.slug != form_slug:
+        return alias_redirect(request, form_slug, form.slug)
     org = await db.get(Organization, form.org_id)
     brand = resolve_brand(settings, org)
     email = await respondent_email(form, request, db, redis, settings, required=False)
@@ -382,6 +382,12 @@ async def frame_ancestors(
     value = "'self'"
     parts = [unquote(p) for p in urlsplit(x_original_uri).path.split("/") if p]
     form = await form_by_slug(db, parts[0]) if len(parts) == 1 else None
+    if form is not None and form.slug != parts[0]:
+        # An earlier address: nginx answers 401 with a 301 to /<slug> (query kept).
+        return Response(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"X-JustForms-Moved": form.slug, "Cache-Control": "no-store"},
+        )
     if form is not None:
         origins = [o for o in (form.settings or {}).get("embedOrigins", []) if o]
         value = " ".join(["'self'", *origins]) if origins else "*"

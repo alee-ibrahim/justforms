@@ -5,13 +5,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
-import { api, type SlugCheck } from '@/lib/api'
+import { api, type FormSummary, type SlugCheck } from '@/lib/api'
+import { hasThaana, isGenericSlug, titleSlug, toSlugText } from '@/thaana/latin'
 
 export const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,99}$/
 
-/** Lower case, spaces and other characters to hyphens, as people type. */
+/** Lower case, spaces and other characters to hyphens, as people type; Thaana is romanised. */
 export function normalizeSlug(value: string): string {
-  return value
+  return (hasThaana(value) ? toSlugText(value) : value)
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, '-')
     .replace(/-{2,}/g, '-')
@@ -53,4 +54,11 @@ export function hostPrefix(url?: string): string {
   } catch {
     return `${window.location.host}/`
   }
+}
+
+/** The romanised address to offer, or null when the form doesn't need one. */
+export function readableSlug(form: Pick<FormSummary, 'slug' | 'title'>): string | null {
+  if (!isGenericSlug(form.slug) || !hasThaana(form.title)) return null
+  const slug = titleSlug(form.title)
+  return isGenericSlug(slug) ? null : slug
 }

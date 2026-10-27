@@ -12,7 +12,6 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
-from sqlalchemy import select
 from sqlalchemy.orm.attributes import flag_modified
 
 from app import ratelimit
@@ -321,11 +320,7 @@ async def form_theme_css(
     """The form's theme as CSS variables (also for closed forms: approver and verify pages
     use it). Unknown forms get an empty stylesheet."""
     await ratelimit.enforce(redis, settings, "branding", client_ip(request, settings) or "-")
-    form = None
-    if slugs.shape_problem(form_slug) is None:
-        form = await db.scalar(
-            select(FormRecord).where(FormRecord.slug == form_slug, FormRecord.deleted_at.is_(None))
-        )
+    form = await slugs.find_form(db, form_slug)
     org = await db.get(Organization, form.org_id) if form else None
     if form is None or org is None:
         return Response(

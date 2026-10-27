@@ -104,7 +104,7 @@ async def test_dv_form_and_publish_rejects_blank_label(
     form = (
         await client.post(f"/api/v1/orgs/{org_id}/forms", json={"title": "ފޯމު", "language": "dv"})
     ).json()
-    assert form["slug"] == "form"
+    assert form["slug"] == "foamu"  # romanised (official 1977 rules)
     assert form["title"] == "ފޯމު"
     draft = (await client.get(f"/api/v1/forms/{form['id']}/draft")).json()
     assert draft["schema"]["settings"]["language"] == "dv"

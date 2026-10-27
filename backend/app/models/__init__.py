@@ -12,6 +12,7 @@ from app.models.form import (
     FormPermission,
     FormRecord,
     FormRole,
+    FormSlugAlias,
     FormStatus,
     FormVersion,
 )
@@ -73,6 +74,7 @@ __all__ = [
     "FormPermission",
     "FormRecord",
     "FormRole",
+    "FormSlugAlias",
     "FormStatus",
     "FormVersion",
     "Import",

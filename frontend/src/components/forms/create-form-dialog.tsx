@@ -23,13 +23,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
 import { api } from '@/lib/api'
 import { contentProps, isFormLanguage, type FormLanguage } from '@/schema'
-
-/** The address the server derives from a title (`app/services/slugs.py` slugify). */
-function titleSlug(title: string): string {
-  const ascii = title.normalize('NFKD').replace(/[^\x20-\x7e]/g, '')
-  const slug = ascii.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60).replace(/-+$/, '')
-  return slug || 'form'
-}
+import { titleSlug } from '@/thaana/latin'
 
 export function CreateFormDialog({ orgId }: { orgId: string }) {
   const navigate = useNavigate()

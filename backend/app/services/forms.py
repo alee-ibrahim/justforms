@@ -23,6 +23,7 @@ from app.models import (
 )
 from app.schemas.form import Form
 from app.schemas.rules import Issue, collect_publish_issues
+from app.services import slugs
 
 HISTORY_LIMIT = 200
 
@@ -97,6 +98,7 @@ async def apply_draft_patch(
     form.draft_revision += 1
     form.draft_schema = validated
     form.title = form_title(validated)
+    await slugs.follow_title(db, form)
     db.add(
         FormDraftHistory(
             form_id=form.id,
@@ -168,6 +170,7 @@ async def step_history(
     form.draft_schema = validated
     form.draft_revision += 1
     form.title = form_title(validated)
+    await slugs.follow_title(db, form)
     await db.execute(
         update(FormDraftHistory).where(FormDraftHistory.id == entry.id).values(undone=not redo)
     )

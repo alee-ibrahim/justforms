@@ -52,6 +52,7 @@ TABLES = [
     "submissions",
     "audit_log",
     "form_draft_history",
+    "form_slug_aliases",
     "form_permissions",
     "form_versions",
     "forms",

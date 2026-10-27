@@ -30,6 +30,9 @@ Copy in "quotes" ships as written, English only. Nothing new from shadcn: `card`
   `uploads`, `v`, `verify`, `www` (the list lives in `app/services/slugs.py`).
 - A new form takes its slug from its title; a taken or reserved slug gets `-2`, `-3`... A
   migration does the same for existing forms when two organisations used the same slug.
+  Dhivehi titles are romanised first (official 1977 rules): ކަނޑި gives `kandi`, not `form`.
+- An address that changed keeps working as a 301 to the new one (embeds included) and stays
+  reserved until the form is erased.
 - Unknown addresses show the public "We couldn't find this form" screen: HTTP 404 for paths that
   can't be a form, from the public app for a well-formed address nobody uses.
 
@@ -41,8 +44,24 @@ The existing "Short address" row becomes the form's address:
  Address
  [ forms.example.org/ ][ youth-app                 ] [Save] [Cancel]
  ✓ Available                                 (or)  ✗ Another form already uses this address.
- Changing it breaks links you already shared.
+ Links to an old address keep working: they redirect to the current one.
+ Also redirects here: /form-3                       (only when the form has earlier addresses)
+
+ ┌ ⓘ Use a readable address ─────────────────────────────────────────────┐
+ │ Its address isn't made from its Dhivehi title. Use one in Latin        │
+ │ letters that says what the form is. The old address keeps working and │
+ │ redirects to the new one.                                              │
+ │ [ Use /eedhu-mubaarak ]                                                │
+ └────────────────────────────────────────────────────────────────────────┘
 ```
+
+- The readable-address `Alert` (`role="status"`, `LanguagesIcon`) shows only to owners and
+  editors, while not editing, for a form whose title has Thaana and whose address is generic
+  (`form`, `form-N`). The suggestion is the romanised title (`titleSlug`), checked like a typed
+  address; when taken, the API's free variant (`-2`) is offered. One click saves it; the toast says
+  the old address still leads to the form. Long addresses wrap inside the button (full width
+  on phones; touch screens get the usual 44 px minimum).
+- Thaana typed into the address field is romanised as it is typed.
 
 - `InputGroup` with an `InputGroupAddon` (`InputGroupText` host + "/", `dir="ltr"`, muted) and
   `InputGroupInput` (mono, `dir="ltr"`, `autoCapitalize="none"`, `spellCheck=false`).

@@ -30,7 +30,8 @@ def test_shape_problems() -> None:
 
 def test_slugify() -> None:
     assert slugs.slugify("Contact us!") == "contact-us"
-    assert slugs.slugify("ފޯމު") == "form"  # Thaana titles fall back
+    assert slugs.slugify("ފޯމު") == "foamu"  # Thaana titles are romanised
+    assert slugs.slugify("؟") == "form"  # nothing to keep
     assert slugs.slugify("Café  menu") == "cafe-menu"
 
 

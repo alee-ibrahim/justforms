@@ -1,0 +1,307 @@
+{
+  "source": "dhivehi_rules/thaana_latin.py, https://github.com/alee-ibrahim/dhivehi-rules (MIT License). Official romanisation rules of 23 May 1977.",
+  "words": [
+    {
+      "thaana": "އަންނާރު",
+      "latin": "annaaru"
+    },
+    {
+      "thaana": "އަލަމާރި",
+      "latin": "alamaari"
+    },
+    {
+      "thaana": "އިރު",
+      "latin": "iru"
+    },
+    {
+      "thaana": "އިސްކުރު",
+      "latin": "iskuru"
+    },
+    {
+      "thaana": "އެދުރު",
+      "latin": "edhuru"
+    },
+    {
+      "thaana": "އެތެރެ",
+      "latin": "ethere"
+    },
+    {
+      "thaana": "އުރަ",
+      "latin": "ura"
+    },
+    {
+      "thaana": "އުތުރު",
+      "latin": "uthuru"
+    },
+    {
+      "thaana": "އޮޑާ",
+      "latin": "odaa"
+    },
+    {
+      "thaana": "އޮނު",
+      "latin": "onu"
+    },
+    {
+      "thaana": "ނަލަ",
+      "latin": "nala"
+    },
+    {
+      "thaana": "ހަމަ",
+      "latin": "hama"
+    },
+    {
+      "thaana": "ބާރު",
+      "latin": "baaru"
+    },
+    {
+      "thaana": "ނާރު",
+      "latin": "naaru"
+    },
+    {
+      "thaana": "ނިޝާން",
+      "latin": "nishaan"
+    },
+    {
+      "thaana": "ފިލި",
+      "latin": "fili"
+    },
+    {
+      "thaana": "ރީތި",
+      "latin": "reethi"
+    },
+    {
+      "thaana": "ބީރު",
+      "latin": "beeru"
+    },
+    {
+      "thaana": "ހުތުރު",
+      "latin": "huthuru"
+    },
+    {
+      "thaana": "ސުތުލި",
+      "latin": "suthuli"
+    },
+    {
+      "thaana": "ކޫރު",
+      "latin": "kooru"
+    },
+    {
+      "thaana": "ތޫނު",
+      "latin": "thoonu"
+    },
+    {
+      "thaana": "ބެރެބެދި",
+      "latin": "berebedhi"
+    },
+    {
+      "thaana": "ފެރިދޫ",
+      "latin": "feridhoo"
+    },
+    {
+      "thaana": "ފޭރު",
+      "latin": "feyru"
+    },
+    {
+      "thaana": "ބޭބެ",
+      "latin": "beybe"
+    },
+    {
+      "thaana": "ބޮކަރު",
+      "latin": "bokaru"
+    },
+    {
+      "thaana": "ފޮނު",
+      "latin": "fonu"
+    },
+    {
+      "thaana": "ރޯނު",
+      "latin": "roanu"
+    },
+    {
+      "thaana": "ސޯނާ",
+      "latin": "soanaa"
+    },
+    {
+      "thaana": "ފައި",
+      "latin": "fai"
+    },
+    {
+      "thaana": "ސައި",
+      "latin": "sai"
+    },
+    {
+      "thaana": "އަތަރު",
+      "latin": "atharu"
+    },
+    {
+      "thaana": "އާރު",
+      "latin": "aaru"
+    },
+    {
+      "thaana": "އިސްތިރި",
+      "latin": "isthiri"
+    },
+    {
+      "thaana": "ރައީސް",
+      "latin": "raees"
+    },
+    {
+      "thaana": "އީޓު",
+      "latin": "eetu"
+    },
+    {
+      "thaana": "ފައުނު",
+      "latin": "faunu"
+    },
+    {
+      "thaana": "އުކުނު",
+      "latin": "ukunu"
+    },
+    {
+      "thaana": "އޫރު",
+      "latin": "ooru"
+    },
+    {
+      "thaana": "ބައެއް",
+      "latin": "baeh"
+    },
+    {
+      "thaana": "އެކަތަ",
+      "latin": "ekatha"
+    },
+    {
+      "thaana": "އޭދަފުށި",
+      "latin": "eydhafushi"
+    },
+    {
+      "thaana": "އޭނާ",
+      "latin": "eynaa"
+    },
+    {
+      "thaana": "އޮޅު",
+      "latin": "olhu"
+    },
+    {
+      "thaana": "އޯބު",
+      "latin": "oabu"
+    },
+    {
+      "thaana": "އައިބު",
+      "latin": "aibu"
+    },
+    {
+      "thaana": "އައިނު",
+      "latin": "ainu"
+    },
+    {
+      "thaana": "ކޮއިމަލާ",
+      "latin": "koimalaa"
+    },
+    {
+      "thaana": "މުނިއަވަސް",
+      "latin": "muniavas"
+    },
+    {
+      "thaana": "މީހެއް",
+      "latin": "meeheh"
+    },
+    {
+      "thaana": "ތުން",
+      "latin": "thun"
+    },
+    {
+      "thaana": "ފެން",
+      "latin": "fen"
+    },
+    {
+      "thaana": "ބަށް",
+      "latin": "baiy"
+    },
+    {
+      "thaana": "ކެށް",
+      "latin": "keiy"
+    },
+    {
+      "thaana": "ގާށް",
+      "latin": "gaaiy"
+    },
+    {
+      "thaana": "މުށް",
+      "latin": "muiy"
+    },
+    {
+      "thaana": "އޯށް",
+      "latin": "oaiy"
+    },
+    {
+      "thaana": "ފޮށް",
+      "latin": "foiy"
+    },
+    {
+      "thaana": "ގަސް",
+      "latin": "gas"
+    },
+    {
+      "thaana": "ވިސްނުން",
+      "latin": "visnun"
+    },
+    {
+      "thaana": "ރަމްޒު",
+      "latin": "ramzu"
+    },
+    {
+      "thaana": "މިލްކު",
+      "latin": "milku"
+    },
+    {
+      "thaana": "މަންމަ",
+      "latin": "mamma"
+    },
+    {
+      "thaana": "ބައްޕަ",
+      "latin": "bappa"
+    },
+    {
+      "thaana": "ބައްޔެއް",
+      "latin": "bayyeh"
+    },
+    {
+      "thaana": "ކަނޑި",
+      "latin": "kan'di"
+    },
+    {
+      "thaana": "އަނބު",
+      "latin": "an'bu"
+    }
+  ],
+  "texts": [
+    {
+      "thaana": "ބައްޕަ މާދަމާ ރަށަށް އަންނާނެއެވެ.",
+      "latin": "Bappa maadhamaa rashaiy annaaneeve."
+    },
+    {
+      "thaana": "ޢަމަލު، ކަނޑި؟ ޤައުމީ ދުވަސް",
+      "latin": "A'malu, kan'di? Qaumee dhuvas"
+    },
+    {
+      "thaana": "މަސައްކަތުގެ ފުރުޞަތު ހޯދުމަށް އެދޭ ފޯމު",
+      "latin": "Masakkathuge furus'athu hoadhumaiy edhey foamu"
+    },
+    {
+      "thaana": "ޒުވާނުންގެ ޕްރޮގްރާމް 2026 ގައި ބައިވެރިވުމަށް",
+      "latin": "Zuvaanunge prograam 2026 gai baiverivumaiy"
+    },
+    {
+      "thaana": "އެނބޫދޫ ރަށުގެ އަނބު. ކަނޑު ރީތި!",
+      "latin": "En'boodhoo rashuge an'bu. Kan'du reethi!"
+    },
+    {
+      "thaana": "ޢީދު މުބާރަކް",
+      "latin": "E'edhu mubaarak"
+    },
+    {
+      "thaana": "މީހެއް ގަސް ފޮށް",
+      "latin": "Meeheh gas foiy"
+    }
+  ]
+}

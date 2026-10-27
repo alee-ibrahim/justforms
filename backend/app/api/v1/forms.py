@@ -64,6 +64,8 @@ class FormOut(ApiModel):
     slug: str
     # The public address, https://<host>/<slug>.
     url: str
+    # Earlier addresses that redirect to this one (newest first; not in list rows).
+    previous_slugs: list[str] = Field(default_factory=list)
     title: str
     status: FormStatus
     access_mode: AccessMode
@@ -266,6 +268,7 @@ async def form_out(
         org_slug=org.slug if org else "",
         slug=form.slug,
         url=f"{settings.public_origin}{slugs.public_path(form.slug)}",
+        previous_slugs=await slugs.aliases(db, form.id),
         title=form.title,
         status=form.status,
         access_mode=form.access_mode,
@@ -555,7 +558,7 @@ async def patch_form(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "cannot_return_to_draft")
     if body.slug is not None and body.slug != form.slug:
         await _check_slug(db, body.slug, form.id)
-        form.slug = body.slug
+        await slugs.change(db, form, body.slug)
     if body.status is not None:
         form.status = body.status
     if body.access_mode is not None:
@@ -754,7 +757,8 @@ async def restore_form(
     if found is not None:
         await _check_slug(db, slug, form.id)
     deleted_at, previous = form.deleted_at, form.slug
-    form.slug = slug
+    # Its old address went to another form meanwhile: nothing to redirect from.
+    await slugs.change(db, form, slug, keep_old=False)
     form.deleted_at = None
     form.deleted_by = None
     await audit(

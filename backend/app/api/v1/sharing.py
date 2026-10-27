@@ -15,8 +15,8 @@ import logging
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi.responses import RedirectResponse
 from pydantic import StringConstraints
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -227,13 +227,23 @@ async def studio_image(
 # -- public -----------------------------------------------------------------------------------
 
 
+def alias_redirect(request: Request, old: str, new: str) -> RedirectResponse:
+    """301 from a form's earlier address (an alias) to the same API path under its current
+    slug, query kept. Revalidated on every use: the owner may take the old address back."""
+    parts = request.url.path.split("/")
+    for i in range(1, len(parts)):
+        if parts[i - 1] == "forms" and parts[i] == old:
+            parts[i] = new
+            break
+    query = request.url.query
+    url = "/".join(parts) + (f"?{query}" if query else "")
+    return RedirectResponse(url, status_code=301, headers={"Cache-Control": "no-cache"})
+
+
 async def _public_form(db: AsyncSession, form_slug: str) -> FormRecord | None:
-    """A published form (closed ones too: their address still gets shared)."""
-    if slugs.shape_problem(form_slug) is not None:
-        return None
-    form = await db.scalar(
-        select(FormRecord).where(FormRecord.slug == form_slug, FormRecord.deleted_at.is_(None))
-    )
+    """A published form (closed ones too: their address still gets shared), also by an
+    earlier address."""
+    form = await slugs.find_form(db, form_slug)
     if form is None or form.current_version_id is None:
         return None
     if form.status == FormStatus.ARCHIVED:
@@ -255,6 +265,8 @@ async def public_image(
     form = await _public_form(db, form_slug)
     if form is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
+    if form.slug != form_slug:
+        return alias_redirect(request, form_slug, form.slug)
     org = await db.get(Organization, form.org_id)
     preview = sharing.build(settings, org, form, await _live_schema(db, form))
     data, mime = await sharing.image(settings, org, form, preview, storage, redis)

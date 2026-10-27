@@ -98,6 +98,20 @@ class FormRecord(IdMixin, TimestampMixin, Base):
     )
 
 
+class FormSlugAlias(IdMixin, Base):
+    """An earlier address of a form: ``/<slug>`` answers with a 301 to the form's current
+    address (DESIGN 18.3). Kept while the form exists (the trash included) and reserved like a
+    live slug, so no other form can take it; erasing the form frees it (cascade)."""
+
+    __tablename__ = "form_slug_aliases"
+
+    form_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("forms.id", ondelete="CASCADE"), index=True
+    )
+    slug: Mapped[str] = mapped_column(String(100), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class FormVersion(IdMixin, TimestampMixin, Base):
     """Immutable published snapshot of a form's schema."""
 

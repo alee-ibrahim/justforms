@@ -444,6 +444,7 @@ All primary keys are UUIDv7, so they sort by time. All tables carry `created_at`
 | `forms` | `id`, `org_id`, `slug` (unique across the install among forms not deleted; the public address `/{slug}`), `title` (denormalised, for listing), `status` enum(`draft`,`live`,`closed`,`archived`), `access_mode` enum(`public`,`otp`,`staff`), `draft_schema` jsonb, `draft_revision` int, `current_version_id`, `settings` jsonb (close date, response limit, captcha, retention days, embed origins), `deleted_at`, `deleted_by` (the trash, §14.5) | `draft_revision` provides optimistic concurrency for the builder and AI. |
 | `form_versions` | `id`, `form_id`, `version` int, `schema` jsonb, `schema_hash` (sha256), `published_by`, `published_at` | Immutable. Unique (`form_id`, `version`). |
 | `form_draft_history` | `id`, `form_id`, `revision`, `patch` jsonb (RFC 6902), `inverse_patch` jsonb, `actor_type` (`user`,`ai`), `actor_id`, `ai_session_id` | Server-side undo/redo and an audit trail of edits. Pruned to the last 200 entries per form. |
+| `form_slug_aliases` | `id`, `form_id`, `slug` (unique), `created_at` | Earlier addresses of a form, answered with a 301 to the current one and reserved until the form is erased (§18.3). |
 | `form_permissions` | `form_id`, `user_id`, `role` enum(`owner`,`editor`,`viewer`) | PK (`form_id`, `user_id`). |
 | `submissions` | `id`, `org_id`, `form_id`, `form_version_id`, `seq` int (per-form human number, e.g. #142), `status` enum(`new`,`in_review`,`approved`,`rejected`), `data` jsonb, `search` tsvector, `language` (copied from the form version), `respondent_email` nullable, `respondent_user_id` nullable, `ip` inet nullable, `user_agent`, `content_hash` bytea, `signed_pdf_key` nullable, `pdf_status`, `verify_token` (unique, nullable; §9.5.2), `approval_state` enum(`pending`,`approved`,`rejected`,`stopped`) nullable, `approval_step`, `approval_outcome_to`, `submitted_at`, `deleted_at`, `deleted_by` (the trash, §14.5; outside the content hash) | Indexes: (`form_id`, `submitted_at` desc), (`form_id`, `status`), GIN(`data` jsonb_path_ops), GIN(`search`). Unique (`form_id`, `seq`). |
 | `submission_events` | `id`, `submission_id`, `type` (`created`,`status_changed`,`comment`,`pdf_generated`,`exported`,`viewed`,`deleted`,`restored`,`approval_requested`,`approval_decided`,`approval_waiting`,`approval_stopped`), `actor_id`, `payload` jsonb, `prev_hash`, `hash` | Append-only. Hash chain per submission (§9.4). |
@@ -1262,7 +1263,7 @@ All endpoints are JSON. OpenAPI is served at `/api/v1/openapi.json` (with `/api/
 - `GET /public/approvals/{token}`, `POST .../code`, `POST .../verify` with `{code}` → bearer token, `GET .../submission`, `GET .../files/{fileId}`, `GET .../signatures/{fieldId}`, `POST .../decision` with `{decision: approve|reject, name, comment}`, §15.3
 
 **Addresses, appearance and form themes** (§18.3)
-- `GET /forms/slug-check?slug=&formId=` → `{available, problem: invalid|reserved|taken, suggestion, url}`
+- `GET /forms/slug-check?slug=&formId=` → `{available, problem: invalid|reserved|taken, suggestion, url}` (`taken` includes other forms' earlier addresses; invalid input such as Thaana is suggested romanised)
 - `PATCH /auth/me` with `{appearance}`
 - `GET|PUT /orgs/{orgId}/form-theme` (members read, admins change), `GET|PUT /forms/{formId}/theme` (viewers read, editors change), `POST /themes/preview` (unsaved values → tokens, fonts, options, adjustments), `PUT /orgs/{orgId}/theme-images` (raw PNG/JPEG/WebP body)
 - Public: `GET /public/forms/{slug}/theme.css`, `GET /public/theme-images/{orgId}/{ref}`
@@ -1390,6 +1391,39 @@ Screens and copy: [ux/FORM-THEME-SCREENS.md](ux/FORM-THEME-SCREENS.md).
   unknown path to the public not-found screen with a 404 (a well-formed but unknown address shows
   the same screen from the SPA). Forms carry `url`; webhooks send `form.url`; exports set it as the
   workbook identifier.
+- **Addresses from titles.** `slugs.slugify`: a title with Thaana is romanised first by the
+  official rules of 23 May 1977 (`app/text/thaana_latin.py`, ported from the MIT-licensed
+  `dhivehi-rules` package; §1 to §6, without §6's proper-noun capitals or §8's English spellings),
+  then apostrophes are dropped (§5 `kan'di` -> `kandi`, `ޢ`), accents folded (NFKD -> ASCII),
+  lower-cased, every other run of characters becomes a hyphen, and the result is cut to 60
+  characters at the last hyphen (a hard cut when that would lose more than two thirds). Latin
+  parts of mixed titles pass through unchanged, so `Youth programme ޒުވާނުންގެ ޕްރޮގްރާމް 2026` is
+  `youth-programme-zuvaanunge-prograam-2026`. Nothing left gives `form`. Reserved words and
+  addresses in use (aliases included) get `-2`, `-3`... (`unique_slug`). The studio's live
+  suggestion is the twin `titleSlug` in `frontend/src/thaana/latin.ts`; both run
+  `spec/slugs/thaana-latin.json` (the rule booklet's 68 examples plus sentences) and
+  `spec/slugs/slugs.json` (title -> address). It is used for new forms, duplicates
+  (`<title> (copy)`), Jotform imports, the slug check's suggestion for invalid input (Thaana typed
+  into the address field) and, before the first publish, for a form still at a generic address
+  (`form`, `form-N`) whose title is written later in the builder or by the AI assistant
+  (`slugs.follow_title`). Published forms never change address by themselves.
+- **Earlier addresses.** When a published form's address changes, the old one is stored in
+  `form_slug_aliases` (migration 0024; unique `slug`, `form_id` cascading). An alias is reserved
+  like a live address (`slugs.taken`, so the slug check, create, rename and restore refuse it for
+  other forms) for as long as its form exists, the trash included; erasing the form (owner or the
+  nightly trash purge) frees it. The form itself can take an alias back, which removes it.
+  Restoring a form at a new address because its old one was taken keeps no alias. Address changes
+  before the first publish keep none either (there was no link). Requests to an alias of a form
+  that is not in the trash: the page `/{alias}` (and `?embed=1`; the query is kept) gets a 301 to
+  `/{slug}`: `GET /public/frame-ancestors` answers `401` with `X-JustForms-Moved: <slug>` and nginx
+  turns it into the redirect (`@public_form_moved`). `GET /public/forms/{alias}` and
+  `/public/forms/{alias}/og.png|og.jpg` answer 301 to the same path under the current slug; the
+  theme stylesheet and the respondent's POSTs (OTP, uploads, submissions) resolve the alias in
+  place, so a page opened before the change still submits. Redirects carry `Cache-Control:
+  no-cache` because the owner may take the old address back. `FormOut.previousSlugs` lists the
+  aliases (the Share page shows them). Existing forms are never renamed automatically; the Share
+  page offers a Dhivehi form (Thaana in its title) still at a generic address a one-click
+  "Use /<romanised>" (the API's free variant when it is taken).
 - **Appearance.** `users.appearance` (migration 0011). `/appearance.js` (same origin, blocking,
   in `index.html`) applies the cached choice from `localStorage` before the first paint; the
   account value wins once `/auth/me` loads. Public form, approver and verify pages never read it:

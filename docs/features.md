@@ -72,6 +72,14 @@ checks it as they type. Words the app uses itself (`login`, `forms`, `settings`,
 `assets`, ...) can't be addresses. Links in the old `/f/<org>/<address>` form redirect
 permanently.
 
+Dhivehi titles are written in Latin letters by the official romanisation rules of 23 May 1977,
+so a form titled ކަނޑި gets `/kandi` rather than a generic `/form`; mixed English and Dhivehi
+titles keep both parts. Thaana typed into the address field is romanised the same way. When an
+address changes, the old one keeps working: it redirects (301) to the new address, embeds and
+link-preview images included, and no other form can take it until the form is erased. Dhivehi
+forms still at a generic address (`form`, `form-3`) are offered a readable one on the Share page
+in one click.
+
 Forms can be embedded in other websites with `?embed=1`; each form can limit which sites may
 embed it (any site when the list is empty).
 

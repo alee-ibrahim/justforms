@@ -89,6 +89,11 @@ export async function loadForm(slug: string, access?: Access): Promise<LoadResul
     if (res.status === 404 || res.status === 403) return { ok: false, reason: 'not_found' }
     if (res.status === 410) return { ok: false, reason: 'closed' }
     if (!res.ok) return { ok: false, reason: 'error' }
+    // An earlier address of the form (the web server redirects the page itself; the dev
+    // server doesn't): show the current one.
+    const moved = res.redirected ? new URL(res.url).pathname.split('/').pop() : undefined
+    if (moved && moved !== slug && window.location.pathname.replace(/\/$/, '') === `/${slug}`)
+      window.history.replaceState(window.history.state, '', `/${moved}${window.location.search}`)
     return { ok: true, form: body as unknown as LiveForm }
   } catch {
     return { ok: false, reason: 'error' }

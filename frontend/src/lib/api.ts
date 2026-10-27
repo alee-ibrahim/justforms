@@ -151,6 +151,8 @@ export interface FormSummary {
   slug: string
   /** The public address, https://<host>/<slug>. */
   url: string
+  /** Earlier addresses that redirect to this one, newest first (not in list rows). */
+  previousSlugs?: string[]
   title: string
   status: FormStatus
   accessMode: AccessMode
