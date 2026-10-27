@@ -22,6 +22,8 @@ export interface ApprovalSummary {
   step: number
   total: number
   decidedAt: string | null
+  /** Who decided each decided step, masked (`a•••@example.org`). */
+  decisions?: { step: number; state: 'approved' | 'rejected'; by: string }[]
 }
 
 interface VerifyInfo {
@@ -153,6 +155,13 @@ export function VerifyPage({ token }: { token: string }) {
   const rows: [string, ReactNode][] = [[msgs.reference, <bdi key="ref" dir="ltr">{info.reference}</bdi>]]
   if (info.issuedAt) rows.push([msgs.issued, formatDay(info.issuedAt)])
   if (info.approval) rows.push([msgs.approval, approvalText(info.approval)])
+  for (const d of info.approval?.decisions ?? [])
+    rows.push([
+      fmt(d.state === 'approved' ? msgs.approvedBy : msgs.rejectedBy, { n: d.step }),
+      <bdi key={`by-${d.step}`} dir="ltr">
+        {d.by}
+      </bdi>,
+    ])
   return (
     <Page brand={info.brand}>
       <div className="flex items-start gap-3">

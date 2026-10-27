@@ -19,6 +19,8 @@ export const DOC = {
   rejectedOn: 'Rejected on {date}',
   inProgress: 'In progress (step {n} of {total})',
   stopped: 'Stopped',
+  approvedBy: 'Step {n} approved by',
+  rejectedBy: 'Step {n} rejected by',
   about:
     "This page confirms the document came from this system and that its record hasn't changed since it was signed. It never shows the answers.",
   checkCopy: 'Check your copy',

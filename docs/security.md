@@ -38,6 +38,9 @@ problem. Abuse-control settings are in [Configuration](configuration.md#abuse-co
   remembers each solved challenge until it expires, so a token works once. Turnstile and hCaptcha
   tokens must have been solved on the host of `JUSTFORMS_PUBLIC_URL` (and, for Turnstile, with
   the form widget's action).
+- **Approvals.** When the respondent types the approver's address, it can't be their own
+  address, and owners can limit it to their email domains (the builder warns until they do).
+  The verify page shows who decided each step, masked.
 - **Receipts** go to the confirmed respondent address. Sending them to an address typed into
   a question is an owner opt-in, rate limited, and such receipts carry only the reference unless
   the owner also allows answers, so a form can't be used to mail arbitrary text to anyone.

@@ -23,6 +23,8 @@ export const MSG = {
   maxReached: 'You chose {n}, the most allowed. Clear one to pick another.',
   email: 'Enter an email address like name@example.com',
   phoneMv: 'Enter a phone number with 7 digits, like 7771234',
+  approverDomain: 'Enter an address at {domains}',
+  approverIsRespondent: "Enter someone else's address. You can't approve your own response.",
   phone: 'Enter a phone number using digits only',
   number: 'Enter a number',
   integer: 'Enter a whole number',

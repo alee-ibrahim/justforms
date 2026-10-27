@@ -31,6 +31,8 @@ from app.answers import search_text
 from app.api.v1.common import ApiModel
 from app.api.v1.sharing import page_head
 from app.approvals import service as approvals
+from app.approvals.config import approver_problems as approval_problems
+from app.approvals.config import load_config as load_approvals
 from app.auth import respondent as otp
 from app.auth.deps import DbDep, RedisDep, SettingsDep, StorageDep, check_origin
 from app.auth.sessions import (
@@ -515,9 +517,14 @@ async def submit(
         db, storage, form_record=form_record, form=form, data=stripped, nonce=body.upload_nonce
     )
     prepared, signature_errors = signatures.prepare(form, stripped)
+    approver_errors = approval_problems(load_approvals(form_record.settings), form, stripped, email)
     # One problem per answer: shape problems found first win over later checks.
     seen = {(e["field"], e.get("repeater"), e.get("row")) for e in errors}
-    for extra in [*(p.as_error() for p in checked.problems), *signature_errors]:
+    for extra in [
+        *(p.as_error() for p in checked.problems),
+        *signature_errors,
+        *approver_errors,
+    ]:
         if (extra["field"], extra.get("repeater"), extra.get("row")) not in seen:
             errors.append(extra)
     if errors:

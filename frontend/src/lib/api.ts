@@ -449,6 +449,8 @@ export interface ApprovalStepConfig {
   name: string
   source: ApproverSource
   fieldId: string | null
+  /** `field` steps: the approver's address must be at one of these domains (empty = any). */
+  allowedDomains?: string[]
   email: string | null
   /** `editors` steps: addresses told the step is waiting (no link, no code), up to 10. */
   notify?: string[]

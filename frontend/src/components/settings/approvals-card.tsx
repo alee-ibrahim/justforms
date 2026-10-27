@@ -61,6 +61,10 @@ function parseList(text: string): string[] {
     ),
   ]
 }
+/** Domains typed as "example.org, @example.com": lower case, without a leading @. */
+function parseDomains(text: string): string[] {
+  return parseList(text).map((d) => d.replace(/^@+/, ''))
+}
 const CONFIRMED = '__confirmed__'
 
 function newStep(a: Approvals): ApprovalStepConfig {
@@ -189,6 +193,10 @@ function StepEditor({
   // What was typed in "Notify", kept while it still means the step's list (moving or
   // discarding a step shows that step's own list again).
   const [notifyText, setNotifyText] = useState<string | null>(null)
+  const [domainsText, setDomainsText] = useState<string | null>(null)
+  const domains = step.allowedDomains ?? []
+  const shownDomains =
+    domainsText !== null && parseDomains(domainsText).join(',') === domains.join(',') ? domainsText : domains.join(', ')
   const notify = step.notify ?? []
   const shownNotify =
     notifyText !== null && parseList(notifyText).join(',') === notify.join(',') ? notifyText : notify.join(', ')
@@ -272,6 +280,28 @@ function StepEditor({
                     </NativeSelectOption>
                   ))}
                 </NativeSelect>
+                <Field className="mt-4">
+                  <FieldLabel htmlFor={`${id}-domains`}>Allowed approver domains</FieldLabel>
+                  <Input
+                    id={`${id}-domains`}
+                    type="text"
+                    dir="ltr"
+                    autoComplete="off"
+                    placeholder="example.org"
+                    value={shownDomains}
+                    disabled={disabled}
+                    onChange={(e) => {
+                      setDomainsText(e.target.value)
+                      onChange({ ...step, allowedDomains: parseDomains(e.target.value) })
+                    }}
+                    onBlur={() => setDomainsText(null)}
+                  />
+                  <FieldDescription>
+                    The respondent types this address, so they could enter another one of their own. Only addresses at these
+                    domains are accepted, separated by commas; leave empty to accept any. The respondent's own address is
+                    always refused.
+                  </FieldDescription>
+                </Field>
               </div>
             )}
           </div>

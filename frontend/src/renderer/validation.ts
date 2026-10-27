@@ -249,6 +249,11 @@ export function problemMessage(field: FieldElement, p: Problem): string {
       return msgs.signatureSmall
     case 'signature_invalid':
       return msgs.signRequired
+    // Server-only: the approval settings aren't sent to respondents.
+    case 'approver_domain':
+      return fmt(msgs.approverDomain, v)
+    case 'approver_is_respondent':
+      return msgs.approverIsRespondent
     default:
       return msgs.answerThis
   }

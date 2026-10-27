@@ -1,8 +1,8 @@
 /**
  * Approval checks at publish (APPROVALS-SCREENS 2), twin of check_config in
  * backend/app/approvals/config.py: a step whose approver comes from a question that is gone or
- * isn't an email question blocks publishing; an optional or conditionally shown question is a
- * warning. The server repeats the blocking checks.
+ * isn't an email question blocks publishing; an optional or conditionally shown question, or a
+ * respondent-chosen approver without allowed domains, is a warning. The server repeats the blocking checks.
  */
 import { useQuery } from '@tanstack/react-query'
 
@@ -45,6 +45,8 @@ export function approvalChecks(config: ApprovalConfig | undefined, form: Form): 
     if (!info) return out.errors.push(`Approval step ${n} uses a question that isn't in the form`)
     if (info.element.kind !== 'field' || info.element.type !== 'email' || info.repeaterId !== null)
       return out.errors.push(`Approval step ${n} uses a question that isn't an email question`)
+    if (!step.allowedDomains?.length)
+      out.warnings.push(`Approval step ${n}: the respondent chooses the approver; limit approvers to your email domains`)
     if (!info.element.required) out.warnings.push(`Approval step ${n} uses an optional question`)
     else if (!alwaysOnPath(form, index, step.fieldId))
       out.warnings.push(`Approval step ${n} uses a question only some respondents see`)

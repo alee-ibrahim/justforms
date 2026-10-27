@@ -11,7 +11,14 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    StringConstraints,
+)
 from pydantic.alias_generators import to_camel
 
 from app.logic.index import FormIndex
@@ -25,6 +32,16 @@ StepName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1,
 FieldId = Annotated[str, StringConstraints(max_length=63)]
 Subject = Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]
 Message = Annotated[str, StringConstraints(strip_whitespace=True, max_length=5000)]
+Domain = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        pattern=r"^@?[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$",
+        max_length=253,
+    ),
+    AfterValidator(lambda d: d.lower().lstrip("@")),
+]
+MAX_DOMAINS = 20
 
 
 class ApiModel(BaseModel):
@@ -46,6 +63,11 @@ class StepConfig(ApiModel):
     # ``notify`` (plus, with ``notify_editors``, those people) only get told about it.
     source: Literal["field", "fixed", "editors"]
     field_id: FieldId | None = None
+    # "field" steps: the approver's address must be at one of these domains (exact match;
+    # empty = any domain). Either way it may not be the respondent's own address.
+    allowed_domains: Annotated[list[Domain], Field(max_length=MAX_DOMAINS)] = Field(
+        default_factory=list
+    )
     email: EmailStr | None = None
     notify: Annotated[list[EmailStr], Field(max_length=MAX_NOTIFY)] = Field(default_factory=list)
     notify_editors: bool = False
@@ -172,6 +194,17 @@ def check_config(config: ApprovalConfig, form: Form, live: Form | None = None) -
                 )
             )
             continue
+        if not step.allowed_domains:
+            issues.append(
+                StepIssue(
+                    n,
+                    "approver_any_domain",
+                    "warning",
+                    "The respondent chooses this approver, so the approval isn't independent: "
+                    "they could enter another address of their own. Limit approvers to your "
+                    "organisation's email domains.",
+                )
+            )
         if not info.element.required:
             issues.append(
                 StepIssue(
@@ -259,3 +292,57 @@ def publish_problems(config: ApprovalConfig, form: Form) -> list[StepIssue]:
         for i in check_config(config, form)
         if i.level == "error" and i.code in ("source_missing", "source_not_email")
     ]
+
+
+def same_person_key(email: str) -> str:
+    """An address compared for self-approval: lower case, without a ``+tag``."""
+    local, _, domain = email.strip().lower().rpartition("@")
+    return f"{local.split('+', 1)[0]}@{domain}"
+
+
+def approver_domain_ok(email: str, domains: list[str]) -> bool:
+    if not domains:
+        return True
+    host = email.strip().lower().rpartition("@")[2]
+    return any(host == d.lower().lstrip("@") for d in domains)
+
+
+def approver_problems(
+    config: ApprovalConfig,
+    form: Form,
+    data: dict[str, Any],
+    respondent_email: str | None,
+) -> list[dict[str, Any]]:
+    """Answers that can't be used as an approver's address (answer problems, like
+    ``app.validation.answers``): outside the step's allowed domains, or the respondent's own
+    address (their confirmed email, or another email answer in the same response)."""
+    if not active(config):
+        return []
+    sources = {s.field_id for s in config.steps if s.source == "field" and s.field_id}
+    own: set[str] = set()
+    if respondent_email:
+        own.add(same_person_key(respondent_email))
+    for el in email_questions(form):
+        value = data.get(el.id)
+        if el.id not in sources and isinstance(value, str) and "@" in value:
+            own.add(same_person_key(value))
+    problems: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for step in config.steps:
+        if step.source != "field" or not step.field_id or step.field_id in seen:
+            continue
+        value = data.get(step.field_id)
+        if not isinstance(value, str) or "@" not in value:
+            continue
+        seen.add(step.field_id)
+        if not approver_domain_ok(value, step.allowed_domains):
+            problems.append(
+                {
+                    "field": step.field_id,
+                    "code": "approver_domain",
+                    "params": {"domains": ", ".join(step.allowed_domains)},
+                }
+            )
+        elif same_person_key(value) in own:
+            problems.append({"field": step.field_id, "code": "approver_is_respondent"})
+    return problems

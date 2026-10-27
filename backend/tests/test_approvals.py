@@ -144,8 +144,10 @@ async def test_settings_are_checked_and_owner_only(
     body = res.json()
     assert body["config"]["steps"][1]["email"] == DIRECTOR  # normalised
     # The optional supervisor question is a warning, not an error.
+    # So is a respondent-chosen approver without allowed domains.
     assert [(i["step"], i["code"], i["level"]) for i in body["issues"]] == [
-        (1, "source_optional", "warning")
+        (1, "approver_any_domain", "warning"),
+        (1, "source_optional", "warning"),
     ]
 
 
@@ -312,6 +314,11 @@ async def test_two_step_approval_end_to_end(
     verify = (await client.get(f"/api/v1/public/verify/{sub.verify_token}")).json()
     assert verify["approval"]["state"] == "approved" and verify["approval"]["total"] == 2
     assert verify["approval"]["decidedAt"]
+    # Who decided, masked: enough to see the approver wasn't the respondent.
+    assert verify["approval"]["decisions"] == [
+        {"step": 1, "state": "approved", "by": "b•••@example.org"},
+        {"step": 2, "state": "approved", "by": "d•••@example.org"},
+    ]
 
     # Finished: the status is the staff's again, and the record stays.
     res = await client.patch(f"/api/v1/submissions/{sid}", json={"status": "in_review"})

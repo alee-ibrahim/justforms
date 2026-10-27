@@ -26,7 +26,12 @@ from typing import Any
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.approvals.config import active, load_config
+from app.approvals.config import (
+    active,
+    approver_domain_ok,
+    load_config,
+    same_person_key,
+)
 from app.config import Settings
 from app.integrity import append_event
 from app.models import (
@@ -225,6 +230,15 @@ async def start(db: AsyncSession, sub: Submission, form: FormRecord) -> Change:
             email = _address(cfg.email)
         else:
             email = _address(sub.data.get(cfg.field_id)) if cfg.field_id else None
+            # Checked at submit too; a disallowed address leaves the step for staff to decide.
+            if email and (
+                not approver_domain_ok(email, cfg.allowed_domains)
+                or (
+                    sub.respondent_email
+                    and same_person_key(email) == same_person_key(sub.respondent_email)
+                )
+            ):
+                email = None
         row = ApprovalStep(
             id=uuid.uuid4(),
             submission_id=sub.id,
@@ -528,7 +542,21 @@ async def summary(db: AsyncSession, sub: Submission) -> dict[str, Any] | None:
         "step": sub.approval_step or 1,
         "total": len(steps),
         "decidedAt": max(decided).isoformat() if finished and decided else None,
+        # Who decided each step, masked, so a reader can tell whether the approver could be
+        # the respondent; staff see the full address in the studio.
+        "decisions": [
+            {"step": s.step, "state": s.state.value, "by": mask_address(by)}
+            for s in steps
+            if s.state in (StepState.APPROVED, StepState.REJECTED)
+            and (by := s.decided_email or s.approver_email)
+        ],
     }
+
+
+def mask_address(email: str) -> str:
+    """``a•••@example.org``: the first letter and the domain."""
+    local, _, domain = email.rpartition("@")
+    return f"{local[:1]}•••@{domain}" if local and domain else "•••"
 
 
 async def printed_record(db: AsyncSession, sub: Submission) -> list[ApprovalLine]:
