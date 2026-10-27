@@ -63,6 +63,8 @@ export function errorText(error: AiState['error']): string {
       return 'Your latest changes are not saved yet. Reconnect, then try again.'
     case 'file_too_large':
       return 'This file is larger than 20 MB. Scan it at a lower resolution.'
+    case 'image_too_large':
+      return 'This image has too many pixels (more than 40 megapixels). Scan or photograph it at a lower resolution.'
     case 'unsupported_file':
       return 'Choose a PDF, JPG, PNG or WebP file.'
     case 'too_many_pages':

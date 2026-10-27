@@ -479,7 +479,12 @@ async def import_document(
     try:
         document = await asyncio.to_thread(prepare, bytes(data))
     except DocumentError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, exc.code) from None
+        code = (
+            status.HTTP_413_CONTENT_TOO_LARGE
+            if exc.code == "image_too_large"
+            else status.HTTP_422_UNPROCESSABLE_CONTENT
+        )
+        raise HTTPException(code, exc.code) from None
     del data
     history = await ai_svc.history(db, session.id)
     working, base_revision, base_schema = await _start(

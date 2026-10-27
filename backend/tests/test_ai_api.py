@@ -538,6 +538,11 @@ async def test_paper_form_import_needs_a_blank_confirmation(
     assert res.status_code == 422 and res.json()["detail"] == "blank_confirmation_required"
     res = await client.post(f"{url}?blankConfirmed=true", content=b"hello world")
     assert res.status_code == 422 and res.json()["detail"] == "unsupported_file"
+    # A small PNG with a huge canvas (a decompression bomb) is a clean 413, not a 500.
+    bomb = io.BytesIO()
+    Image.new("1", (20_000, 20_000), 1).save(bomb, "PNG", optimize=True)
+    res = await client.post(f"{url}?blankConfirmed=true", content=bomb.getvalue())
+    assert res.status_code == 413 and res.json()["detail"] == "image_too_large"
 
     provider.steps.extend(
         [
