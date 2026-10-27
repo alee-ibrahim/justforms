@@ -314,6 +314,7 @@ async def ask_message(
                     "steps": outcome.steps if outcome else [],
                     "charts": outcome.charts if outcome else [],
                     "link": outcome.link if outcome and ok else None,
+                    "unverifiedNumbers": outcome.unverified if outcome and ok else [],
                     "status": status_,
                     "error": outcome.error if outcome else None,
                 },

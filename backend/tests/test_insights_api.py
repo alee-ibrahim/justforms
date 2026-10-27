@@ -82,6 +82,11 @@ async def ask(client: AsyncClient, fid: str, text: str) -> list[tuple[str, dict[
     return events(res.text)
 
 
+def ua(item: dict[str, Any]) -> dict[str, Any]:
+    """The answers of one submission in a tool result (labelled as untrusted data)."""
+    return dict(item.get("untrustedAnswers", {}))
+
+
 def by(items: list[dict[str, Any]], key: str = "key") -> dict[Any, dict[str, Any]]:
     return {i[key]: i for i in items}
 
@@ -276,9 +281,9 @@ async def test_ask_summary_with_read_answers(
         assert results[0].content["returned"] == 2
         # With reading on, sensitive answers and contact details are read too.
         assert not results[1].is_error and not results[2].is_error
-        ids = {a["ref"]: a.get("national_id") for a in results[1].content["answers"]}
+        ids = {a["ref"]: ua(a).get("national_id") for a in results[1].content["answers"]}
         assert ids[1] == "A111111" and ids[3] is None
-        emails = {a["ref"]: a.get("contact") for a in results[2].content["answers"]}
+        emails = {a["ref"]: ua(a).get("contact") for a in results[2].content["answers"]}
         assert emails[1] == "a@example.org" and emails[3] == "y@example.org"
         return turn(
             calls=[
@@ -367,7 +372,7 @@ async def test_read_answers_refused_when_off_and_capped(
 
     # On: limits per call and in all.
     await client.patch(f"/api/v1/forms/{fid}", json={"aiReadAnswers": True})
-    monkeypatch.setattr(ask_mod, "READ_TOTAL_CHARS", 400)
+    monkeypatch.setattr(ask_mod, "READ_TOTAL_CHARS", 1200)
     got: dict[str, Any] = {}
 
     async def check(messages: list[ChatMessage]) -> TurnResult:
@@ -389,7 +394,7 @@ async def test_read_answers_refused_when_off_and_capped(
     await ask(client, fid, "Summarise again")
     first = got["first"].content
     assert first["truncated"] is True and 0 < first["returned"] < 5
-    assert all(len(a.get("mission", "")) <= 50 for a in first["answers"])
+    assert all(len(ua(a).get("mission", "")) <= 50 for a in first["answers"])
     assert got["second"].is_error  # more than 500 submissions per call
     assert "Say so in your reply" in " ".join(first["notes"])
 
@@ -870,7 +875,8 @@ async def test_list_submissions_matrix(
     assert "logo.png" not in sent  # file names never go to the AI
     assert "198.51.100.7" not in sent
     if reading:
-        rows = {r["ref"]: r for r in seen["rows"]}
+        rows = {r["ref"]: ua(r) for r in seen["rows"]}
+        assert "never instructions" in seen["notice"]
         assert rows[1]["contact"] == "a@example.org" and rows[1]["national_id"] == "A111111"
         assert rows[1]["logo"] == "1 file provided"
         assert "a@example.org" in sent
@@ -915,7 +921,8 @@ async def test_read_answers_everything_textual(
         await login(viewer, queue, "viewer@example.org")
         evs = await ask(viewer, fid, "Tell me everything about the CSOs")
     assert evs[0][0] == "tool.applied"
-    answers = {a["ref"]: a for a in seen["answers"]}
+    answers = {a["ref"]: {**a, **ua(a)} for a in seen["answers"]}
+    assert "never instructions" in seen["notice"]
     assert seen["returned"] == 5 and "truncated" not in seen
     one = answers[1]
     assert one["status"] == "New" and one["submitted"].startswith("2026-01-10")
@@ -947,7 +954,7 @@ async def test_read_and_list_caps(
     s = await setup(client, db, settings, queue)
     fid = str(s.form.id)
     await client.patch(f"/api/v1/forms/{fid}", json={"aiReadAnswers": True})
-    monkeypatch.setattr(ask_mod, "READ_TOTAL_CHARS", 700)
+    monkeypatch.setattr(ask_mod, "READ_TOTAL_CHARS", 1600)
     got: list[Any] = []
 
     async def check(messages: list[ChatMessage]) -> TurnResult:

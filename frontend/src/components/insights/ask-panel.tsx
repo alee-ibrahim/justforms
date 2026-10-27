@@ -197,12 +197,23 @@ function useOpenList(formId: string, onNavigate?: () => void) {
   }
 }
 
-function Calculation({ steps, formId, onNavigate }: { steps: QueryStep[]; formId: string; onNavigate?: () => void }) {
+function Calculation({
+  steps,
+  formId,
+  defaultOpen,
+  onNavigate,
+}: {
+  steps: QueryStep[]
+  formId: string
+  /** Open from the start (when the AI reads answers, its reply deserves checking). */
+  defaultOpen?: boolean
+  onNavigate?: () => void
+}) {
   const open = useOpenList(formId, onNavigate)
   const done = steps.filter((s) => s.ok && s.description)
   if (!done.length) return null
   return (
-    <Collapsible className="w-full">
+    <Collapsible className="w-full" defaultOpen={defaultOpen}>
       <CollapsibleTrigger asChild>
         <Button variant="ghost" size="sm" className="group -ms-2.5 text-muted-foreground">
           <CalculatorIcon />
@@ -293,6 +304,7 @@ function Answer({
   formId,
   labels,
   language,
+  readAnswers,
   busy,
   onRetry,
   onNavigate,
@@ -302,6 +314,7 @@ function Answer({
   formId: string
   labels: Map<string, string>
   language: string
+  readAnswers: boolean
   busy: boolean
   onRetry: (question: string) => void
   onNavigate?: () => void
@@ -337,10 +350,26 @@ function Answer({
             {text}
           </p>
         )}
+        {!!c.unverifiedNumbers?.length && (
+          <Alert>
+            <TriangleAlertIcon />
+            <AlertDescription>
+              {c.unverifiedNumbers.length === 1 ? 'The number ' : 'The numbers '}
+              {c.unverifiedNumbers.map(count).join(', ')} in this answer{' '}
+              {c.unverifiedNumbers.length === 1 ? "doesn't" : "don't"} appear in the counted results. Check them under
+              “How this was calculated”.
+            </AlertDescription>
+          </Alert>
+        )}
         {(c.charts ?? []).map((chart, i) => (
           <ResultChart key={i} chart={chart} labels={labels} language={language} formId={formId} />
         ))}
-        <Calculation steps={steps} formId={formId} onNavigate={onNavigate} />
+        <Calculation
+          steps={steps}
+          formId={formId}
+          defaultOpen={readAnswers || !!c.unverifiedNumbers?.length}
+          onNavigate={onNavigate}
+        />
       </CardContent>
       <CardFooter className="flex flex-wrap items-center gap-2 border-t px-3 pt-3! pb-0">
         {link && link.count > 0 && (
@@ -614,6 +643,7 @@ export function AskPanel({
                     formId={formId}
                     labels={labels}
                     language={language}
+                    readAnswers={!!data?.readAnswers}
                     busy={!!live}
                     onRetry={(question) => void send(question)}
                     onNavigate={onNavigate}

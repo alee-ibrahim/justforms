@@ -158,6 +158,8 @@ export interface AskMessage {
     link?: AnswerLink | null
     status?: AskStatus
     error?: string | null
+    /** Whole numbers in the reply that no counted result contains (checked on the server). */
+    unverifiedNumbers?: number[]
   }
   createdAt: string
 }
@@ -173,6 +175,7 @@ export type AskEvent =
   | { event: 'tool.applied' | 'tool.error'; data: QueryStep }
   | { event: 'chart'; data: ChartSpec }
   | { event: 'link'; data: AnswerLink }
+  | { event: 'check'; data: { unverifiedNumbers: number[] } }
   | { event: 'error'; data: { code: string } }
   | { event: 'cancelled'; data: Record<string, never> }
   | { event: 'done'; data: { usage: { in: number; out: number } } }
@@ -219,6 +222,8 @@ export function askErrorText(code: string | null | undefined): string {
       return "Today's AI allowance is used up. Try again tomorrow."
     case 'too_many_requests':
       return 'Too many questions in a short time. Wait a few minutes and ask again.'
+    case 'too_large':
+      return 'This question needs too much data at once. Ask about fewer questions or submissions, or start a new chat.'
     case 'timeout':
       return 'That took too long. Try a simpler question.'
     case 'provider_unavailable':
