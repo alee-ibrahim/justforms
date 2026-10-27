@@ -13,6 +13,9 @@ RUN pnpm build
 # listens on port 80: Docker lets non-root processes bind it, and the Helm chart sets the
 # net.ipv4.ip_unprivileged_port_start sysctl to 0 for the pod.
 FROM nginxinc/nginx-unprivileged:1.29-alpine
+# The upstream image lags behind Alpine security updates; take them at build time.
+USER root
+RUN apk upgrade --no-cache
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY docker/security-headers.inc /etc/nginx/snippets/justforms-security-headers.inc
 COPY --chmod=0755 docker/16-justforms-csp.envsh /docker-entrypoint.d/16-justforms-csp.envsh

@@ -2,6 +2,10 @@
 FROM python:3.13-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.13 /uv /uvx /bin/
+# The app runs from uv's venv; the base image's pip (and its vendored urllib3, msgpack, ...) and
+# ensurepip are never used, so they are removed rather than shipped with their CVEs.
+RUN python -m pip uninstall -y -q pip \
+    && rm -rf "$(python -c 'import ensurepip, os; print(os.path.dirname(ensurepip.__file__))')"
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
