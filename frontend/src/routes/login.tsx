@@ -82,8 +82,10 @@ export function LocalLogin({
       queryClient.setQueryData(['me'], me)
       if (onSignedIn) return onSignedIn(me)
       // Public forms (/{slug}) are a separate app: leave the studio for them.
-      if (isStudioPath(next)) await navigate({ to: next })
-      else window.location.assign(next)
+      // Only ever a same-origin path, however `next` reached this component.
+      const target = loginTarget(next)
+      if (isStudioPath(target)) await navigate({ to: target })
+      else window.location.assign(target)
     },
     onError: (err) => {
       // Clear the slots so the next code can be typed straight away (REVIEW P2-14).

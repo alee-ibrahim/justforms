@@ -89,4 +89,15 @@ describe('automatic single sign-on', () => {
     expect(loginTarget('/\\evil')).toBe('/forms')
     expect(loginTarget('/settings/people')).toBe('/settings/people')
   })
+
+  it('never leaves the origin, even through characters URL parsing drops (open redirect)', () => {
+    const origin = 'https://forms.example'
+    // new URL('/\t/evil.example', origin) is https://evil.example/
+    for (const next of ['/\t/evil.example', '/\n/evil.example', '/\r/evil.example', '/ /evil.example',
+      '/\u0000/evil.example', '/\\/evil.example', '\t//evil.example', '/%09/x\\']) {
+      expect(loginTarget(next, origin)).toBe('/forms')
+    }
+    expect(loginTarget('/my-form?embed=1#top', origin)).toBe('/my-form?embed=1#top')
+    expect(loginTarget('/login/invite/tok', origin)).toBe('/login/invite/tok')
+  })
 })

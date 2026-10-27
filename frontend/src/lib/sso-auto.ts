@@ -49,9 +49,29 @@ export const markSignedOut = (s?: Store | null) => write(SIGNED_OUT_KEY, '1', s)
 export const clearSignedOut = (s?: Store | null) => write(SIGNED_OUT_KEY, null, s)
 export const isSignedOut = (s?: Store | null) => read(SIGNED_OUT_KEY, s) === '1'
 
-/** Where to land after signing in: a same-origin path, else the forms list. */
-export const loginTarget = (next: string | undefined) =>
-  next && next.startsWith('/') && !next.startsWith('//') && !next.includes('\\') ? next : '/forms'
+// Control characters, spaces and backslashes: browsers drop or rewrite them while parsing a
+// URL ("/\t/evil.example" becomes "//evil.example"), so a path holding one is never used.
+// eslint-disable-next-line no-control-regex
+const UNSAFE_PATH = /[\u0000- \u007f\\]/
+
+function currentOrigin(): string {
+  try {
+    return window.location.origin
+  } catch {
+    return 'http://localhost'
+  }
+}
+
+/** Where to land after signing in: a same-origin relative path, else the forms list. */
+export function loginTarget(next: string | undefined | null, origin = currentOrigin()): string {
+  if (!next || !next.startsWith('/') || next.startsWith('//') || UNSAFE_PATH.test(next)) return '/forms'
+  try {
+    if (new URL(next, origin).origin !== new URL(origin).origin) return '/forms'
+  } catch {
+    return '/forms'
+  }
+  return next
+}
 
 export interface AutoSignInInput {
   features: Pick<Meta['features'], 'oidc' | 'oidcAutoRedirect'> | undefined
