@@ -37,7 +37,7 @@ exercise every mode; `just helm-lint` lints and renders both.
 |---|---|
 | Deployment `<fullname>-backend` + Service | uvicorn on `backend.port` (8000). Probes on `/api/health`. |
 | Deployment `<fullname>-worker` | `arq app.worker.WorkerSettings`. No probes by default (no HTTP). |
-| Deployment `<fullname>-frontend` + Service | Stock nginx image, port 80. Probes on `/`. |
+| Deployment `<fullname>-frontend` + Service | Unprivileged nginx image (uid 101), port 80. Probes on `/`. |
 | Job `<fullname>-migrate` | `alembic upgrade head` as a `pre-install,pre-upgrade` hook. |
 | PersistentVolumeClaim `<fullname>-storage` | Local storage only, unless `existingClaim`. Kept on `helm uninstall`. |
 | ServiceAccount | Optional; token not mounted (the app never calls the Kubernetes API). |
@@ -160,10 +160,11 @@ replacing the file.
 - Backend, worker and migrate run as uid/gid 10001 (`runAsNonRoot`), with a read-only root
   filesystem (`/tmp` is an emptyDir), no privilege escalation, all capabilities dropped and the
   `RuntimeDefault` seccomp profile.
-- The frontend is the stock nginx image: a root master process on port 80 that drops to the
-  `nginx` user for workers. Its root filesystem is read-only, with emptyDirs for
-  `/etc/nginx/conf.d` (rendered templates), `/var/cache/nginx`, `/run` and `/tmp`. All
-  capabilities are dropped except `NET_BIND_SERVICE`, `CHOWN`, `SETUID` and `SETGID`.
+- The frontend runs unprivileged nginx as uid 101 with every capability dropped. It still
+  listens on port 80: the pod sets the safe sysctl `net.ipv4.ip_unprivileged_port_start=0`
+  (allowed by the `restricted` Pod Security Standard). Its root filesystem is read-only, with
+  emptyDirs for `/etc/nginx/conf.d` (rendered templates), `/var/cache/nginx`, `/run` and
+  `/tmp`. Backend, worker, migrate and frontend all satisfy `restricted`.
 - NetworkPolicies (`networkPolicy.enabled`): the frontend accepts HTTP from
   `networkPolicy.frontend.from` (anyone when empty), the backend only from the frontend, the
   worker from nobody. With `networkPolicy.egress.enabled`, egress is limited to DNS, frontend to
@@ -352,7 +353,8 @@ unless noted.
 | `httpRoute.enabled` / `.annotations` | `false` / `{}` | Gateway API `HTTPRoute` (v1) |
 | `httpRoute.parentRefs` | `[]` | Required when enabled |
 | `httpRoute.hostnames` | `[]` | Empty: host of `publicUrl` |
-| `httpRoute.timeouts` | `{request: 300s}` | Rule timeouts. AI answers stream for up to `JUSTFORMS_AI_TURN_SECONDS`, and some gateways end a request after 15 s by default. `{}`: the gateway's defaults |
+| `httpRoute.timeouts` | `{request: 60s}` | Timeouts of the catch-all rule. `{}`: the gateway's defaults (some end a request after 15 s) |
+| `httpRoute.longRequests.matches` / `.timeouts` | AI streams, uploads, downloads, exports, PDFs / `{request: 300s}` | A rule before the catch-all for requests that may run long (AI answers stream for up to `JUSTFORMS_AI_TURN_SECONDS`). Gateway API `HTTPRouteMatch` list; `[]` disables it |
 | `networkPolicy.enabled` | `false` | |
 | `networkPolicy.frontend.from` | `[]` | NetworkPolicy peers allowed to reach the frontend (empty: any) |
 | `networkPolicy.egress.enabled` | `false` | Restrict egress too |

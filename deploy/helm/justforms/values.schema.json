@@ -921,6 +921,23 @@
           "items": {
             "type": "string"
           }
+        },
+        "timeouts": {
+          "type": "object"
+        },
+        "longRequests": {
+          "type": "object",
+          "properties": {
+            "timeouts": {
+              "type": "object"
+            },
+            "matches": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
         }
       }
     },
