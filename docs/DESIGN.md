@@ -515,11 +515,11 @@ Optional superadmin group mapping: `JUSTFORMS_OIDC_SUPERADMIN_GROUPS`, independe
 
 The backend acts as a confidential client (BFF pattern). No tokens reach the browser.
 
-1. SPA → `GET /api/v1/auth/login?next=/forms`. The API creates `state`, `nonce` and a PKCE verifier, stores them in Redis for 10 minutes, and redirects with 302 to the IdP authorize endpoint.
-2. IdP → `GET /api/v1/auth/callback?code&state`. The API exchanges the code, validates the ID token (issuer, audience, nonce, signature via JWKS), and upserts the user by (`iss`, `sub`) with email and name. Group mappings (org roles and superadmin, §7) are applied at this point.
-3. The API creates a server-side session in Redis (8 h idle, 7 d absolute) and sets the `justforms_session` cookie (`HttpOnly; Secure; SameSite=Lax; Path=/`) plus a non-HttpOnly `justforms_csrf` cookie.
-4. Logout clears the session and, if the IdP advertises `end_session_endpoint`, performs RP-initiated logout.
-5. A successful sign-in redirects to `next` (a same-origin path), else `/forms`, never `/`, and sends `Clear-Site-Data: "cache", "storage"` (not `"cookies"`: the session cookie is on the same response) so cached redirects and service workers left by an earlier app on the hostname are cleared. nginx answers 404 for common service-worker script paths so such a worker unregisters; JustForms has none.
+1. SPA → `GET /api/v1/auth/login?next=/forms`. The API creates `state`, `nonce` and a PKCE verifier, stores them in Redis for 10 minutes, sets a 10-minute HttpOnly cookie holding a hash of `state` (`__Host-justforms_oidc_state` behind HTTPS) that binds the sign-in to this browser, and redirects with 302 to the IdP authorize endpoint.
+2. IdP → `GET /api/v1/auth/callback?code&state`. The API refuses a `state` whose hash doesn't match the browser's cookie (login CSRF), exchanges the code, validates the ID token (issuer, audience, nonce, signature via JWKS), and upserts the user by (`iss`, `sub`) with email and name. Group mappings (org roles and superadmin, §7) are applied at this point.
+3. The API creates a server-side session in Redis (8 h idle, 7 d absolute) and sets the `justforms_session` cookie (`HttpOnly; Secure; SameSite=Lax; Path=/`) plus a non-HttpOnly `justforms_csrf` cookie. With secure cookies both are named with the `__Host-` prefix and only those names are read.
+4. Logout clears the session, sends `Clear-Site-Data: "cookies"` and, if the IdP advertises `end_session_endpoint`, performs RP-initiated logout.
+5. A successful sign-in redirects to `next` (a same-origin path without control characters, spaces or backslashes, checked by the API and again by the SPA), else `/forms`, never `/`, and sends `Clear-Site-Data: "cache", "storage"` (not `"cookies"`: the session cookie is on the same response) so cached redirects and service workers left by an earlier app on the hostname are cleared. nginx answers 404 for common service-worker script paths so such a worker unregisters; JustForms has none.
 
 **Automatic sign-in** (`JUSTFORMS_OIDC_AUTO_REDIRECT`, default on when OIDC is configured). OIDC is then the only staff method, so the `/login` route's `beforeLoad` (reached directly, or through the signed-out redirect of any studio route) sends the browser to `/api/v1/auth/login?next=…` with `location.replace` before anything renders; the page shows only "Signing you in…". A pending invitation link does the same with `next=/login/invite/{token}` and `login_hint` = the invited address. Escape hatches, so it never loops:
 
@@ -1161,7 +1161,7 @@ chip.
 
 ## 17. API surface (`/api/v1`)
 
-All endpoints are JSON. OpenAPI is served at `/api/v1/openapi.json`, and the TS client for the studio is generated from it with `openapi-typescript`.
+All endpoints are JSON. OpenAPI is served at `/api/v1/openapi.json` (with `/api/docs`, `/api/redoc`) outside production, or with `JUSTFORMS_API_DOCS=true`, and the TS client for the studio is generated from it with `openapi-typescript`.
 
 **Meta and auth**
 - `GET /meta` — version and enabled features (`ai`, `oidc`, `captcha` providers)

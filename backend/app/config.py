@@ -15,6 +15,9 @@ log = logging.getLogger(__name__)
 # Only used outside production when JUSTFORMS_SECRET_KEY is unset. Not a secret: production
 # refuses to start without a real key.
 _DEV_SECRET_KEY = "justforms-insecure-development-key"
+# Production refuses shorter keys and the placeholders shipped in examples.
+MIN_SECRET_KEY_BYTES = 32
+_PLACEHOLDER_SECRET_PREFIXES = ("change-me", "changeme", "replace-me", "your-secret")
 
 
 def _csv(value: object) -> object:
@@ -82,8 +85,11 @@ class Settings(BaseSettings):
     # -- sessions ---------------------------------------------------------------------------
     session_idle_seconds: int = Field(default=8 * 3600, ge=60)
     session_absolute_seconds: int = Field(default=7 * 24 * 3600, ge=60)
-    # Secure cookie flag; defaults to on in production.
+    # Secure cookie flag; defaults to on in production. Secure cookies get the __Host- prefix.
     cookie_secure: bool | None = None
+    # Interactive API docs (/api/docs, /api/redoc) and the OpenAPI document. Unset: on outside
+    # production, off in production.
+    api_docs: bool | None = None
 
     # -- staff login ------------------------------------------------------------------------
     # OIDC (e.g. Entra ID, Keycloak). When the issuer is set, local email-code login is off.
@@ -346,6 +352,7 @@ class Settings(BaseSettings):
         "brand_logo_dark_file",
         "brand_icon_file",
         "demo_login_code",
+        "api_docs",
         mode="before",
     )
     @classmethod
@@ -382,8 +389,13 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _production_requirements(self) -> Self:
-        if self.environment == "production" and self.secret_key is None:
-            raise ValueError("JUSTFORMS_SECRET_KEY is required in production")
+        if self.environment == "production":
+            self._check_production_secret()
+            if self.demo_login_code is not None:
+                raise ValueError(
+                    "JUSTFORMS_DEMO_LOGIN_CODE is for demo instances only and is refused with "
+                    "JUSTFORMS_ENVIRONMENT=production"
+                )
         if self.captcha_provider in ("turnstile", "hcaptcha") and (
             not self.captcha_site_key or self.captcha_secret_key is None
         ):
@@ -412,6 +424,20 @@ class Settings(BaseSettings):
         self._check_demo_login()
         return self
 
+    def _check_production_secret(self) -> None:
+        if self.secret_key is None:
+            raise ValueError("JUSTFORMS_SECRET_KEY is required in production")
+        key = self.secret_key.get_secret_value()
+        if key == _DEV_SECRET_KEY or key.strip().lower().startswith(_PLACEHOLDER_SECRET_PREFIXES):
+            raise ValueError(
+                "JUSTFORMS_SECRET_KEY is a placeholder; generate one, e.g. "
+                '`python -c "import secrets; print(secrets.token_urlsafe(48))"`'
+            )
+        if len(key.encode()) < MIN_SECRET_KEY_BYTES:
+            raise ValueError(
+                f"JUSTFORMS_SECRET_KEY must be at least {MIN_SECRET_KEY_BYTES} bytes in production"
+            )
+
     def _check_demo_login(self) -> None:
         if self.demo_login_code is None:
             if self.demo_login_emails:
@@ -434,6 +460,12 @@ class Settings(BaseSettings):
     @property
     def demo_login_enabled(self) -> bool:
         return self.demo_login_code is not None and self.local_login_enabled
+
+    @property
+    def api_docs_enabled(self) -> bool:
+        if self.api_docs is not None:
+            return self.api_docs
+        return self.environment != "production"
 
     @property
     def oidc_enabled(self) -> bool:

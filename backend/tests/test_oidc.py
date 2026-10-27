@@ -742,3 +742,39 @@ async def test_admin_change_keeps_a_superadmin_granted_role(
     await _sign_in(client, idp)
     membership = await _default_membership(db)
     assert membership is not None and membership.role == OrgRole.ADMIN
+
+
+def test_safe_next_rejects_what_url_parsing_rewrites() -> None:
+    for value in (
+        "/\t/evil.example",
+        "/\n/evil.example",
+        "/\r/evil.example",
+        "/ /evil.example",
+        "/\x00/evil.example",
+        "/\x7f/evil",
+        "/\\/evil.example",
+    ):
+        assert safe_next(value) == "/forms", repr(value)
+    assert safe_next("/my-form?embed=1#x") == "/my-form?embed=1#x"
+
+
+async def test_callback_must_come_back_to_the_browser_that_started(
+    app: Any, client: AsyncClient, idp: FakeIdP, db: AsyncSession
+) -> None:
+    """Login CSRF: an attacker starts a sign-in as themselves and sends the victim the callback
+    link; the victim's browser has no matching state cookie, so it is refused."""
+    from tests.conftest import make_client
+
+    async with make_client(app) as attacker:
+        state = await _start(attacker, idp)
+    res = await client.get("/api/v1/auth/callback", params={"code": "abc", "state": state})
+    assert res.headers["location"] == "/login?error=sso_failed"
+    assert "justforms_session" not in client.cookies
+    # A forged cookie doesn't help either.
+    client.cookies.set("justforms_oidc_state", "0" * 64)
+    res = await client.get("/api/v1/auth/callback", params={"code": "abc", "state": state})
+    assert res.headers["location"] == "/login?error=sso_failed"
+    # The browser that started a sign-in finishes it, and the cookie is cleared.
+    client.cookies.clear()
+    await _sign_in(client, idp)
+    assert "justforms_oidc_state" not in client.cookies

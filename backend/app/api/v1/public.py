@@ -33,7 +33,12 @@ from app.api.v1.sharing import page_head
 from app.approvals import service as approvals
 from app.auth import respondent as otp
 from app.auth.deps import DbDep, RedisDep, SettingsDep, StorageDep, check_origin
-from app.auth.sessions import CSRF_COOKIE, CSRF_HEADER, SESSION_COOKIE, load_session
+from app.auth.sessions import (
+    CSRF_HEADER,
+    csrf_cookie_name,
+    load_session,
+    session_cookie_name,
+)
 from app.branding.service import resolve as resolve_brand
 from app.config import Settings
 from app.ids import uuid7
@@ -152,13 +157,14 @@ def _otp_settings(form: FormRecord) -> tuple[list[str], bool]:
 async def _staff_email(
     request: Request, db: DbDep, redis: RedisDep, settings: Settings
 ) -> str | None:
-    session = await load_session(redis, settings, request.cookies.get(SESSION_COOKIE))
+    token = request.cookies.get(session_cookie_name(settings))
+    session = await load_session(redis, settings, token)
     if session is None:
         return None
     if request.method not in ("GET", "HEAD"):
         check_origin(request, settings)
         header = request.headers.get(CSRF_HEADER, "")
-        cookie = request.cookies.get(CSRF_COOKIE, "")
+        cookie = request.cookies.get(csrf_cookie_name(settings), "")
         if not (
             header
             and hmac.compare_digest(header, cookie)

@@ -24,9 +24,10 @@ A name like `JUSTFORMS_S3_ENDPOINT_URL`, `_BUCKET` means `JUSTFORMS_S3_ENDPOINT_
 | Variable | Default | Purpose |
 |---|---|---|
 | `JUSTFORMS_PUBLIC_URL` | `http://localhost:5173` | The URL people open. Used for links, redirects and Origin checks |
-| `JUSTFORMS_SECRET_KEY` | none (required) | Long random secret. Encrypts the PDF signing key: keep it stable |
+| `JUSTFORMS_SECRET_KEY` | none (required) | Long random secret. Encrypts the PDF signing key: keep it stable. Production refuses keys shorter than 32 bytes and placeholders (`change-me…`, the built-in development key) |
 | `JUSTFORMS_DATABASE_URL`, `JUSTFORMS_REDIS_URL` | local defaults | PostgreSQL (asyncpg) and Redis |
-| `JUSTFORMS_COOKIE_SECURE` | auto | Set `true` behind HTTPS |
+| `JUSTFORMS_COOKIE_SECURE` | auto | Set `true` behind HTTPS. Secure cookies are named `__Host-justforms_session` / `__Host-justforms_csrf` (switching signs people out once) |
+| `JUSTFORMS_API_DOCS` | on outside production, off in production | Interactive API docs (`/api/docs`, `/api/redoc`) and `/api/v1/openapi.json` |
 | `JUSTFORMS_TIMEZONE` | `UTC` | Dates in exports and PDFs, and "today" in date limits |
 | `JUSTFORMS_TRUSTED_PROXIES` | empty (compose and Helm: private ranges) | Proxies (IPs or CIDRs) whose `X-Forwarded-For` is trusted: normally the web container only. The right-most hop that isn't one of them is the client. See [Client IP address](deployment.md#client-ip-address) |
 | `FORWARDED_ALLOW_IPS` | `127.0.0.1,::1` | uvicorn's own proxy trust (it also sets the scheme from `X-Forwarded-Proto`). Same addresses as above or fewer; never `*` (refused in production) |
@@ -69,7 +70,7 @@ does this for you. The bucket also needs a CORS rule allowing `POST`, `GET` and 
 | `JUSTFORMS_OIDC_EMAIL_FALLBACK_CLAIMS` | empty | Claims read for the address when the ID token has no `email`, e.g. `preferred_username` (see below) |
 | `JUSTFORMS_INVITE_DAYS` | `14` | How long an invitation to join an organisation stays open (a resend restarts it) |
 | `JUSTFORMS_LOGIN_CODE_TTL_SECONDS`, `_LOGIN_CODE_MAX_ATTEMPTS` | `600`, `5` | Emailed sign-in codes |
-| `JUSTFORMS_DEMO_LOGIN_CODE`, `JUSTFORMS_DEMO_LOGIN_EMAILS` | unset (off) | **Demo instances only.** See below |
+| `JUSTFORMS_DEMO_LOGIN_CODE`, `JUSTFORMS_DEMO_LOGIN_EMAILS` | unset (off) | **Demo instances only**; refused with `JUSTFORMS_ENVIRONMENT=production`. See below |
 | `JUSTFORMS_DEFAULT_ORG_NAME`, `_DEFAULT_ORG_SLUG` | `JustForms`, `default` | The organisation created on first start |
 
 Respondents who must confirm their email before filling a form get their own codes:

@@ -325,3 +325,41 @@ async def test_demo_code_is_off_by_default(
         "/api/v1/auth/local/verify", json={"email": "demo@example.org", "code": DEMO_CODE}
     )
     assert res.status_code == 400
+
+
+async def test_secure_install_uses_host_prefixed_cookies(
+    app: Any, client: AsyncClient, db: AsyncSession, queue: RecordingQueue, settings: Settings
+) -> None:
+    secure = settings.model_copy(update={"cookie_secure": True})
+    app.dependency_overrides[get_settings] = lambda: secure
+    await create_admin(db, secure, "admin@example.org")
+    await db.commit()
+    await client.post("/api/v1/auth/local/request", json={"email": "admin@example.org"})
+    res = await client.post(
+        "/api/v1/auth/local/verify",
+        json={"email": "admin@example.org", "code": queue.last_code("admin@example.org")},
+    )
+    assert res.status_code == 200
+    set_cookies = res.headers.get_list("set-cookie")
+    session = next(c for c in set_cookies if c.startswith("__Host-justforms_session="))
+    csrf = next(c for c in set_cookies if c.startswith("__Host-justforms_csrf="))
+    for cookie in (session, csrf):
+        assert "secure" in cookie.lower() and "path=/" in cookie.lower()
+        assert "domain" not in cookie.lower()
+    assert "httponly" in session.lower() and "httponly" not in csrf.lower()
+    token = session.split(";")[0].split("=", 1)[1]
+    csrf_value = csrf.split(";")[0].split("=", 1)[1]
+    # The plain name is not read on a secure install (no cookie planted by a subdomain).
+    plain = {"Cookie": f"justforms_session={token}"}
+    assert (await client.get("/api/v1/auth/me", headers=plain)).status_code == 401
+    # https-only cookies aren't sent back over the test transport: pass them by hand.
+    client.cookies.clear()
+    headers = {"Cookie": f"__Host-justforms_session={token}; __Host-justforms_csrf={csrf_value}"}
+    assert (await client.get("/api/v1/auth/me", headers=headers)).status_code == 200
+    res = await client.post(
+        "/api/v1/auth/logout",
+        headers={**headers, "X-CSRF-Token": csrf_value, "Origin": "http://testserver"},
+    )
+    assert res.status_code == 200
+    assert res.headers["clear-site-data"] == '"cookies"'
+    assert (await client.get("/api/v1/auth/me", headers=headers)).status_code == 401

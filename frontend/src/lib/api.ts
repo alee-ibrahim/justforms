@@ -23,7 +23,10 @@ export class ApiError extends Error {
 const UNSAFE = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 export function csrfToken(): string {
-  const match = document.cookie.match(/(?:^|;\s*)justforms_csrf=([^;]+)/)
+  // Secure installs use the __Host- name (set by the API); prefer it over a leftover plain one.
+  const match =
+    document.cookie.match(/(?:^|;\s*)__Host-justforms_csrf=([^;]+)/) ??
+    document.cookie.match(/(?:^|;\s*)justforms_csrf=([^;]+)/)
   return match ? decodeURIComponent(match[1]) : ''
 }
 

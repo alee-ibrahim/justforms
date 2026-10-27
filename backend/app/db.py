@@ -31,7 +31,10 @@ class Base(DeclarativeBase):
 @lru_cache
 def get_engine() -> AsyncEngine:
     settings = get_settings()
-    return create_async_engine(settings.database_url, pool_pre_ping=True, echo=settings.debug)
+    # hide_parameters: SQL errors and logs never include bound values (answers, emails, tokens).
+    return create_async_engine(
+        settings.database_url, pool_pre_ping=True, echo=settings.debug, hide_parameters=True
+    )
 
 
 @lru_cache

@@ -6,6 +6,10 @@ stores only its SHA-256, so a Redis dump cannot be replayed as cookies. Sessions
 
 CSRF uses the double-submit pattern: a random token is stored in the session and also set as
 the readable ``justforms_csrf`` cookie; unsafe requests must echo it in ``X-CSRF-Token``.
+
+With secure cookies (production or JUSTFORMS_COOKIE_SECURE) both names carry the ``__Host-``
+prefix, so a sibling subdomain can't plant them; only the prefixed names are read then (people
+signed in before the switch sign in once more).
 """
 
 from __future__ import annotations
@@ -23,7 +27,17 @@ from app.config import Settings
 
 SESSION_COOKIE = "justforms_session"
 CSRF_COOKIE = "justforms_csrf"
+SESSION_COOKIE_HOST = f"__Host-{SESSION_COOKIE}"
+CSRF_COOKIE_HOST = f"__Host-{CSRF_COOKIE}"
 CSRF_HEADER = "X-CSRF-Token"
+
+
+def session_cookie_name(settings: Settings) -> str:
+    return SESSION_COOKIE_HOST if settings.secure_cookies else SESSION_COOKIE
+
+
+def csrf_cookie_name(settings: Settings) -> str:
+    return CSRF_COOKIE_HOST if settings.secure_cookies else CSRF_COOKIE
 
 
 @dataclass
@@ -129,13 +143,23 @@ def set_session_cookies(
         "samesite": "lax",
         "max_age": settings.session_absolute_seconds,
     }
-    response.set_cookie(SESSION_COOKIE, token, httponly=True, **common)  # type: ignore[arg-type]
-    response.set_cookie(CSRF_COOKIE, session.csrf, httponly=False, **common)  # type: ignore[arg-type]
+    session_name, csrf_name = session_cookie_name(settings), csrf_cookie_name(settings)
+    response.set_cookie(session_name, token, httponly=True, **common)  # type: ignore[arg-type]
+    response.set_cookie(csrf_name, session.csrf, httponly=False, **common)  # type: ignore[arg-type]
+    if settings.secure_cookies:
+        # Cookies from before the __Host- names: the SPA must not pick up a stale CSRF token.
+        for name in (SESSION_COOKIE, CSRF_COOKIE):
+            response.delete_cookie(name, path="/", secure=True, samesite="lax")
 
 
 def clear_session_cookies(response: Response, settings: Settings) -> None:
     for name in (SESSION_COOKIE, CSRF_COOKIE):
         response.delete_cookie(name, path="/", secure=settings.secure_cookies, samesite="lax")
+    if settings.secure_cookies:
+        for name in (SESSION_COOKIE_HOST, CSRF_COOKIE_HOST):
+            response.delete_cookie(name, path="/", secure=True, samesite="lax")
+    # Signing out: the browser drops every cookie of this origin as well.
+    response.headers["Clear-Site-Data"] = '"cookies"'
 
 
 # Sent with a successful sign-in. Clears what a previous app on the same hostname may have left

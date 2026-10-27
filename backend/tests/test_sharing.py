@@ -382,7 +382,7 @@ async def test_unpublished_form_studio_preview_uses_the_draft(
     got = (await client.get(f"/api/v1/forms/{form['id']}/sharing")).json()
     assert got["published"] is False and got["effectiveTitle"] == "Draft only"
     img = await client.get(got["imageUrl"])
-    assert img.status_code == 200 and "private" in img.headers["cache-control"]
+    assert img.status_code == 200 and img.headers["cache-control"] == "no-store"  # staff route
 
 
 @pytest.mark.parametrize("hostile", [HOSTILE, "a\r\nX-Injected: 1", "</title><script>x</script>"])

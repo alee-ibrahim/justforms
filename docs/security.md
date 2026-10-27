@@ -50,8 +50,21 @@ problem. Abuse-control settings are in [Configuration](configuration.md#abuse-co
   submission that has them is recorded in its activity log.
 - **Integrity.** Every submission has a SHA-256 content hash (RFC 8785 canonical JSON) and a
   hash-chained activity log; every change goes through that log.
-- **Demo login** (`JUSTFORMS_DEMO_LOGIN_CODE`) is for demo instances only; never set it on a
-  real install.
+- **Demo login** (`JUSTFORMS_DEMO_LOGIN_CODE`) is for demo instances only: the API refuses to
+  start with it in production.
+- **Secret key.** In production the API refuses to start without `JUSTFORMS_SECRET_KEY`, with
+  one shorter than 32 bytes, or with a placeholder such as the `.env.example` value. It signs
+  respondent and approver tokens and keys code HMACs, and encrypts the PDF signing key.
+- **Cookies and caching.** Behind HTTPS the session and CSRF cookies use the `__Host-` prefix
+  (Secure, whole site, no Domain), so a sibling subdomain can't plant them. OIDC sign-in binds
+  its `state` to the browser with a short-lived cookie, so a callback link can't sign someone
+  into another account. Signing out sends `Clear-Site-Data: "cookies"`. Staff API responses,
+  token links and authenticated downloads are `Cache-Control: no-store`. After signing in, only
+  a same-origin path is followed (`next`); control characters, spaces and backslashes are
+  refused.
+- **Information.** API docs and the OpenAPI document are off in production
+  (`JUSTFORMS_API_DOCS`); SQL errors never include bound values; access logs carry no query
+  strings or link tokens.
 
 ## Signed PDFs and the verify page
 

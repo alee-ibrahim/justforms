@@ -12,6 +12,19 @@ from app.security import SecurityHeadersMiddleware
 log = logging.getLogger(__name__)
 
 
+class _AccessLogWithoutQuery(logging.Filter):
+    """uvicorn's access log without query strings (OIDC codes and state, search terms)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if isinstance(args, tuple) and len(args) >= 3 and isinstance(args[2], str):
+            record.args = (*args[:2], args[2].split("?", 1)[0], *args[3:])
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_AccessLogWithoutQuery())
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     if os.environ.get("FORWARDED_ALLOW_IPS", "").strip() == "*":
@@ -42,8 +55,11 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="JustForms API",
         version=__version__,
-        docs_url="/api/docs",
-        openapi_url="/api/v1/openapi.json",
+        # Off in production unless JUSTFORMS_API_DOCS=true: the full API map helps attackers more
+        # than anyone else. The SPA doesn't use the document at run time.
+        docs_url="/api/docs" if settings.api_docs_enabled else None,
+        redoc_url="/api/redoc" if settings.api_docs_enabled else None,
+        openapi_url="/api/v1/openapi.json" if settings.api_docs_enabled else None,
     )
     app.add_middleware(
         CORSMiddleware,

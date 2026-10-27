@@ -6,11 +6,17 @@ import hmac
 import uuid
 from typing import Annotated
 
-from fastapi import Cookie, Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.sessions import CSRF_COOKIE, CSRF_HEADER, SESSION_COOKIE, Session, load_session
+from app.auth.sessions import (
+    CSRF_HEADER,
+    Session,
+    csrf_cookie_name,
+    load_session,
+    session_cookie_name,
+)
 from app.config import Settings, get_settings
 from app.db import get_session as get_db
 from app.models import User
@@ -47,12 +53,9 @@ async def origin_guard(request: Request, settings: SettingsDep) -> None:
 
 
 async def optional_session(
-    request: Request,
-    redis: RedisDep,
-    settings: SettingsDep,
-    token: Annotated[str | None, Cookie(alias=SESSION_COOKIE)] = None,
+    request: Request, redis: RedisDep, settings: SettingsDep
 ) -> Session | None:
-    return await load_session(redis, settings, token)
+    return await load_session(redis, settings, request.cookies.get(session_cookie_name(settings)))
 
 
 async def require_session(
@@ -65,7 +68,7 @@ async def require_session(
     if request.method not in SAFE_METHODS:
         check_origin(request, settings)
         header = request.headers.get(CSRF_HEADER, "")
-        cookie = request.cookies.get(CSRF_COOKIE, "")
+        cookie = request.cookies.get(csrf_cookie_name(settings), "")
         if not (
             header
             and hmac.compare_digest(header, cookie)

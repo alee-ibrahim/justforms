@@ -22,7 +22,14 @@ from app.auth.deps import (
     SettingsDep,
     origin_guard,
 )
-from app.auth.oidc import OIDCError, get_oidc_client
+from app.auth.oidc import (
+    STATE_TTL_SECONDS,
+    OIDCError,
+    get_oidc_client,
+    state_cookie_name,
+    state_digest,
+    state_matches,
+)
 from app.auth.sessions import (
     clear_session_cookies,
     clear_stale_site_data,
@@ -223,6 +230,7 @@ def _require_oidc(settings: SettingsDep) -> None:
 
 @router.get("/login", dependencies=[Depends(_require_oidc), AuthLimited])
 async def oidc_login(
+    request: Request,
     redis: RedisDep,
     settings: SettingsDep,
     next: Annotated[str | None, Query()] = None,
@@ -231,11 +239,23 @@ async def oidc_login(
     # Only an email address is passed on as a hint (invitation links); anything else is dropped.
     hint = normalize_email(login_hint) if login_hint and _EMAIL_HINT.match(login_hint) else None
     try:
-        url = await get_oidc_client(settings).start(redis, next, hint)
+        url, state = await get_oidc_client(settings).start(redis, next, hint)
     except OIDCError as exc:
         log.warning("OIDC login failed to start: %s", exc)
         return RedirectResponse("/login?error=sso_unavailable", status.HTTP_302_FOUND)
-    return RedirectResponse(url, status.HTTP_302_FOUND)
+    response = RedirectResponse(url, status.HTTP_302_FOUND)
+    # Only this browser can finish this sign-in: the callback must carry the matching cookie,
+    # so nobody can send someone a callback link that signs them into another account.
+    response.set_cookie(
+        state_cookie_name(settings),
+        state_digest(state),
+        max_age=STATE_TTL_SECONDS,
+        path="/",
+        secure=settings.secure_cookies,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
 
 
 def _claim_email(settings: SettingsDep, claims: dict[str, Any]) -> tuple[str | None, bool]:
@@ -520,14 +540,17 @@ async def oidc_callback(
     error: str | None = None,
 ) -> RedirectResponse:
     if error or not code or not state:
-        return RedirectResponse("/login?error=sso_failed", status.HTTP_302_FOUND)
+        return _sso_failed(settings)
+    if not state_matches(state, request.cookies.get(state_cookie_name(settings))):
+        log.warning("OIDC callback rejected: state not started in this browser")
+        return _sso_failed(settings)
     try:
         claims, id_token, next_path = await get_oidc_client(settings).finish(redis, code, state)
         user, reduced = await upsert_oidc_user(db, settings, claims)
     except OIDCError as exc:
         await db.rollback()
         log.warning("OIDC callback rejected: %s", exc)
-        return RedirectResponse("/login?error=sso_failed", status.HTTP_302_FOUND)
+        return _sso_failed(settings)
     await audit(
         db,
         "auth.login",
@@ -542,5 +565,16 @@ async def oidc_callback(
     token, session = await create_session(redis, settings, str(user.id), id_token=id_token)
     response = RedirectResponse(next_path, status.HTTP_302_FOUND)
     set_session_cookies(response, settings, token, session)
+    response.delete_cookie(
+        state_cookie_name(settings), path="/", secure=settings.secure_cookies, samesite="lax"
+    )
     clear_stale_site_data(response)
+    return response
+
+
+def _sso_failed(settings: SettingsDep) -> RedirectResponse:
+    response = RedirectResponse("/login?error=sso_failed", status.HTTP_302_FOUND)
+    response.delete_cookie(
+        state_cookie_name(settings), path="/", secure=settings.secure_cookies, samesite="lax"
+    )
     return response

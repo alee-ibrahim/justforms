@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import json
+import re
 import secrets
 import time
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 import httpx
 from joserfc import jwt
@@ -41,11 +43,37 @@ def _b64url(data: bytes) -> str:
 DEFAULT_NEXT = "/forms"
 
 
+# Control characters, spaces and backslashes: browsers drop or rewrite them while parsing a
+# URL ("/\t/evil.example" becomes "//evil.example"), so a path holding one is never used.
+_UNSAFE_PATH = re.compile(r"[\x00-\x20\x7f\\]")
+
+
 def safe_next(value: str | None) -> str:
     """Only allow same-origin relative paths as post-login redirects."""
-    if not value or not value.startswith("/") or value.startswith("//") or "\\" in value:
+    if (
+        not value
+        or not value.startswith("/")
+        or value.startswith("//")
+        or _UNSAFE_PATH.search(value)
+    ):
+        return DEFAULT_NEXT
+    parts = urlsplit(value)
+    if parts.scheme or parts.netloc:
         return DEFAULT_NEXT
     return value
+
+
+def state_cookie_name(settings: Settings) -> str:
+    """Cookie binding a sign-in's ``state`` to the browser that started it (login CSRF)."""
+    return "__Host-justforms_oidc_state" if settings.secure_cookies else "justforms_oidc_state"
+
+
+def state_digest(state: str) -> str:
+    return hashlib.sha256(f"justforms-oidc-state:{state}".encode()).hexdigest()
+
+
+def state_matches(state: str, cookie: str | None) -> bool:
+    return bool(cookie) and hmac.compare_digest(state_digest(state), str(cookie))
 
 
 class OIDCClient:
@@ -94,8 +122,9 @@ class OIDCClient:
 
     async def start(
         self, redis: Redis, next_path: str | None, login_hint: str | None = None
-    ) -> str:
-        """Create login state and return the IdP authorize URL.
+    ) -> tuple[str, str]:
+        """Create login state; return the IdP authorize URL and the state (whose digest the
+        caller sets as the browser-binding cookie).
 
         ``login_hint`` (an invited address) pre-fills the IdP's account picker where supported.
         """
@@ -121,7 +150,7 @@ class OIDCClient:
         }
         if login_hint:
             params["login_hint"] = login_hint
-        return f"{meta['authorization_endpoint']}?{urlencode(params)}"
+        return f"{meta['authorization_endpoint']}?{urlencode(params)}", state
 
     async def finish(self, redis: Redis, code: str, state: str) -> tuple[dict[str, Any], str, str]:
         """Exchange the code; return (validated ID token claims, raw id_token, next path)."""

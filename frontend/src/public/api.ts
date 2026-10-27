@@ -59,7 +59,10 @@ export type LoadResult =
 export const formPath = (slug: string) => `/api/v1/public/forms/${encodeURIComponent(slug)}`
 
 function csrfToken(): string {
-  const match = document.cookie.match(/(?:^|;\s*)justforms_csrf=([^;]+)/)
+  // Secure installs use the __Host- name (set by the API); prefer it over a leftover plain one.
+  const match =
+    document.cookie.match(/(?:^|;\s*)__Host-justforms_csrf=([^;]+)/) ??
+    document.cookie.match(/(?:^|;\s*)justforms_csrf=([^;]+)/)
   return match ? decodeURIComponent(match[1]) : ''
 }
 
