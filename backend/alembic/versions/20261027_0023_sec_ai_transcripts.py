@@ -5,8 +5,8 @@ and read again from the database when the answer is opened. Rows stored by earli
 (answers, sensitive ones and respondent emails included) are removed; those lists are marked
 ``expired`` and the studio says to ask again.
 
-Revision ID: 0021_sec_ai
-Revises: 0020
+Revision ID: 0023
+Revises: 0022
 Create Date: 2026-10-27 12:00:00
 """
 
@@ -14,8 +14,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0021_sec_ai"
-down_revision: str | None = "0020"
+revision: str = "0023"
+down_revision: str | None = "0022"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

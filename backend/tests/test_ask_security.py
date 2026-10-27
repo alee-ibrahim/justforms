@@ -820,7 +820,7 @@ async def test_migration_strips_stored_rows(db: AsyncSession) -> None:
 
     from app.models import AiMode, AiSession
 
-    path = Path(__file__).parent.parent / "alembic/versions/20261027_0021_sec_ai_transcripts.py"
+    path = Path(__file__).parent.parent / "alembic/versions/20261027_0023_sec_ai_transcripts.py"
     spec = importlib.util.spec_from_file_location("mig_0021", path)
     assert spec and spec.loader
     mig = importlib.util.module_from_spec(spec)
