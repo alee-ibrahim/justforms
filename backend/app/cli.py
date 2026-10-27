@@ -1,6 +1,8 @@
 """Admin CLI.
 
 uv run python -m app.cli create-admin --email you@example.org [--name "Your Name"]
+    [--oidc-subject <sub>]
+uv run python -m app.cli revoke-sessions --email someone@example.org
 uv run python -m app.cli init-signing-key [--rotate]
 uv run python -m app.cli verify-pdf submission-0042.pdf
 JUSTFORMS_JOTFORM_API_KEY=... uv run python -m app.cli fetch-imported-files --form <id|slug>
@@ -19,13 +21,33 @@ from app.config import get_settings
 from app.db import get_sessionmaker
 
 
-async def _create_admin(email: str, name: str) -> None:
+async def _create_admin(email: str, name: str, oidc_subject: str | None) -> int:
     from app.services.users import create_admin
 
+    settings = get_settings()
+    if oidc_subject and not settings.oidc_issuer:
+        print("--oidc-subject needs JUSTFORMS_OIDC_ISSUER")
+        return 2
     async with get_sessionmaker()() as db:
-        user = await create_admin(db, get_settings(), email, name)
+        user = await create_admin(db, settings, email, name, oidc_subject=oidc_subject)
         await db.commit()
         print(f"admin ready: {user.email}")
+    return 0
+
+
+async def _revoke_sessions(email: str) -> int:
+    from app.auth.sessions import revoke_user_sessions
+    from app.redis import get_redis
+    from app.services.users import get_user_by_email
+
+    async with get_sessionmaker()() as db:
+        user = await get_user_by_email(db, email)
+    if user is None:
+        print(f"no account for {email}")
+        return 1
+    ended = await revoke_user_sessions(await get_redis(), user.id)
+    print(f"sessions ended: {ended}")
+    return 0
 
 
 async def _init_signing_key(rotate: bool) -> None:
@@ -181,6 +203,15 @@ def main(argv: list[str] | None = None) -> int:
     admin = sub.add_parser("create-admin", help="create or promote the first administrator")
     admin.add_argument("--email", required=True)
     admin.add_argument("--name", default="")
+    admin.add_argument(
+        "--oidc-subject",
+        help="bind the account to this OIDC subject (the ID token's sub) at the configured issuer, "
+        "so it is never matched by email",
+    )
+    revoke = sub.add_parser(
+        "revoke-sessions", help="sign someone out everywhere (e.g. after they left)"
+    )
+    revoke.add_argument("--email", required=True)
     key = sub.add_parser("init-signing-key", help="create the PDF signing key if missing")
     key.add_argument("--rotate", action="store_true", help="replace the active key")
     verify = sub.add_parser("verify-pdf", help="check a signed submission PDF")
@@ -206,7 +237,9 @@ def main(argv: list[str] | None = None) -> int:
     rebuild.add_argument("--report", help="write the report (JSON) here")
     args = parser.parse_args(argv)
     if args.command == "create-admin":
-        asyncio.run(_create_admin(args.email, args.name))
+        return asyncio.run(_create_admin(args.email, args.name, args.oidc_subject))
+    elif args.command == "revoke-sessions":
+        return asyncio.run(_revoke_sessions(args.email))
     elif args.command == "init-signing-key":
         asyncio.run(_init_signing_key(args.rotate))
     elif args.command == "verify-pdf":

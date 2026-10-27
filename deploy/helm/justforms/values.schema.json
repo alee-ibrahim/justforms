@@ -215,6 +215,15 @@
             "autoRedirect": {
               "type": "boolean"
             },
+            "trustEmail": {
+              "type": "boolean"
+            },
+            "emailFallbackClaims": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
             "existingSecret": {
               "type": "string"
             },

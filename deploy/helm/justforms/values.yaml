@@ -126,6 +126,14 @@ auth:
     # Signed-out visits to the studio go straight to the IdP (no sign-in button). Never right
     # after signing out or a failed sign-in; /login?manual=1 shows the page.
     autoRedirect: true    # JUSTFORMS_OIDC_AUTO_REDIRECT
+    # Accounts and invitations are matched by email only when the ID token says
+    # email_verified=true. trustEmail treats the IdP's address as verified without it: only for
+    # an IdP whose addresses administrators manage (e.g. single-tenant Entra ID); never for
+    # multi-tenant or guest sign-in.
+    trustEmail: false     # JUSTFORMS_OIDC_TRUST_EMAIL
+    # Claims read when the token has no "email" (e.g. [preferred_username] for Entra ID
+    # accounts without a mailbox); verified only with trustEmail.
+    emailFallbackClaims: []  # JUSTFORMS_OIDC_EMAIL_FALLBACK_CLAIMS
     # Secret holding the client secret (required when enabled). Register
     # {publicUrl}/api/v1/auth/callback as the redirect URI.
     existingSecret: ""

@@ -221,6 +221,10 @@ async def accept(
         membership.role = higher_org_role(membership.role, inv.role)
         # An invitation is an admin's decision: keep this membership even if IdP groups change.
         membership.idp_managed = False
+        if membership.superadmin_granted:
+            # Admin through superadmin: the invited role is what remains without it.
+            prior = OrgRole(membership.superadmin_prior_role or inv.role)
+            membership.superadmin_prior_role = higher_org_role(prior, inv.role).value
     await db.flush()
     forms = await _grant_forms(db, inv, user)
     inv.status = InvitationStatus.ACCEPTED

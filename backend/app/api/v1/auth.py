@@ -28,6 +28,7 @@ from app.auth.sessions import (
     clear_stale_site_data,
     create_session,
     delete_session,
+    revoke_user_sessions,
     set_session_cookies,
 )
 from app.email import login_code_message
@@ -40,9 +41,11 @@ from app.models import (
     User,
 )
 from app.net import client_ip
+from app.permissions import ORG_ROLE_RANK
 from app.queue import JobQueue, get_queue
 from app.ratelimit import per_ip
 from app.services import invitations
+from app.services.invitations import revoke_form_grants
 from app.services.users import (
     audit,
     ensure_default_org,
@@ -235,12 +238,23 @@ async def oidc_login(
     return RedirectResponse(url, status.HTTP_302_FOUND)
 
 
-def _claim_email(claims: dict[str, Any]) -> str | None:
-    for key in ("email", "preferred_username", "upn"):
+def _claim_email(settings: SettingsDep, claims: dict[str, Any]) -> tuple[str | None, bool]:
+    """The address in the ID token and whether the IdP vouches for it (DESIGN 8.1).
+
+    ``email`` counts as verified with ``email_verified: true`` (exactly) or when the operator
+    trusts the IdP's addresses (JUSTFORMS_OIDC_TRUST_EMAIL). Other claims (usernames, UPNs) are
+    read only when listed in JUSTFORMS_OIDC_EMAIL_FALLBACK_CLAIMS, and are verified only when
+    trusted: they are login names, not checked addresses.
+    """
+    value = claims.get("email")
+    if isinstance(value, str) and "@" in value:
+        verified = claims.get("email_verified") is True or settings.oidc_trust_email
+        return normalize_email(value), verified
+    for key in settings.oidc_email_fallback_claims:
         value = claims.get(key)
         if isinstance(value, str) and "@" in value:
-            return normalize_email(value)
-    return None
+            return normalize_email(value), settings.oidc_trust_email
+    return None, False
 
 
 def _claim_groups(settings: SettingsDep, claims: dict[str, Any]) -> set[str] | None:
@@ -285,26 +299,103 @@ async def _sync_superadmin(db: DbDep, settings: SettingsDep, user: User, groups:
         )
 
 
-async def upsert_oidc_user(db: DbDep, settings: SettingsDep, claims: dict[str, Any]) -> User:
+async def _link_by_email(
+    db: DbDep, settings: SettingsDep, email: str | None, verified: bool, subject: str
+) -> User | None:
+    """First sign-in of an identity: the existing account to link, or None for a new one.
+    Raises OIDCError when the sign-in must be refused."""
+    if email is None:
+        raise OIDCError("id_token has no email claim")
+    if not verified:
+        # Never link to, or take, an address on the IdP's unverified word ("nOAuth").
+        raise OIDCError(
+            "the IdP does not vouch for the email address (no email_verified=true); set "
+            "JUSTFORMS_OIDC_TRUST_EMAIL only if its email claim is administrator-managed"
+        )
+    existing = await get_user_by_email(db, email)
+    if existing is None:
+        return None
+    if existing.oidc_subject not in (None, subject):
+        raise OIDCError("email already linked to another identity")
+    if existing.is_superadmin and not settings.oidc_trust_email:
+        log.warning(
+            "OIDC sign-in matches superadmin %s by email; not linked automatically. Bind it with "
+            "`python -m app.cli create-admin --email %s --oidc-subject %s`, or set "
+            "JUSTFORMS_OIDC_TRUST_EMAIL=true if the IdP's email claim is administrator-managed.",
+            existing.email,
+            existing.email,
+            subject,
+        )
+        raise OIDCError("superadmin accounts are not linked by email")
+    return existing
+
+
+async def _end_superadmin_admin(
+    db: DbDep, org: Organization, membership: OrgMembership, mapped: OrgRole | None
+) -> OrgMembership | None:
+    """Superadmin was taken away: undo the default-organisation admin role it granted, back to
+    the group-mapped role (``mapped``, with group mapping) or the role held before."""
+    role = mapped
+    if role is None and membership.superadmin_prior_role:
+        role = OrgRole(membership.superadmin_prior_role)
+    before = membership.role
+    membership.superadmin_granted = False
+    membership.superadmin_prior_role = None
+    meta: dict[str, Any] = {"before": before.value, "source": "oidc_superadmin_revoke"}
+    result: OrgMembership | None = membership
+    if role is None:
+        await db.delete(membership)
+        meta["role"] = None
+        meta["forms_revoked"] = await revoke_form_grants(db, org.id, membership.user_id)
+        result = None
+    else:
+        membership.role = role
+        meta["role"] = role.value
+    await audit(
+        db,
+        "org.member_role",
+        org_id=org.id,
+        target_type="user",
+        target_id=membership.user_id,
+        meta=meta,
+    )
+    return result
+
+
+def _mapped_role(settings: SettingsDep, groups: set[str] | None) -> OrgRole | None:
+    if not settings.oidc_group_mapping or groups is None:
+        return None
+    if groups & set(settings.oidc_admin_groups):
+        return OrgRole.ADMIN
+    if groups & set(settings.oidc_creator_groups):
+        return OrgRole.CREATOR
+    if groups & set(settings.oidc_member_groups):
+        return OrgRole.MEMBER
+    return None
+
+
+async def upsert_oidc_user(
+    db: DbDep, settings: SettingsDep, claims: dict[str, Any]
+) -> tuple[User, bool]:
+    """The account for these ID token claims, with roles synced. Returns the user and whether
+    this sign-in took access away (then the person's other sessions should end)."""
     issuer, subject = str(claims["iss"]), str(claims["sub"])
-    email = _claim_email(claims)
+    email, verified = _claim_email(settings, claims)
     user = await db.scalar(
         select(User).where(User.oidc_issuer == issuer, User.oidc_subject == subject)
     )
     # First sign-in of a person JustForms didn't know (not even from an invitation).
     new_user = False
     if user is None:
-        if email is None:
-            raise OIDCError("id_token has no email claim")
-        user = await get_user_by_email(db, email)
-        if user is not None and user.oidc_subject not in (None, subject):
-            raise OIDCError("email already linked to another identity")
+        user = await _link_by_email(db, settings, email, verified, subject)
         if user is None:
+            assert email is not None
             new_user = True
             user = User(email=email)
             db.add(user)
         user.oidc_issuer, user.oidc_subject = issuer, subject
-    elif email and email != user.email and await get_user_by_email(db, email) is None:
+    elif verified and email and email != user.email and await get_user_by_email(db, email) is None:
+        # Only an address the IdP vouches for replaces the stored one (invitations follow it).
         user.email = email
     name = claims.get("name") or claims.get("preferred_username")
     if isinstance(name, str) and name:
@@ -312,6 +403,7 @@ async def upsert_oidc_user(db: DbDep, settings: SettingsDep, claims: dict[str, A
     mark_login(user)
     await db.flush()
 
+    was_superadmin = user.is_superadmin
     org = await ensure_default_org(db, settings)
     membership = await db.get(OrgMembership, (org.id, user.id))
     role_before = membership.role if membership is not None else None
@@ -333,29 +425,43 @@ async def upsert_oidc_user(db: DbDep, settings: SettingsDep, claims: dict[str, A
         and user.is_superadmin
         and user.superadmin_source == SuperadminSource.OIDC
     )
-    if settings.oidc_group_mapping and groups is not None:
-        role: OrgRole | None = None
-        if oidc_superadmin or groups & set(settings.oidc_admin_groups):
-            role = OrgRole.ADMIN
-        elif groups & set(settings.oidc_creator_groups):
-            role = OrgRole.CREATOR
-        elif groups & set(settings.oidc_member_groups):
-            role = OrgRole.MEMBER
-        # An admin role the mapping didn't grant (a superadmin group, an invitation, an admin's
-        # change) is not lowered by it: an admin can change it.
+    mapped = _mapped_role(settings, groups)
+    # Admin only through an IdP superadmin group that no longer applies: undo that first.
+    if (
+        membership is not None
+        and membership.superadmin_granted
+        and groups is not None
+        and not oidc_superadmin
+    ):
+        membership = await _end_superadmin_admin(db, org, membership, mapped)
+        if membership is not None and settings.oidc_group_mapping:
+            membership.idp_managed = True
+    if settings.oidc_group_mapping and groups is not None and not oidc_superadmin:
+        # An admin role the mapping didn't grant (an invitation, an admin's change) is not
+        # lowered by it: an admin can change it.
         kept_admin = (
             membership is not None
             and not membership.idp_managed
             and membership.role == OrgRole.ADMIN
-            and role != OrgRole.ADMIN
+            and mapped != OrgRole.ADMIN
         )
-        if role is not None and not kept_admin:
-            membership = await set_membership(db, org, user, role)
+        if mapped is not None and not kept_admin:
+            membership = await set_membership(db, org, user, mapped)
             membership.idp_managed = True
-        elif membership is not None and membership.idp_managed:
+        elif mapped is None and membership is not None and membership.idp_managed:
             # The IdP is authoritative for what it granted: no mapped group, no role. People
-            # an admin invited or added keep theirs.
+            # an admin invited or added keep theirs. Their roles on the org's forms go too.
             await db.delete(membership)
+            revoked = await revoke_form_grants(db, org.id, user.id)
+            await audit(
+                db,
+                "org.member_remove",
+                org_id=org.id,
+                target_type="user",
+                target_id=user.id,
+                meta={"role": membership.role.value, "source": "oidc", "forms_revoked": revoked},
+            )
+            membership = None
     elif (
         not settings.oidc_group_mapping
         and new_user
@@ -366,10 +472,18 @@ async def upsert_oidc_user(db: DbDep, settings: SettingsDep, claims: dict[str, A
         membership.idp_managed = True
     if oidc_superadmin:
         if membership is None or membership.role != OrgRole.ADMIN:
+            prior: OrgRole | None = membership.role if membership is not None else None
+            if settings.oidc_group_mapping and groups is not None:
+                prior = mapped
             membership = await set_membership(db, org, user, OrgRole.ADMIN)
-        # Not IdP-managed: losing superadmin (or every mapped group) later doesn't demote or
-        # remove them. An admin can change the role.
-        membership.idp_managed = False
+            # Admin because of superadmin: undone (back to `prior`, or removed) when the IdP
+            # takes superadmin away. Not IdP-managed: group mapping doesn't lower it meanwhile.
+            membership.superadmin_granted = True
+            membership.superadmin_prior_role = prior.value if prior is not None else None
+            membership.idp_managed = False
+        elif membership.superadmin_granted and settings.oidc_group_mapping:
+            # What remains without superadmin follows the groups.
+            membership.superadmin_prior_role = mapped.value if mapped is not None else None
         if role_before != OrgRole.ADMIN:
             await audit(
                 db,
@@ -383,11 +497,16 @@ async def upsert_oidc_user(db: DbDep, settings: SettingsDep, claims: dict[str, A
                     "source": "oidc_superadmin",
                 },
             )
-    # Invitations for this address. Not when the IdP says the address isn't verified.
-    if claims.get("email_verified") is not False:
+    role_after = membership.role if membership is not None else None
+    reduced = (was_superadmin and not user.is_superadmin) or (
+        role_before is not None
+        and (role_after is None or ORG_ROLE_RANK[role_after] < ORG_ROLE_RANK[role_before])
+    )
+    # Invitations for this address, only when the IdP vouches for it.
+    if verified:
         await invitations.accept_all(db, user)
     await db.flush()
-    return user
+    return user, reduced
 
 
 @router.get("/callback", dependencies=[Depends(_require_oidc), AuthLimited])
@@ -404,7 +523,7 @@ async def oidc_callback(
         return RedirectResponse("/login?error=sso_failed", status.HTTP_302_FOUND)
     try:
         claims, id_token, next_path = await get_oidc_client(settings).finish(redis, code, state)
-        user = await upsert_oidc_user(db, settings, claims)
+        user, reduced = await upsert_oidc_user(db, settings, claims)
     except OIDCError as exc:
         await db.rollback()
         log.warning("OIDC callback rejected: %s", exc)
@@ -417,6 +536,9 @@ async def oidc_callback(
         meta={"method": "oidc"},
     )
     await db.commit()
+    if reduced:
+        # The IdP took access away: end the person's other sessions.
+        await revoke_user_sessions(redis, user.id)
     token, session = await create_session(redis, settings, str(user.id), id_token=id_token)
     response = RedirectResponse(next_path, status.HTTP_302_FOUND)
     set_session_cookies(response, settings, token, session)

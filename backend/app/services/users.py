@@ -74,9 +74,17 @@ def mark_login(user: User) -> None:
 
 
 async def create_admin(
-    db: AsyncSession, settings: Settings, email: str, display_name: str = ""
+    db: AsyncSession,
+    settings: Settings,
+    email: str,
+    display_name: str = "",
+    *,
+    oidc_subject: str | None = None,
 ) -> User:
-    """Create (or promote) the first admin: superadmin plus admin of the default org."""
+    """Create (or promote) the first admin: superadmin plus admin of the default org.
+
+    ``oidc_subject`` binds the account to that identity at the configured issuer: OIDC sign-in
+    never links a superadmin by email unless JUSTFORMS_OIDC_TRUST_EMAIL is on."""
     org = await ensure_default_org(db, settings)
     user = await get_user_by_email(db, email)
     if user is None:
@@ -85,6 +93,10 @@ async def create_admin(
         await db.flush()
     elif display_name:
         user.display_name = display_name
+    if oidc_subject:
+        assert settings.oidc_issuer
+        user.oidc_issuer = settings.oidc_issuer.rstrip("/")
+        user.oidc_subject = oidc_subject
     user.is_superadmin = True
     # Granted here, so OIDC superadmin group mapping never takes it away.
     user.superadmin_source = SuperadminSource.LOCAL

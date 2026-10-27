@@ -111,6 +111,16 @@ class Settings(BaseSettings):
     # With OIDC on, the sign-in page (and any studio page while signed out) goes straight to
     # the IdP without a button press. Never right after signing out or a failed sign-in.
     oidc_auto_redirect: bool = True
+    # Accounts are matched by email only when the IdP vouches for the address: the ID token has
+    # email_verified=true, or this is on. Turn it on only for an IdP whose email claim users
+    # can't set themselves, e.g. a single-tenant Microsoft Entra ID (which sends no
+    # email_verified) where administrators manage addresses. Never for multi-tenant or guest
+    # sign-in, or an IdP where people edit their own email.
+    oidc_trust_email: bool = False
+    # Claims read for the email when the ID token has no "email" claim, in order (e.g.
+    # "preferred_username" or "upn" for Entra ID accounts without a mailbox). Addresses from
+    # these count as verified only with JUSTFORMS_OIDC_TRUST_EMAIL. Empty: "email" only.
+    oidc_email_fallback_claims: CsvList = Field(default_factory=list)
 
     # Local email-code login (only when OIDC is not configured).
     login_code_ttl_seconds: int = Field(default=600, ge=60)
@@ -348,6 +358,7 @@ class Settings(BaseSettings):
         "oidc_creator_groups",
         "oidc_member_groups",
         "oidc_superadmin_groups",
+        "oidc_email_fallback_claims",
         "cors_origins",
         "trusted_proxies",
         "rate_limits",

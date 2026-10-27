@@ -77,6 +77,11 @@ class OrgMembership(TimestampMixin, Base):
     # group mapping is on, the IdP is authoritative for these: someone in no mapped group
     # loses them at sign-in. Memberships from invitations or an admin are kept.
     idp_managed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Admin because OIDC made this person a superadmin (DESIGN 7): when the IdP takes superadmin
+    # away, the role goes back to superadmin_prior_role (or the membership goes when that is
+    # null), or to what group mapping gives. An admin changing the role clears it.
+    superadmin_granted: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    superadmin_prior_role: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 
 class InvitationStatus(StrEnum):

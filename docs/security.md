@@ -13,6 +13,12 @@ problem. Abuse-control settings are in [Configuration](configuration.md#abuse-co
 - **Sessions.** Staff sessions live in Redis (8 h idle, 7 days absolute) behind an HttpOnly
   cookie, with a double-submit CSRF token and an Origin check on every state-changing request.
   OIDC is a confidential client with PKCE; no token reaches the browser.
+- **Account linking.** OIDC sign-in links an existing account (or accepts invitations) by email
+  only when the IdP vouches for the address (`email_verified: true`, or
+  `JUSTFORMS_OIDC_TRUST_EMAIL` for an IdP whose addresses administrators manage), never from
+  usernames unless configured, and never links superadmins by email unless trusted. Removing
+  someone from an organisation (by an admin or IdP group mapping) also removes their form roles
+  and ends their sessions; `app.cli revoke-sessions` signs someone out everywhere.
 - **Public forms** use no cookies. Rate limits cover forms, submits, uploads, email codes and
   sign-in; CAPTCHA is optional per form (off, always, or only when busy).
 - **Emailed codes** (staff sign-in, respondent and approver codes) are 6 digits, stored as

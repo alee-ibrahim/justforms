@@ -20,7 +20,8 @@ from pydantic import EmailStr, Field, StringConstraints
 from sqlalchemy import String, case, cast, func, select
 
 from app.api.v1.common import ApiModel
-from app.auth.deps import CurrentUser, DbDep, RedisDep, SettingsDep
+from app.auth.deps import CurrentSession, CurrentUser, DbDep, RedisDep, SettingsDep
+from app.auth.sessions import revoke_user_sessions
 from app.models import (
     FormPermission,
     FormRecord,
@@ -30,7 +31,7 @@ from app.models import (
     OrgRole,
     User,
 )
-from app.permissions import OrgAdmin, OrgMember, effective_form_role, org_role
+from app.permissions import ORG_ROLE_RANK, OrgAdmin, OrgMember, effective_form_role, org_role
 from app.ratelimit import enforce
 from app.services.invitations import admin_count, revoke_form_grants
 from app.services.users import audit, get_user_by_email, normalize_email, set_membership
@@ -294,7 +295,9 @@ async def patch_member(
     user_id: uuid.UUID,
     body: MemberPatch,
     db: DbDep,
+    redis: RedisDep,
     user: CurrentUser,
+    session: CurrentSession,
     _: OrgAdmin,
 ) -> MemberOut:
     membership = await db.get(OrgMembership, (org_id, user_id), with_for_update=True)
@@ -309,6 +312,9 @@ async def patch_member(
     ):
         raise HTTPException(status.HTTP_409_CONFLICT, "last_admin")
     membership.role = body.role
+    # An admin's decision: sign-in no longer undoes it when superadmin is taken away.
+    membership.superadmin_granted = False
+    membership.superadmin_prior_role = None
     await audit(
         db,
         "org.member_role",
@@ -319,6 +325,9 @@ async def patch_member(
         meta={"before": before.value, "role": body.role.value},
     )
     await db.commit()
+    if ORG_ROLE_RANK[body.role] < ORG_ROLE_RANK[before]:
+        # Demoted: end their sessions so nothing keeps acting with the old role.
+        await revoke_user_sessions(redis, user_id, keep=session.token_hash)
     return MemberOut(
         user_id=member.id, email=member.email, display_name=member.display_name, role=body.role
     )
@@ -326,7 +335,13 @@ async def patch_member(
 
 @router.delete("/orgs/{org_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_member(
-    org_id: uuid.UUID, user_id: uuid.UUID, db: DbDep, user: CurrentUser, _: OrgAdmin
+    org_id: uuid.UUID,
+    user_id: uuid.UUID,
+    db: DbDep,
+    redis: RedisDep,
+    user: CurrentUser,
+    session: CurrentSession,
+    _: OrgAdmin,
 ) -> Response:
     membership = await db.get(OrgMembership, (org_id, user_id), with_for_update=True)
     if membership is None:
@@ -346,4 +361,6 @@ async def remove_member(
         meta={"role": membership.role.value, "forms_revoked": revoked},
     )
     await db.commit()
+    # Signed out everywhere (an admin removing themselves keeps this session).
+    await revoke_user_sessions(redis, user_id, keep=session.token_hash)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

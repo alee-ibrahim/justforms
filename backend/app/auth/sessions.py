@@ -39,6 +39,11 @@ def _key(token_hash: str) -> str:
     return f"session:{token_hash}"
 
 
+def _user_key(user_id: str) -> str:
+    # The sessions of one person (token hashes), so they can all be ended at once.
+    return f"user_sessions:{user_id}"
+
+
 def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
@@ -60,7 +65,11 @@ async def create_session(
         "created_at": session.created_at,
         "id_token": id_token,
     }
-    await redis.set(_key(session.token_hash), json.dumps(payload), ex=settings.session_idle_seconds)
+    async with redis.pipeline(transaction=True) as pipe:
+        pipe.set(_key(session.token_hash), json.dumps(payload), ex=settings.session_idle_seconds)
+        pipe.sadd(_user_key(user_id), session.token_hash)
+        pipe.expire(_user_key(user_id), settings.session_absolute_seconds)
+        await pipe.execute()
     return token, session
 
 
@@ -89,7 +98,26 @@ async def load_session(redis: Redis, settings: Settings, token: str | None) -> S
 
 
 async def delete_session(redis: Redis, session: Session) -> None:
-    await redis.delete(_key(session.token_hash))
+    async with redis.pipeline(transaction=True) as pipe:
+        pipe.delete(_key(session.token_hash))
+        pipe.srem(_user_key(session.user_id), session.token_hash)
+        await pipe.execute()
+
+
+async def revoke_user_sessions(redis: Redis, user_id: object, *, keep: str | None = None) -> int:
+    """End every session of ``user_id`` (all but the one with token hash ``keep``): used when
+    someone is removed from an organisation, demoted, or loses superadmin. Returns how many."""
+    user_key = _user_key(str(user_id))
+    members = await redis.smembers(user_key)  # type: ignore[misc]
+    hashes = [h.decode() if isinstance(h, bytes) else str(h) for h in members]
+    ended = [h for h in hashes if h != keep]
+    if not ended:
+        return 0
+    async with redis.pipeline(transaction=True) as pipe:
+        pipe.delete(*(_key(h) for h in ended))
+        pipe.srem(user_key, *ended)
+        results = await pipe.execute()
+    return int(results[0] or 0)
 
 
 def set_session_cookies(

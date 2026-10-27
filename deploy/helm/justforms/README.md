@@ -269,6 +269,8 @@ unless noted.
 | `auth.oidc.superadminGroups` | `[]` | `JUSTFORMS_OIDC_SUPERADMIN_GROUPS` |
 | `auth.oidc.defaultRole` | `creator` | `JUSTFORMS_OIDC_DEFAULT_ROLE` (`creator`, `member`, `none`) |
 | `auth.oidc.autoRedirect` | `true` | `JUSTFORMS_OIDC_AUTO_REDIRECT`: signed-out studio visits go straight to the IdP |
+| `auth.oidc.trustEmail` | `false` | `JUSTFORMS_OIDC_TRUST_EMAIL`: treat the IdP's email as verified without `email_verified` (single-tenant Entra ID with administrator-managed addresses; never multi-tenant/guest) |
+| `auth.oidc.emailFallbackClaims` | `[]` | `JUSTFORMS_OIDC_EMAIL_FALLBACK_CLAIMS`: claims read when the token has no `email`, e.g. `[preferred_username]` |
 | `auth.oidc.existingSecret` / `.existingSecretKey` | `""` / `JUSTFORMS_OIDC_CLIENT_SECRET` | `JUSTFORMS_OIDC_CLIENT_SECRET` |
 | `smtp.host` | `""` | `JUSTFORMS_SMTP_HOST` (empty: no email) |
 | `smtp.port` | `587` | `JUSTFORMS_SMTP_PORT` |

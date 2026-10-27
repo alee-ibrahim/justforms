@@ -499,3 +499,52 @@ async def test_membership_stays_idp_unmanaged_after_invite(
     assert membership is not None
     await db.refresh(membership)
     assert membership.role == OrgRole.CREATOR and membership.idp_managed is False
+
+
+async def test_removal_and_demotion_end_the_persons_sessions(
+    app: Any, client: AsyncClient, db: AsyncSession, settings: Settings, queue: RecordingQueue
+) -> None:
+    org = await setup_admin(db, settings, client, queue)
+    await add_person(db, org, "demoted@example.org", OrgRole.ADMIN)
+    await add_person(db, org, "raised@example.org", OrgRole.MEMBER)
+    await add_person(db, org, "leaver@example.org", OrgRole.CREATOR)
+    people = {}
+    for email in ("demoted@example.org", "raised@example.org", "leaver@example.org"):
+        c, me = await code_login(app, queue, email)
+        people[email] = (c, me["id"])
+    base = f"/api/v1/orgs/{org.id}/members"
+    try:
+        demoted, demoted_id = people["demoted@example.org"]
+        assert (await client.patch(f"{base}/{demoted_id}", json={"role": "member"})).is_success
+        assert (await demoted.get("/api/v1/auth/me")).status_code == 401
+        # Raising someone's role keeps them signed in.
+        raised, raised_id = people["raised@example.org"]
+        assert (await client.patch(f"{base}/{raised_id}", json={"role": "creator"})).is_success
+        assert (await raised.get("/api/v1/auth/me")).status_code == 200
+        leaver, leaver_id = people["leaver@example.org"]
+        assert (await client.delete(f"{base}/{leaver_id}")).status_code == 204
+        assert (await leaver.get("/api/v1/auth/me")).status_code == 401
+        # The admin acting keeps their own session.
+        assert (await client.get("/api/v1/auth/me")).status_code == 200
+    finally:
+        for c, _ in people.values():
+            await c.aclose()
+
+
+async def test_admin_demoting_themselves_keeps_this_session(
+    app: Any, client: AsyncClient, db: AsyncSession, settings: Settings, queue: RecordingQueue
+) -> None:
+    org = await setup_admin(db, settings, client, queue)
+    root = await db.scalar(select(User).where(User.email == "root@example.org"))
+    assert root is not None
+    other, _ = await code_login(app, queue, "root@example.org")  # a second browser
+    try:
+        await add_person(db, org, "second@example.org", OrgRole.ADMIN)
+        res = await client.patch(
+            f"/api/v1/orgs/{org.id}/members/{root.id}", json={"role": "member"}
+        )
+        assert res.status_code == 200
+        assert (await client.get("/api/v1/auth/me")).status_code == 200
+        assert (await other.get("/api/v1/auth/me")).status_code == 401
+    finally:
+        await other.aclose()

@@ -39,6 +39,7 @@ class FakeIdP:
             "aud": CLIENT_ID,
             "sub": "user-123",
             "email": "Staff@Example.org",
+            "email_verified": True,
             "name": "Staff Member",
             "iat": now,
             "exp": now + 300,
@@ -227,10 +228,13 @@ async def test_invited_membership_survives_group_mapping(
 async def test_unverified_email_does_not_accept(
     client: AsyncClient, idp: FakeIdP, db: AsyncSession
 ) -> None:
-    await _invite(db, "staff@example.org", OrgRole.ADMIN, slug="second")
-    idp.claims = {"groups": [], "email_verified": False}
+    # Known identity (linked earlier); its IdP address is no longer verified.
     await _sign_in(client, idp)
-    assert (await client.get("/api/v1/auth/me")).json()["orgs"] == []
+    await _invite(db, "staff@example.org", OrgRole.ADMIN, slug="second")
+    for verified in (False, None, "true"):  # only the JSON value true counts
+        idp.claims = {"groups": [], "email_verified": verified}
+        await _sign_in(client, idp)
+        assert (await client.get("/api/v1/auth/me")).json()["orgs"] == []
 
 
 async def test_without_group_mapping_new_people_join_once(
@@ -332,7 +336,7 @@ async def test_new_sso_superadmin_is_admin_of_the_default_org(
     assert len(await _role_audits(db)) == 1
 
 
-async def test_sso_superadmin_creator_is_raised_and_revoke_does_not_demote(
+async def test_sso_superadmin_creator_is_raised_and_revoke_demotes(
     client: AsyncClient, idp: FakeIdP, db: AsyncSession, oidc_settings: Settings
 ) -> None:
     oidc_settings.oidc_creator_groups = ["justforms-builders"]
@@ -350,18 +354,23 @@ async def test_sso_superadmin_creator_is_raised_and_revoke_does_not_demote(
         {"before": "creator", "role": "admin", "source": "oidc_superadmin"}
     ]
 
-    # Left the superadmin group, still a builder: superadmin goes, the admin role stays.
+    # Left the superadmin group, still a builder: superadmin goes, and so does the admin role
+    # it gave; the groups decide again.
     idp.claims = {"groups": ["justforms-builders"]}
     await _sign_in(client, idp)
     assert not (await _user(db)).is_superadmin
     membership = await _default_membership(db)
-    assert membership is not None and membership.role == OrgRole.ADMIN
-    # In no mapped group at all: still not removed.
+    assert membership is not None and membership.role == OrgRole.CREATOR
+    assert membership.idp_managed and not membership.superadmin_granted
+    assert (await _role_audits(db))[-1] == {
+        "before": "admin",
+        "role": "creator",
+        "source": "oidc_superadmin_revoke",
+    }
+    # In no mapped group at all: removed like any IdP-managed membership.
     idp.claims = {"groups": []}
     await _sign_in(client, idp)
-    membership = await _default_membership(db)
-    assert membership is not None and membership.role == OrgRole.ADMIN
-    assert len(await _role_audits(db)) == 1
+    assert await _default_membership(db) is None
 
 
 async def test_superadmin_groups_match_exact_strings(
@@ -376,7 +385,8 @@ async def test_superadmin_groups_match_exact_strings(
 async def test_local_superadmin_is_kept(
     client: AsyncClient, idp: FakeIdP, db: AsyncSession, oidc_settings: Settings
 ) -> None:
-    await create_admin(db, oidc_settings, "staff@example.org")
+    # Bound to the identity (create-admin --oidc-subject): superadmins aren't linked by email.
+    await create_admin(db, oidc_settings, "staff@example.org", oidc_subject="user-123")
     await db.commit()
     oidc_settings.oidc_superadmin_groups = ["justforms-superadmins"]
     idp.claims = {"groups": ["someone-else"]}
@@ -516,3 +526,219 @@ def test_safe_next() -> None:
     assert safe_next("/\\evil") == "/forms"
     assert safe_next(None) == "/forms"
     assert safe_next("") == "/forms"
+
+
+# -- account linking (only on an address the IdP vouches for) ----------------------------------
+
+
+async def _sign_in_result(client: AsyncClient, idp: FakeIdP) -> str:
+    state = await _start(client, idp)
+    res = await client.get("/api/v1/auth/callback", params={"code": "abc", "state": state})
+    return str(res.headers["location"])
+
+
+@pytest.mark.parametrize("verified", [False, None, "true", 1])
+async def test_unverified_email_never_links_an_existing_account(
+    client: AsyncClient, idp: FakeIdP, db: AsyncSession, verified: Any
+) -> None:
+    """nOAuth: an IdP user who set someone else's address doesn't get their account."""
+    from app.models import Organization
+
+    org = Organization(name="Default", slug="default")
+    db.add(org)
+    await db.flush()
+    victim = User(email="staff@example.org", display_name="Victim")
+    db.add(victim)
+    await db.flush()
+    db.add(OrgMembership(org_id=org.id, user_id=victim.id, role=OrgRole.ADMIN))
+    await db.commit()
+    idp.claims = {"groups": ["justforms-admins"], "email_verified": verified}
+    assert await _sign_in_result(client, idp) == "/login?error=sso_failed"
+    assert "justforms_session" not in client.cookies
+    db.expire_all()
+    victim = await _user(db)
+    assert victim.oidc_subject is None and victim.display_name == "Victim"
+
+
+async def test_unverified_email_creates_no_account(client: AsyncClient, idp: FakeIdP) -> None:
+    idp.claims = {"email_verified": False}
+    assert await _sign_in_result(client, idp) == "/login?error=sso_failed"
+
+
+async def test_trusted_idp_email_links_without_email_verified(
+    client: AsyncClient, idp: FakeIdP, db: AsyncSession, oidc_settings: Settings
+) -> None:
+    """Single-tenant Entra ID sends no email_verified; the operator may trust its addresses."""
+    from app.models import Organization
+
+    org = Organization(name="Default", slug="default")
+    db.add(org)
+    await db.flush()
+    known = User(email="staff@example.org")
+    db.add(known)
+    await db.commit()
+    await _invite(db, "staff@example.org", OrgRole.CREATOR, slug="second")
+    idp.claims = {"groups": ["justforms-users"], "email_verified": None}
+    assert await _sign_in_result(client, idp) == "/login?error=sso_failed"
+    oidc_settings.oidc_trust_email = True
+    await _sign_in(client, idp)
+    user = await _user(db)
+    assert user.id == known.id and user.oidc_subject == "user-123"
+    # Invitations are accepted with a trusted address.
+    roles = sorted(o["role"] for o in (await client.get("/api/v1/auth/me")).json()["orgs"])
+    assert roles == ["creator", "member"]
+
+
+async def test_username_claims_are_not_emails_unless_configured(
+    client: AsyncClient, idp: FakeIdP, db: AsyncSession, oidc_settings: Settings
+) -> None:
+    no_email = {"email": None, "email_verified": None, "preferred_username": "staff@example.org"}
+    idp.claims = {**no_email, "groups": ["justforms-users"]}
+    assert await _sign_in_result(client, idp) == "/login?error=sso_failed"
+    # Configured as a fallback, but a username is not a verified address on its own.
+    oidc_settings.oidc_email_fallback_claims = ["upn", "preferred_username"]
+    assert await _sign_in_result(client, idp) == "/login?error=sso_failed"
+    oidc_settings.oidc_trust_email = True
+    await _sign_in(client, idp)
+    assert (await _user(db)).oidc_subject == "user-123"
+
+
+async def test_stored_email_changes_only_to_a_verified_address(
+    client: AsyncClient, idp: FakeIdP, db: AsyncSession
+) -> None:
+    await _sign_in(client, idp)
+    idp.claims = {"email": "ceo@example.org", "email_verified": False}
+    await _sign_in(client, idp)
+    assert (await client.get("/api/v1/auth/me")).json()["email"] == "staff@example.org"
+    idp.claims = {"email": "new@example.org", "email_verified": True}
+    await _sign_in(client, idp)
+    assert (await client.get("/api/v1/auth/me")).json()["email"] == "new@example.org"
+
+
+async def test_superadmin_is_not_linked_by_email_unless_trusted(
+    client: AsyncClient,
+    idp: FakeIdP,
+    db: AsyncSession,
+    oidc_settings: Settings,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    await create_admin(db, oidc_settings, "staff@example.org")
+    await db.commit()
+    with caplog.at_level("WARNING", logger=auth_api.log.name):
+        assert await _sign_in_result(client, idp) == "/login?error=sso_failed"
+    assert "--oidc-subject user-123" in caplog.text
+    assert (await _user(db)).oidc_subject is None
+    oidc_settings.oidc_trust_email = True
+    await _sign_in(client, idp)
+    assert (await client.get("/api/v1/auth/me")).json()["isSuperadmin"] is True
+
+
+def test_oidc_email_settings_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    s = Settings(environment="test")
+    assert s.oidc_trust_email is False and s.oidc_email_fallback_claims == []
+    monkeypatch.setenv("JUSTFORMS_OIDC_TRUST_EMAIL", "true")
+    monkeypatch.setenv("JUSTFORMS_OIDC_EMAIL_FALLBACK_CLAIMS", "preferred_username, upn")
+    s = Settings(environment="test")
+    assert s.oidc_trust_email is True
+    assert s.oidc_email_fallback_claims == ["preferred_username", "upn"]
+
+
+# -- deprovisioning ----------------------------------------------------------------------------
+
+
+async def _session_count(redis: Any, user: User) -> int:
+    hashes = await redis.smembers(f"user_sessions:{user.id}")
+    return sum([await redis.exists(f"session:{h}") for h in hashes])
+
+
+async def test_idp_removal_revokes_form_access_and_other_sessions(
+    app: Any, client: AsyncClient, idp: FakeIdP, db: AsyncSession, redis: Any
+) -> None:
+    from app.models import FormPermission, FormRecord, Organization
+    from tests.conftest import make_client
+
+    idp.claims = {"groups": ["justforms-users"]}
+    await _sign_in(client, idp)
+    user = await _user(db)
+    org = await db.scalar(select(Organization).where(Organization.slug == "default"))
+    assert org is not None
+    form = FormRecord(org_id=org.id, title="Shared", slug="shared-form", draft_schema={})
+    db.add(form)
+    await db.flush()
+    db.add(FormPermission(form_id=form.id, user_id=user.id, role="editor"))
+    await db.commit()
+    # A second browser stays signed in.
+    async with make_client(app) as other:
+        state = await _start(other, idp)
+        await other.get("/api/v1/auth/callback", params={"code": "abc", "state": state})
+        assert (await other.get("/api/v1/auth/me")).status_code == 200
+        assert await _session_count(redis, user) == 2
+
+        # The IdP drops the mapped group: membership, form roles and other sessions go.
+        idp.claims = {"groups": []}
+        await _sign_in(client, idp)
+        assert await _default_membership(db) is None
+        assert (
+            await db.scalar(select(FormPermission).where(FormPermission.user_id == user.id)) is None
+        )
+        assert (await other.get("/api/v1/auth/me")).status_code == 401
+        assert (await client.get("/api/v1/auth/me")).status_code == 200
+        audit = await db.scalar(select(AuditLog).where(AuditLog.action == "org.member_remove"))
+        assert audit is not None and audit.meta["forms_revoked"] == 1
+
+
+async def test_superadmin_revoke_without_mapping_restores_the_previous_role(
+    client: AsyncClient, idp: FakeIdP, db: AsyncSession, oidc_settings: Settings, redis: Any
+) -> None:
+    oidc_settings.oidc_admin_groups = []
+    oidc_settings.oidc_member_groups = []
+    oidc_settings.oidc_superadmin_groups = ["justforms-superadmins"]
+    idp.claims = {"groups": []}
+    await _sign_in(client, idp)  # joins as creator (the default role)
+    idp.claims = {"groups": ["justforms-superadmins"]}
+    await _sign_in(client, idp)
+    membership = await _default_membership(db)
+    assert membership is not None and membership.role == OrgRole.ADMIN
+    assert membership.superadmin_granted and membership.superadmin_prior_role == "creator"
+    idp.claims = {"groups": []}
+    await _sign_in(client, idp)
+    membership = await _default_membership(db)
+    assert membership is not None and membership.role == OrgRole.CREATOR
+    assert not (await _user(db)).is_superadmin
+    # Only the session of this sign-in is left.
+    assert await _session_count(redis, await _user(db)) == 1
+
+
+async def test_new_superadmin_without_mapping_loses_the_org_on_revoke(
+    client: AsyncClient, idp: FakeIdP, db: AsyncSession, oidc_settings: Settings
+) -> None:
+    oidc_settings.oidc_admin_groups = []
+    oidc_settings.oidc_member_groups = []
+    oidc_settings.oidc_default_role = "none"
+    oidc_settings.oidc_superadmin_groups = ["justforms-superadmins"]
+    idp.claims = {"groups": ["justforms-superadmins"]}
+    await _sign_in(client, idp)
+    assert (await _default_membership(db)) is not None
+    idp.claims = {"groups": []}
+    await _sign_in(client, idp)
+    assert await _default_membership(db) is None
+
+
+async def test_admin_change_keeps_a_superadmin_granted_role(
+    client: AsyncClient, idp: FakeIdP, db: AsyncSession, oidc_settings: Settings
+) -> None:
+    """An admin who set the role decided it: losing superadmin doesn't undo that."""
+    oidc_settings.oidc_admin_groups = []
+    oidc_settings.oidc_member_groups = []
+    oidc_settings.oidc_superadmin_groups = ["justforms-superadmins"]
+    idp.claims = {"groups": ["justforms-superadmins"]}
+    await _sign_in(client, idp)
+    membership = await _default_membership(db)
+    assert membership is not None
+    membership.superadmin_granted = False  # what PATCH /orgs/{id}/members/{user} does
+    membership.superadmin_prior_role = None
+    await db.commit()
+    idp.claims = {"groups": []}
+    await _sign_in(client, idp)
+    membership = await _default_membership(db)
+    assert membership is not None and membership.role == OrgRole.ADMIN

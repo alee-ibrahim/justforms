@@ -65,6 +65,8 @@ does this for you. The bucket also needs a CORS rule allowing `POST`, `GET` and 
 | `JUSTFORMS_OIDC_SUPERADMIN_GROUPS` | empty | IdP groups whose people are superadmins, checked at each sign-in (see below) |
 | `JUSTFORMS_OIDC_DEFAULT_ROLE` | `creator` | Without group mapping: the role people get the first time they sign in (`creator`, `member`, or `none` to let people in only by invitation) |
 | `JUSTFORMS_OIDC_AUTO_REDIRECT` | `true` | With OIDC on: signed-out visits to the sign-in page or the studio go straight to the IdP (see below) |
+| `JUSTFORMS_OIDC_TRUST_EMAIL` | `false` | Treat the IdP's email claim as verified without `email_verified: true` (see [Matching accounts by email](#matching-accounts-by-email)) |
+| `JUSTFORMS_OIDC_EMAIL_FALLBACK_CLAIMS` | empty | Claims read for the address when the ID token has no `email`, e.g. `preferred_username` (see below) |
 | `JUSTFORMS_INVITE_DAYS` | `14` | How long an invitation to join an organisation stays open (a resend restarts it) |
 | `JUSTFORMS_LOGIN_CODE_TTL_SECONDS`, `_LOGIN_CODE_MAX_ATTEMPTS` | `600`, `5` | Emailed sign-in codes |
 | `JUSTFORMS_DEMO_LOGIN_CODE`, `JUSTFORMS_DEMO_LOGIN_EMAILS` | unset (off) | **Demo instances only.** See below |
@@ -110,6 +112,33 @@ appearance choice) are dropped and read again from the account. The bundled ngin
 404 for the usual service-worker script paths (`/sw.js`, `/service-worker.js`, …), so a
 leftover service worker unregisters itself at its next update check.
 
+### Matching accounts by email
+
+The first OIDC sign-in of an identity (issuer + subject) links it to the account with the same
+email address, if there is one (people an admin added, invited or made with `create-admin`),
+and accepts open invitations for that address. Because that hands over the account, JustForms
+only does it for an address the IdP vouches for: the ID token's `email` with
+`email_verified: true`. Without it, a new identity is refused ("sign-in failed") and nothing is
+linked; known identities still sign in, but their stored address isn't replaced and invitations
+aren't accepted. Superadmin accounts are never linked by email; bind them with
+`python -m app.cli create-admin --email you@example.org --oidc-subject <sub>` (the backend logs
+the subject when it refuses).
+
+- `JUSTFORMS_OIDC_TRUST_EMAIL=true` treats the IdP's address as verified without
+  `email_verified`, and allows linking superadmins by email. Microsoft Entra ID doesn't send
+  `email_verified`: turn it on for a **single-tenant** Entra ID app whose users' addresses are
+  managed by your administrators. Never for multi-tenant apps, guest (B2B) accounts, or an IdP
+  where people can set or change their own email, or anyone could claim another person's
+  account ("nOAuth").
+- `JUSTFORMS_OIDC_EMAIL_FALLBACK_CLAIMS` (e.g. `preferred_username` or `upn`) is read when the ID
+  token has no `email` claim, as Entra ID does for accounts without a mailbox. These are login
+  names, so they count as verified only with `JUSTFORMS_OIDC_TRUST_EMAIL=true`.
+
+*Upgrading:* earlier versions linked by any `email`, or `preferred_username`/`upn`, without
+checking `email_verified`. People who already signed in are unaffected (they are matched by
+subject). With Entra ID, set `JUSTFORMS_OIDC_TRUST_EMAIL=true` (single tenant) and, if some
+accounts have no mailbox, `JUSTFORMS_OIDC_EMAIL_FALLBACK_CLAIMS=preferred_username`.
+
 **Superadmins from IdP groups.** `JUSTFORMS_OIDC_SUPERADMIN_GROUPS` (comma-separated) makes
 people in any listed group superadmins (every organisation plus instance settings) when they
 sign in with OIDC. It works on its own: the role groups above don't have to be set. Values are
@@ -120,9 +149,18 @@ superadmin at their next sign-in, but only if OIDC granted it: superadmins made 
 (`user.superadmin_grant`, `user.superadmin_revoke`). Leaving it empty changes nobody's
 superadmin status. A sign-in that grants or confirms superadmin this way also makes the person
 **admin of the default organisation** (the membership is created, or a creator/member role is
-raised), audit-logged as `org.member_role` with `source: oidc_superadmin`. Losing superadmin
-does not demote them: the admin role stays (group mapping doesn't lower an admin role it didn't
-grant) until an admin changes it. Superadmins made with `create-admin` are not affected.
+raised), audit-logged as `org.member_role` with `source: oidc_superadmin`. When the IdP takes
+superadmin away, that admin role goes too: back to the role the groups give (with group mapping)
+or the role they had before (without), or out of the organisation when there was none, with
+their roles on its forms (`source: oidc_superadmin_revoke`). If an admin changed the role in the
+meantime, it stays. Superadmins made with `create-admin` are not affected.
+
+**Removal and sessions.** When group mapping removes someone from the default organisation, their
+roles on its forms go too, as when an admin removes them. Sign-in sessions are ended when someone
+is removed from an organisation or demoted (by an admin or by the IdP at sign-in) or loses
+superadmin. Someone removed from the IdP never signs in again, so their sessions last until they
+expire (8 hours idle, 7 days at most); end them at once with
+`python -m app.cli revoke-sessions --email someone@example.org`.
 
 *Entra ID group overage.* When someone is in more groups than fit in a token, Entra ID leaves
 the `groups` claim out and sends `_claim_names` / `hasgroups` (a pointer to Microsoft Graph)
