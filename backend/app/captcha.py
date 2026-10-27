@@ -169,10 +169,9 @@ async def _verify_remote(
     if hostname != (_expected_hostname(settings) or "").lower():
         log.warning("CAPTCHA token was solved on another host")
         return False
+    # Tokens solved for another action (another widget with the same key) don't count.
     action = body.get("action")
-    if action and action != WIDGET_ACTION:
-        return False
-    return True
+    return not action or action == WIDGET_ACTION
 
 
 async def verify(redis: Redis, settings: Settings, token: str | None, ip: str | None) -> bool:
