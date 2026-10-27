@@ -46,10 +46,17 @@ publicUrl: https://justforms.example.com
 environment: production
 # JUSTFORMS_TIMEZONE: dates in exports/PDFs and "today" in date limits.
 timezone: UTC
-# JUSTFORMS_TRUSTED_PROXIES: proxies (IPs or CIDRs) whose X-Forwarded-For is trusted for the
-# client IP recorded with submissions and signatures. Include your pod CIDR (the bundled
-# nginx is the first hop) and your ingress controller's addresses.
-trustedProxies: []
+# JUSTFORMS_TRUSTED_PROXIES: addresses (IPs or CIDRs) the API takes X-Forwarded-For from, for
+# the client IP used by rate limits and recorded with submissions, signatures and audit entries.
+# Only the bundled web container (nginx) talks to the API, and it sends the client address it
+# worked out (frontend.realIp) as the only hop, so this is the frontend pods' range: narrow it to
+# your pod CIDR. Ingress/CDN addresses belong in frontend.realIp.from, not here. Also used for
+# uvicorn's FORWARDED_ALLOW_IPS unless backend.forwardedAllowIps is set.
+trustedProxies:
+  - 10.0.0.0/8
+  - 172.16.0.0/12
+  - 192.168.0.0/16
+  - fc00::/7
 # JUSTFORMS_MAX_UPLOAD_MB: largest single upload (nginx accepts up to 50).
 maxUploadMb: 25
 # JUSTFORMS_TRASH_DAYS: deleted forms and submissions stay in the trash (restorable) this many
@@ -295,9 +302,11 @@ containerSecurityContext:
 backend:
   replicas: 1
   port: 8000
-  # uvicorn honours X-Forwarded-Proto/-For only from these addresses (env FORWARDED_ALLOW_IPS).
-  # The bundled nginx is the only client; "*" matches the compose stack.
-  forwardedAllowIps: "*"
+  # uvicorn honours X-Forwarded-Proto/-For only from these addresses (env FORWARDED_ALLOW_IPS,
+  # comma-separated). Empty: the same as trustedProxies. Never "*": uvicorn would then take the
+  # left-most X-Forwarded-For hop, which the client writes (the chart refuses it, and so does the
+  # API in production).
+  forwardedAllowIps: ""
   resources: {}
   #  requests: {cpu: 100m, memory: 256Mi}
   #  limits: {memory: 512Mi}
@@ -376,6 +385,20 @@ frontend:
     # Extra origins for connect-src (and img-src) in the CSP, e.g. a CDN in front of the
     # bucket. With storage.backend s3 the bucket origin is added automatically.
     extraConnectSrc: []
+  # The client address, worked out by nginx and sent to the API as the only X-Forwarded-For hop.
+  # from: addresses/CIDRs of what connects to the frontend pods (ingress controller, gateway,
+  # tunnel connector); only they may name another client address. Empty: the peer is the client,
+  # so behind an ingress every visitor shares the ingress's address and per-IP rate limits
+  # become global. header: X-Forwarded-For (the right-most address not in "from" is used) or a
+  # one-address header a CDN sets, e.g. CF-Connecting-IP (only when every request reaches the
+  # cluster through that CDN, e.g. a tunnel).
+  realIp:
+    from: []
+    header: X-Forwarded-For
+  # Strict-Transport-Security on every response (env JUSTFORMS_HSTS): auto (only when the
+  # request came over HTTPS per X-Forwarded-Proto), off, or the header value to always send,
+  # e.g. "max-age=31536000; includeSubDomains".
+  hsts: auto
   # DNS resolver nginx uses for BACKEND_URL (env NGINX_RESOLVER). Empty: taken from the pod's
   # /etc/resolv.conf by the nginx image's local-resolvers entrypoint script.
   nginxResolver: ""

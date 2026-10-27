@@ -27,4 +27,6 @@ USER justforms
 
 EXPOSE 8000
 # Same image runs the worker with: arq app.worker.WorkerSettings
+# --proxy-headers trusts only FORWARDED_ALLOW_IPS (default 127.0.0.1,::1): set it to the web
+# container's addresses, the same as JUSTFORMS_TRUSTED_PROXIES. Never "*".
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

@@ -81,6 +81,8 @@ The frontend container gets:
 | `JUSTFORMS_THAANA_FONT_CSS_URL` | Same as the backend; its origin is allowed in the CSP. |
 | `JUSTFORMS_CAPTCHA_PROVIDER` | Same as the backend; the provider's origins are allowed in the CSP. |
 | `JUSTFORMS_CSP_EXTRA_CONNECT_SRC` | Space-separated origins: the S3 bucket origin (s3 only) plus `frontend.csp.extraConnectSrc`. |
+| `JUSTFORMS_REAL_IP_FROM` / `JUSTFORMS_REAL_IP_HEADER` | `frontend.realIp.from` (comma-joined) / `frontend.realIp.header`. |
+| `JUSTFORMS_HSTS` | `frontend.hsts`. |
 
 S3 origins added to the CSP:
 
@@ -91,6 +93,44 @@ S3 origins added to the CSP:
 | `scheme://host[:port]` | `virtual` | `scheme://<bucket>.host[:port]` |
 | `scheme://host[:port]` | `path` | `scheme://host[:port]` |
 | `scheme://host[:port]` | `auto` | both of the above |
+
+**Client IP address.** Per-IP rate limits, and the IP recorded with submissions, signatures and
+audit entries, need the visitor's address. nginx works it out and sends it to the API as the only
+`X-Forwarded-For` hop; whatever a client writes into that header itself is never used.
+
+- `frontend.realIp.from`: what connects to the frontend pods (ingress controller, gateway,
+  tunnel connector), as CIDRs. Only requests from these peers may name another client address.
+  Empty (default): the peer is the client, so behind an ingress every visitor shares the
+  ingress's address and per-IP limits act as global limits. Set it.
+- `frontend.realIp.header`: `X-Forwarded-For` (default; the right-most address that is not in
+  `from` is used), or a one-address header set by a CDN, e.g. `CF-Connecting-IP`. Use a CDN
+  header only when every request reaches the cluster through that CDN (e.g. a tunnel), or a
+  client going around it could set the header.
+- `trustedProxies` (API side): the frontend pods' range. Default: the private ranges; narrow it
+  to your pod CIDR. uvicorn's `FORWARDED_ALLOW_IPS` follows it unless `backend.forwardedAllowIps`
+  is set. `*` is refused.
+
+Behind a CDN with a tunnel or ingress in a cluster whose pod CIDR is `10.244.0.0/16`:
+
+```yaml
+trustedProxies: ["10.244.0.0/16"]
+frontend:
+  realIp:
+    from: ["10.244.0.0/16"]
+    header: CF-Connecting-IP
+  hsts: "max-age=31536000; includeSubDomains"
+```
+
+*Upgrading:* `backend.forwardedAllowIps` used to default to `*`, which let any client choose its
+address. Ingress addresses that were in `trustedProxies` now go in `frontend.realIp.from`.
+
+**HSTS.** `frontend.hsts`: `auto` (default) sends `Strict-Transport-Security` only when the
+request came over HTTPS according to `X-Forwarded-Proto`; set the header value to send it on
+every response (pages, files and the API), or `off`.
+
+**Access log.** nginx logs the method and path only: no query strings (OIDC codes, search terms),
+no referrer, and the token in approver (`/a/`), verify (`/v/`) and invitation links replaced by
+`[token]`.
 
 Self-hosted fonts: put `fonts.css` and the font files in a ConfigMap and set
 `frontend.fontsConfigMap`; they are served at `/fonts/`.
@@ -203,7 +243,7 @@ unless noted.
 | `publicUrl` | `https://justforms.example.com` | `JUSTFORMS_PUBLIC_URL`; default Ingress/HTTPRoute host |
 | `environment` | `production` | `JUSTFORMS_ENVIRONMENT` |
 | `timezone` | `UTC` | `JUSTFORMS_TIMEZONE` |
-| `trustedProxies` | `[]` | `JUSTFORMS_TRUSTED_PROXIES` (comma-joined). Include the pod CIDR: the bundled nginx is the first hop. |
+| `trustedProxies` | private ranges | `JUSTFORMS_TRUSTED_PROXIES` (comma-joined): the frontend pods, whose `X-Forwarded-For` the API trusts. Narrow it to your pod CIDR; see [Client IP address](#frontend-nginx) |
 | `maxUploadMb` | `25` | `JUSTFORMS_MAX_UPLOAD_MB` |
 | `trash.days` | `30` | `JUSTFORMS_TRASH_DAYS`: days deleted forms and submissions stay restorable before the worker erases them |
 | `thaanaFontCssUrl` | dvfonts CDN | `JUSTFORMS_THAANA_FONT_CSS_URL` (also on the frontend) |
@@ -276,7 +316,7 @@ unless noted.
 | `podSecurityContext` | uid/gid/fsGroup 10001, non-root, RuntimeDefault | Backend, worker, migrate |
 | `containerSecurityContext` | read-only root, drop ALL, no escalation | Backend, worker, migrate |
 | `backend.replicas` / `.port` | `1` / `8000` | |
-| `backend.forwardedAllowIps` | `*` | uvicorn `FORWARDED_ALLOW_IPS` (backend only) |
+| `backend.forwardedAllowIps` | `""` | uvicorn `FORWARDED_ALLOW_IPS` (backend only); empty: `trustedProxies`. `*` is refused |
 | `backend.readinessProbe` / `.livenessProbe` | HTTP `/api/health` | |
 | `backend.service.type` / `.annotations` | `ClusterIP` / `{}` | |
 | `worker.replicas` | `1` | |
@@ -286,6 +326,8 @@ unless noted.
 | `frontend.fontsConfigMap` | `""` | ConfigMap served at `/fonts/` |
 | `frontend.csp.extraConnectSrc` | `[]` | Extra CSP origins |
 | `frontend.nginxResolver` | `""` | `NGINX_RESOLVER` |
+| `frontend.realIp.from` / `.header` | `[]` / `X-Forwarded-For` | Proxies in front of the frontend and the header they put the client address in (see [Client IP address](#frontend-nginx)) |
+| `frontend.hsts` | `auto` | `Strict-Transport-Security`: `auto`, `off` or the value to always send |
 | `frontend.podSecurityContext` / `.securityContext` | see [Security](#security) | |
 | `frontend.readinessProbe` / `.livenessProbe` | HTTP `/` | |
 | `frontend.service.type` / `.annotations` | `ClusterIP` / `{}` | |

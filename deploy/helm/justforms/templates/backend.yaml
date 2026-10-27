@@ -54,7 +54,7 @@ spec:
               protocol: TCP
           {{- include "justforms.backendEnv" . | trim | nindent 10 }}
             - name: FORWARDED_ALLOW_IPS
-              value: {{ $c.forwardedAllowIps | quote }}
+              value: {{ $c.forwardedAllowIps | default (join "," .Values.trustedProxies) | default "127.0.0.1,::1" | quote }}
           {{- include "justforms.appVolumeMounts" (dict "root" . "storage" true) | nindent 10 }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}

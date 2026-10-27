@@ -75,6 +75,13 @@ spec:
               value: {{ .Values.captcha.provider | quote }}
             - name: JUSTFORMS_CSP_EXTRA_CONNECT_SRC
               value: {{ include "justforms.cspExtraConnectSrc" . | quote }}
+            # Client address (proxies in front) and HSTS.
+            - name: JUSTFORMS_REAL_IP_FROM
+              value: {{ join "," (($c.realIp).from | default list) | quote }}
+            - name: JUSTFORMS_REAL_IP_HEADER
+              value: {{ (($c.realIp).header | default "X-Forwarded-For") | quote }}
+            - name: JUSTFORMS_HSTS
+              value: {{ $c.hsts | default "auto" | quote }}
           ports:
             - name: http
               containerPort: {{ $c.port }}

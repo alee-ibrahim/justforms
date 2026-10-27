@@ -100,6 +100,9 @@ Validation: fail early on settings the backend would reject at start-up.
 {{- if not $v.storage.s3.bucket -}}{{- fail "storage.s3.bucket is required when storage.backend is s3" -}}{{- end -}}
 {{- if not $v.storage.s3.existingSecret -}}{{- fail "storage.s3.existingSecret is required when storage.backend is s3" -}}{{- end -}}
 {{- end -}}
+{{- if or (has "*" $v.trustedProxies) (contains "*" ($v.backend.forwardedAllowIps | default "")) -}}
+{{- fail "trustedProxies and backend.forwardedAllowIps must list addresses, never \"*\": the client could choose its IP address with X-Forwarded-For" -}}
+{{- end -}}
 {{- if not (has $v.smtp.security (list "none" "starttls" "tls")) -}}
 {{- fail (printf "smtp.security must be none, starttls or tls, got %q" $v.smtp.security) -}}
 {{- end -}}

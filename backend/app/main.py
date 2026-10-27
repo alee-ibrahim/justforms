@@ -1,4 +1,5 @@
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +14,16 @@ log = logging.getLogger(__name__)
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    if os.environ.get("FORWARDED_ALLOW_IPS", "").strip() == "*":
+        # uvicorn would take the left-most X-Forwarded-For hop, which the client writes.
+        message = (
+            "FORWARDED_ALLOW_IPS='*' lets any client choose its IP address (rate limits, audit "
+            "and signature records). Set it to the web container's addresses, the same as "
+            "JUSTFORMS_TRUSTED_PROXIES."
+        )
+        if settings.environment == "production":
+            raise RuntimeError(message)
+        log.warning(message)
     if settings.demo_login_code is not None:
         if settings.demo_login_enabled:
             log.warning(

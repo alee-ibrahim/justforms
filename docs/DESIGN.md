@@ -1023,7 +1023,7 @@ A Redis sliding-window limiter is applied as FastAPI dependencies. Limits are co
 
 Checks are atomic: the limiter trims, counts and adds a hit in one Lua script, and a code check reserves an attempt (`HINCRBY`) in one script before comparing, so concurrent requests can't all pass a check before any is counted. At most `max_attempts` guesses are compared per code.
 
-The client IP comes from `X-Forwarded-For` only when the request arrives from `JUSTFORMS_TRUSTED_PROXIES`.
+The client IP comes from `X-Forwarded-For` only when the request arrives from `JUSTFORMS_TRUSTED_PROXIES`, and is then the right-most hop that is not a trusted proxy (hops to its left are written by the client). The web container works the address out with nginx's real-IP module (`JUSTFORMS_REAL_IP_FROM`, `JUSTFORMS_REAL_IP_HEADER`) and sends it as the only hop; uvicorn's `FORWARDED_ALLOW_IPS` lists the same addresses (never `*`).
 
 ### 14.2 CAPTCHA (optional, per form)
 

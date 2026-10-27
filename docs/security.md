@@ -21,8 +21,15 @@ problem. Abuse-control settings are in [Configuration](configuration.md#abuse-co
   (`JUSTFORMS_CODE_LOCKOUT_FAILURES`) the address (or approval step) is locked out until the day
   passes, whatever codes are requested meanwhile. Someone who knows an address can lock its
   email-code sign-in for that time; OIDC sign-in is not affected.
+- **Client IP address.** The web container works out the visitor's address (trusting only the
+  proxies in `JUSTFORMS_REAL_IP_FROM`) and sends it to the API as the only `X-Forwarded-For`
+  hop; the API trusts that header only from `JUSTFORMS_TRUSTED_PROXIES` and takes the
+  right-most untrusted hop, so a client can't choose the address used for rate limits or
+  recorded with submissions and signatures. uvicorn's `FORWARDED_ALLOW_IPS=*` is refused in
+  production.
 - **Headers.** The web container sends a Content-Security-Policy, `X-Content-Type-Options`,
-  `Referrer-Policy`, `Permissions-Policy` and (behind HTTPS) HSTS. Public forms may be framed
+  `Referrer-Policy`, `Permissions-Policy` and HSTS (behind HTTPS by default, or always with
+  `JUSTFORMS_HSTS`) on every response, the API included. Public forms may be framed
   by the form's allowed websites (any site when the list is empty); the studio, verify and
   approver pages never.
 - **Uploaded images** for branding and themes: SVGs are cleaned on upload and every image is

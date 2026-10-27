@@ -13,11 +13,15 @@ FROM nginx:1.29-alpine
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY docker/security-headers.inc /etc/nginx/snippets/justforms-security-headers.inc
 COPY --chmod=0755 docker/16-justforms-csp.envsh /docker-entrypoint.d/16-justforms-csp.envsh
+COPY --chmod=0755 docker/17-justforms-proxy.envsh /docker-entrypoint.d/17-justforms-proxy.envsh
 COPY --from=build /app/dist /usr/share/nginx/html
 # BACKEND_URL is resolved at request time (resolver from /etc/resolv.conf), so it must be a
 # name the DNS server answers for (on Kubernetes: the fully qualified service name).
 ENV BACKEND_URL=http://backend:8000 \
     NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1 \
     JUSTFORMS_THAANA_FONT_CSS_URL="https://dvfonts.yashau.com/css2?family=Faruma&display=swap" \
-    JUSTFORMS_CAPTCHA_PROVIDER=none
+    JUSTFORMS_CAPTCHA_PROVIDER=none \
+    JUSTFORMS_REAL_IP_FROM="" \
+    JUSTFORMS_REAL_IP_HEADER=X-Forwarded-For \
+    JUSTFORMS_HSTS=auto
 EXPOSE 80

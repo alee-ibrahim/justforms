@@ -45,3 +45,9 @@ Migrations run as the pre-install/pre-upgrade hook Job {{ include "justforms.ful
 WARNING: local storage is ReadWriteOnce, so every backend and worker pod must run on one
 node. Use a ReadWriteMany storage class or storage.backend=s3 to scale across nodes.
 {{- end }}
+{{- if and (or .Values.ingress.enabled .Values.httpRoute.enabled) (not .Values.frontend.realIp.from) }}
+
+WARNING: frontend.realIp.from is empty, so the API sees the ingress/gateway's address for every
+visitor and per-IP rate limits act as global limits. List the addresses (CIDRs) of what connects
+to the frontend pods in frontend.realIp.from.
+{{- end }}

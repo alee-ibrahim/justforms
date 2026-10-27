@@ -39,6 +39,7 @@ from app.models import (
     SuperadminSource,
     User,
 )
+from app.net import client_ip
 from app.queue import JobQueue, get_queue
 from app.ratelimit import per_ip
 from app.services import invitations
@@ -162,7 +163,7 @@ async def local_request(
     queue: Annotated[JobQueue, Depends(get_queue)],
 ) -> dict[str, str]:
     email = normalize_email(body.email)
-    ip = request.client.host if request.client else None
+    ip = client_ip(request, settings)
     if await local.rate_limited(redis, settings, email, ip):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too_many_requests")
     # People with an open invitation get a code too: signing in with it accepts the invitation.
@@ -194,7 +195,7 @@ async def local_verify(
     user = await invitations.user_for_open_invitation(db, email)
     if user is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid_code")
-    ip = request.client.host if request.client else None
+    ip = client_ip(request, settings)
     mark_login(user)
     # The code proved the address: accept the invitations waiting for it.
     await invitations.accept_all(db, user, ip=ip)
@@ -412,7 +413,7 @@ async def oidc_callback(
         db,
         "auth.login",
         actor_id=user.id,
-        ip=request.client.host if request.client else None,
+        ip=client_ip(request, settings),
         meta={"method": "oidc"},
     )
     await db.commit()

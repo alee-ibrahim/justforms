@@ -26,8 +26,13 @@ def _trusted(addr: str, settings: Settings) -> bool:
 
 
 def client_ip(request: Request, settings: Settings) -> str | None:
-    """The peer address, or the right-most untrusted ``X-Forwarded-For`` hop when the peer
-    is a trusted proxy (DESIGN 14.1)."""
+    """The client address (DESIGN 14.1).
+
+    The peer address, unless the peer is one of ``JUSTFORMS_TRUSTED_PROXIES``: then the
+    right-most ``X-Forwarded-For`` hop that is not a trusted proxy (hops to its left were
+    written by the client and are never used). When every hop is a trusted proxy, the
+    left-most one (each was added by a trusted proxy). uvicorn's own proxy-header handling
+    must trust the same addresses or fewer (``FORWARDED_ALLOW_IPS``, never ``*``)."""
     peer = request.client.host if request.client else None
     if peer is None:
         return None
@@ -37,7 +42,7 @@ def client_ip(request: Request, settings: Settings) -> str | None:
     for hop in reversed(hops):
         if not _trusted(hop, settings):
             return _valid(hop)
-    return _valid(peer)
+    return _valid(hops[0]) if hops else _valid(peer)
 
 
 def _valid(addr: str) -> str | None:

@@ -28,7 +28,8 @@ A name like `JUSTFORMS_S3_ENDPOINT_URL`, `_BUCKET` means `JUSTFORMS_S3_ENDPOINT_
 | `JUSTFORMS_DATABASE_URL`, `JUSTFORMS_REDIS_URL` | local defaults | PostgreSQL (asyncpg) and Redis |
 | `JUSTFORMS_COOKIE_SECURE` | auto | Set `true` behind HTTPS |
 | `JUSTFORMS_TIMEZONE` | `UTC` | Dates in exports and PDFs, and "today" in date limits |
-| `JUSTFORMS_TRUSTED_PROXIES` | empty | Proxies (IPs or CIDRs) whose `X-Forwarded-For` is trusted |
+| `JUSTFORMS_TRUSTED_PROXIES` | empty (compose and Helm: private ranges) | Proxies (IPs or CIDRs) whose `X-Forwarded-For` is trusted: normally the web container only. The right-most hop that isn't one of them is the client. See [Client IP address](deployment.md#client-ip-address) |
+| `FORWARDED_ALLOW_IPS` | `127.0.0.1,::1` | uvicorn's own proxy trust (it also sets the scheme from `X-Forwarded-Proto`). Same addresses as above or fewer; never `*` (refused in production) |
 | `JUSTFORMS_SESSION_IDLE_SECONDS`, `_SESSION_ABSOLUTE_SECONDS` | 8 hours, 7 days | Staff session lifetimes |
 | `JUSTFORMS_CORS_ORIGINS` | `http://localhost:5173` | Origins allowed to call the API from a browser (the SPA is normally same-origin) |
 
@@ -249,6 +250,17 @@ Instance defaults, used by organisations that set no branding of their own. See
 | `JUSTFORMS_BRAND_POWERED_BY` | `optional` | `always` keeps "Powered by JustForms" on every form |
 
 In the Helm chart these are `branding.*` values.
+
+## Web container
+
+Read by the web container (nginx), not the backend. See
+[Client IP address](deployment.md#client-ip-address).
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `JUSTFORMS_REAL_IP_FROM` | empty | Proxies in front of the web container (CIDRs); only they may name the client address |
+| `JUSTFORMS_REAL_IP_HEADER` | `X-Forwarded-For` | Header those proxies put the client address in, e.g. `CF-Connecting-IP` behind a CDN |
+| `JUSTFORMS_HSTS` | `auto` | `auto`, `off`, or the `Strict-Transport-Security` value to send on every response |
 
 ## Cloudflare Tunnel
 

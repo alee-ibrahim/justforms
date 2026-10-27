@@ -33,7 +33,9 @@ For a real install:
 - drop the `dev` profile and point the `JUSTFORMS_SMTP_*` settings at your mail relay;
 - put it behind a TLS proxy (or a [tunnel](#cloudflare-tunnel)), and set
   `JUSTFORMS_PUBLIC_URL` and `JUSTFORMS_COOKIE_SECURE=true`;
-- set `JUSTFORMS_TRUSTED_PROXIES` so the recorded client IP is the real one.
+- if a proxy, load balancer or tunnel sits in front of the web container, tell it about that
+  proxy (`JUSTFORMS_REAL_IP_FROM`, see [Client IP address](#client-ip-address)) so rate limits
+  and the recorded client IP use the visitor's address.
 
 | Profile | Adds |
 |---|---|
@@ -73,7 +75,8 @@ against it, so it **must** be the tunnel's URL. In `deploy/compose/.env`:
 ```sh
 JUSTFORMS_PUBLIC_URL=https://forms.example.org   # the tunnel hostname, no trailing slash
 JUSTFORMS_COOKIE_SECURE=true
-JUSTFORMS_TRUSTED_PROXIES=172.16.0.0/12           # Docker networks, for the recorded client IP
+JUSTFORMS_REAL_IP_FROM=172.16.0.0/12              # the tunnel container (Docker networks)
+JUSTFORMS_REAL_IP_HEADER=CF-Connecting-IP         # the visitor's address, set by the CDN
 CLOUDFLARE_TUNNEL_TOKEN=...                     # named tunnel only
 ```
 
@@ -84,17 +87,42 @@ docker compose logs cloudflared-quick | grep trycloudflare.com
 docker compose up -d backend worker                   # after changing JUSTFORMS_PUBLIC_URL
 ```
 
-nginx passes the tunnel's `X-Forwarded-Proto: https` on to the API and then sends HSTS. Add
+nginx passes the tunnel's `X-Forwarded-Proto: https` on to the API and then sends HSTS
+(`JUSTFORMS_HSTS=auto`; set a value such as `max-age=31536000; includeSubDomains` to always send
+it). With `CF-Connecting-IP` trusted from Docker networks, keep `JUSTFORMS_HTTP_PORT` off the
+public network (e.g. a firewall), or a client reaching it through Docker's port proxy could set
+that header. Add
 `--profile dev` for Mailpit; its UI stays on localhost and is not published through the tunnel.
 
 ## Reverse proxies
 
 Behind your own reverse proxy:
 
-- forward `X-Forwarded-For` and `X-Forwarded-Proto`, and list the proxy in
-  `JUSTFORMS_TRUSTED_PROXIES`;
+- forward `X-Forwarded-For` (appending, as proxies normally do) and `X-Forwarded-Proto`, and
+  list the proxy in `JUSTFORMS_REAL_IP_FROM` on the web container (see below);
 - don't buffer `/api/v1/forms/*/ai/` (the AI assistant streams Server-Sent Events) and allow
   reads of a few minutes there. Details: [DESIGN.md §12](DESIGN.md#12-ai-design).
+
+### Client IP address
+
+Per-IP rate limits and the IP address recorded with submissions, signatures and audit entries
+need the visitor's address, which a client must not be able to choose. The web container (nginx)
+works it out and sends it to the API as the only `X-Forwarded-For` hop:
+
+| Variable (web container) | Default | Purpose |
+|---|---|---|
+| `JUSTFORMS_REAL_IP_FROM` | empty | Proxies in front of the web container (CIDRs, comma-separated). Only these peers may name another client address. Empty: the peer is the client |
+| `JUSTFORMS_REAL_IP_HEADER` | `X-Forwarded-For` | Where those proxies put the address. With `X-Forwarded-For` the right-most address that is not one of the proxies is used, so entries a client wrote are ignored. A one-address CDN header such as `CF-Connecting-IP` is safe only when every request comes through that CDN |
+| `JUSTFORMS_HSTS` | `auto` | `Strict-Transport-Security` on every response, the API included: `auto` (only when `X-Forwarded-Proto` is `https`), `off`, or the value to always send |
+
+The API takes `X-Forwarded-For` only from `JUSTFORMS_TRUSTED_PROXIES` (compose default: the
+private ranges, since only the web container reaches it; Helm: `trustedProxies`, narrow it to
+the pod CIDR) and uses the right-most hop that is not a trusted proxy. uvicorn's
+`FORWARDED_ALLOW_IPS` must list the same addresses or fewer; the API refuses to start in
+production with `*`, which would let the client choose its address.
+
+nginx logs the method and path only: no query strings (sign-in codes, searches), no referrer, and
+the token in approver, verify and invitation links replaced by `[token]`.
 
 ## Kubernetes (Helm)
 

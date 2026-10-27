@@ -55,7 +55,12 @@ x-backend-env: &backend-env
   JUSTFORMS_S3_ADDRESSING_STYLE: ${JUSTFORMS_S3_ADDRESSING_STYLE:-auto}
   JUSTFORMS_MAX_UPLOAD_MB: ${JUSTFORMS_MAX_UPLOAD_MB:-25}
   JUSTFORMS_TIMEZONE: ${JUSTFORMS_TIMEZONE:-UTC}
-  JUSTFORMS_TRUSTED_PROXIES: ${JUSTFORMS_TRUSTED_PROXIES:-}
+  # Addresses the API takes X-Forwarded-For from: the web container, which sends the client
+  # address it worked out as the only hop (see JUSTFORMS_REAL_IP_FROM on the frontend). The API
+  # is not published, so only containers of this stack reach it. uvicorn uses the same list
+  # (never "*": the client could choose its address).
+  JUSTFORMS_TRUSTED_PROXIES: ${JUSTFORMS_TRUSTED_PROXIES:-127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7}
+  FORWARDED_ALLOW_IPS: ${JUSTFORMS_TRUSTED_PROXIES:-127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7}
   JUSTFORMS_PDF_SIGNING_P12: ${JUSTFORMS_PDF_SIGNING_P12:-}
   JUSTFORMS_PDF_SIGNING_P12_PASSWORD: ${JUSTFORMS_PDF_SIGNING_P12_PASSWORD:-}
   JUSTFORMS_PDF_TSA_URL: ${JUSTFORMS_PDF_TSA_URL:-}
@@ -138,7 +143,7 @@ services:
   backend:
     image: justforms-backend:dev
     restart: unless-stopped
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers
     environment: *backend-env
     volumes:
       - storage-data:/data/storage
@@ -177,6 +182,12 @@ services:
       JUSTFORMS_THAANA_FONT_CSS_URL: "${JUSTFORMS_THAANA_FONT_CSS_URL-https://dvfonts.yashau.com/css2?family=Faruma&display=swap}"
       JUSTFORMS_CAPTCHA_PROVIDER: ${JUSTFORMS_CAPTCHA_PROVIDER:-none}
       JUSTFORMS_CSP_EXTRA_CONNECT_SRC: ${JUSTFORMS_CSP_EXTRA_CONNECT_SRC:-}
+      # Client address: empty = the peer (browsers connect straight to this container). Behind
+      # a proxy or tunnel, list its addresses and the header it sets (see .env.example).
+      JUSTFORMS_REAL_IP_FROM: ${JUSTFORMS_REAL_IP_FROM:-}
+      JUSTFORMS_REAL_IP_HEADER: ${JUSTFORMS_REAL_IP_HEADER:-X-Forwarded-For}
+      # Strict-Transport-Security: auto (when X-Forwarded-Proto is https), off, or a value.
+      JUSTFORMS_HSTS: ${JUSTFORMS_HSTS:-auto}
     volumes:
       # Optional operator fonts (e.g. licensed Faruma) served at /fonts/;
       # see "Thaana fonts" in the README. The directory may be empty.
