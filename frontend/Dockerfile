@@ -9,7 +9,10 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
 
-FROM nginx:1.29-alpine
+# Unprivileged nginx (uid 101, no root master, pid and temp files under /tmp). nginx.conf still
+# listens on port 80: Docker lets non-root processes bind it, and the Helm chart sets the
+# net.ipv4.ip_unprivileged_port_start sysctl to 0 for the pod.
+FROM nginxinc/nginx-unprivileged:1.29-alpine
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY docker/security-headers.inc /etc/nginx/snippets/justforms-security-headers.inc
 COPY --chmod=0755 docker/16-justforms-csp.envsh /docker-entrypoint.d/16-justforms-csp.envsh
@@ -25,3 +28,4 @@ ENV BACKEND_URL=http://backend:8000 \
     JUSTFORMS_REAL_IP_HEADER=X-Forwarded-For \
     JUSTFORMS_HSTS=auto
 EXPOSE 80
+USER 101

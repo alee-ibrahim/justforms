@@ -410,18 +410,26 @@ frontend:
   # DNS resolver nginx uses for BACKEND_URL (env NGINX_RESOLVER). Empty: taken from the pod's
   # /etc/resolv.conf by the nginx image's local-resolvers entrypoint script.
   nginxResolver: ""
-  # Stock nginx: root master process (drops to the nginx user for workers) on port 80. It
-  # writes rendered templates to /etc/nginx/conf.d, its cache to /var/cache/nginx and its pid
-  # to /run; those are emptyDirs so the root filesystem stays read-only.
+  # Unprivileged nginx (uid 101, no capabilities) on port 80: the sysctl lets a non-root process
+  # bind ports below 1024 inside the pod's network namespace (a "safe" sysctl, allowed by the
+  # restricted Pod Security Standard). It writes rendered templates to /etc/nginx/conf.d, its
+  # cache to /var/cache/nginx and pid/temp files to /tmp; those are emptyDirs so the root
+  # filesystem stays read-only.
   podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    runAsGroup: 101
+    sysctls:
+      - name: net.ipv4.ip_unprivileged_port_start
+        value: "0"
     seccompProfile:
       type: RuntimeDefault
   securityContext:
+    runAsNonRoot: true
     allowPrivilegeEscalation: false
     readOnlyRootFilesystem: true
     capabilities:
       drop: ["ALL"]
-      add: ["NET_BIND_SERVICE", "CHOWN", "SETUID", "SETGID"]
     seccompProfile:
       type: RuntimeDefault
   readinessProbe:
@@ -485,11 +493,25 @@ httpRoute:
   #    namespace: gateway-system
   #    sectionName: https
   hostnames: []     # empty = host of publicUrl
-  # Gateway API rule timeouts. AI answers stream for up to JUSTFORMS_AI_TURN_SECONDS (120 s by
-  # default), and some gateways end a request after 15 s unless the route says otherwise.
-  # {} leaves the gateway's defaults.
+  # Gateway API rule timeouts for every request ({} leaves the gateway's defaults; some
+  # gateways end a request after 15 s unless the route says otherwise).
   timeouts:
-    request: 300s
+    request: 60s
+  # Requests that may legitimately run longer get their own rule (matched before the catch-all):
+  # AI answers stream for up to JUSTFORMS_AI_TURN_SECONDS (120 s by default), and file uploads,
+  # downloads, exports and PDFs through the API can be slow on poor connections. Keeping the
+  # long timeout off every other path limits slow-request exhaustion. matches: Gateway API
+  # HTTPRouteMatch list; empty disables the extra rule.
+  longRequests:
+    timeouts:
+      request: 300s
+    matches:
+      - path: {type: RegularExpression, value: "/api/v1/forms/[^/]+/(ai|ask)/sessions/[^/]+/(messages|import)"}
+      - path: {type: PathPrefix, value: /api/v1/public/uploads}
+      - path: {type: PathPrefix, value: /api/v1/files}
+      - path: {type: RegularExpression, value: "/api/v1/exports/[^/]+/download"}
+      - path: {type: RegularExpression, value: "/api/v1/submissions/[^/]+/(pdf|imported-files/.+)"}
+      - path: {type: PathPrefix, value: /api/v1/public/approvals}
 
 # ------------------------------------------------------------------------------------------
 # NetworkPolicy (off by default)

@@ -38,7 +38,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
-        # Writable paths for the stock nginx image; the root filesystem is read-only.
+        # Writable paths for nginx; the root filesystem is read-only.
         - name: nginx-conf
           emptyDir: {}
         - name: nginx-cache
