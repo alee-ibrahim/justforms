@@ -76,6 +76,10 @@ async def erase(
     keys += stored_keys(sub.imported_links)
     for key in keys:
         await storage.delete(key)
+    # Ask answers written since it arrived may quote it.
+    from app.ai.service import mask_ask_answers
+
+    await mask_ask_answers(db, sub.form_id, sub.submitted_at)
     await audit(
         db,
         "submission.erased",

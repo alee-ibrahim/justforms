@@ -322,6 +322,8 @@ class AskOutcome:
     link: dict[str, Any] | None = None
     # Whole numbers in the reply that appear in no tool result, the question or the prompt.
     unverified: list[int] = field(default_factory=list)
+    # Sensitive answers shown in lists: submission id -> question keys (activity log).
+    viewed: dict[Any, list[str]] = field(default_factory=dict)
 
 
 class Tools:
@@ -336,6 +338,7 @@ class Tools:
         tz: ZoneInfo,
         read_allowed: bool,
         total: int | None = None,
+        policy: Policy | None = None,
     ) -> None:
         self.db = db
         self.cat = cat
@@ -343,13 +346,15 @@ class Tools:
         self.tz = tz
         self.read_allowed = read_allowed
         self.total = total
-        self.policy = Policy.for_ask(read_allowed)
+        self.policy = policy or Policy.for_ask(read_allowed)
         self.results: dict[str, tuple[Query, dict[str, Any]]] = {}
         # Characters of tool results still allowed to go to the AI for this question.
         self.read_left = READ_TOTAL_CHARS
         # Submissions whose answers went to the AI for this question.
         self.sent_refs: set[int] = set()
         self.lists_shown: list[dict[str, Any]] = []
+        # Sensitive answers shown to the person in lists: submission id -> question keys.
+        self.viewed: dict[Any, set[str]] = {}
 
     async def run(
         self, name: str, args: dict[str, Any]
@@ -739,6 +744,8 @@ class Tools:
                     continue
                 answered[key] += 1
                 values[key] = v
+                if lq is not None and lq.sensitive:
+                    self.viewed.setdefault(sub.id, set()).add(key)
                 if lq is not None and lq.type in OBJECT_TYPES:
                     ai_values[key] = self._ai_text(lq, data, vid)
                 else:
@@ -768,6 +775,13 @@ class Tools:
             "total": total,
             "truncated": total > len(rows),
             "answered": answered,
+            # What the list is, so a stored answer re-reads it instead of keeping the rows.
+            "spec": {
+                **Where(where=where, where_any=where_any).model_dump(mode="json", by_alias=True),
+                "fields": keys,
+                "sort": sort,
+                "limit": limit,
+            },
         }
         if sensitive:
             chart["sensitive"] = sensitive
@@ -804,6 +818,40 @@ class Tools:
             }
         )
         return content, chart
+
+
+def stored_chart(chart: dict[str, Any]) -> dict[str, Any]:
+    """A chart as the transcript keeps it: a list keeps what it is (``spec``) and its counts,
+    never the rows, which are read again from the database when the answer is opened."""
+    if chart.get("display") != "list":
+        return chart
+    return {**{k: v for k, v in chart.items() if k != "rows"}, "rows": [], "stored": True}
+
+
+async def relist(tools: Tools, chart: dict[str, Any]) -> dict[str, Any]:
+    """The rows of a stored list, read now: current answers, deleted submissions left out."""
+    spec = chart.get("spec")
+    if not isinstance(spec, dict):
+        raise QueryError("this list was not stored")
+    where = Where.model_validate(
+        {"where": spec.get("where", []), "whereAny": spec.get("whereAny", [])}
+    )
+    keys = [str(k) for k in spec.get("fields", [])][:LIST_FIELDS]
+    sort = "oldest" if spec.get("sort") == "oldest" else "newest"
+    limit = max(1, min(int(spec.get("limit") or LIST_ROWS), LIST_ROWS))
+    async with tools.db.begin_nested():
+        ms = int(QUERY_TIMEOUT_SECONDS * 1000)
+        await tools.db.execute(text(f"SET LOCAL statement_timeout = {ms}"))
+        _content, fresh = await tools._listing(
+            where.where,
+            where.where_any,
+            keys,
+            title=str(chart.get("title", "")),
+            qid=str(chart.get("queryId", "")),
+            sort=sort,
+            limit=limit,
+        )
+    return fresh
 
 
 def _untrusted_query(cat: Catalogue, query: Query, out: dict[str, Any]) -> dict[str, Any]:
@@ -1158,7 +1206,7 @@ async def run_ask(
                     outcome.steps.append(step)
                     await emit("tool.applied" if ok else "tool.error", step)
                 if chart is not None:
-                    outcome.charts.append(chart)
+                    outcome.charts.append(stored_chart(chart))
                     await emit("chart", chart)
                 results.append(ToolResult(call.id, call.name, content, is_error=not ok))
             messages.append(ChatMessage("tool", tool_results=results))
@@ -1182,6 +1230,7 @@ async def run_ask(
         log.exception("ask: the answer failed")
         outcome.status, outcome.error = "error", "internal"
     outcome.lists = list(tools.lists_shown)
+    outcome.viewed = {k: sorted(v) for k, v in tools.viewed.items()}
     return outcome
 
 

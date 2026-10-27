@@ -696,3 +696,151 @@ def test_unverified_numbers() -> None:
     system = "It has 310 submissions. Today is 2026-10-27."
     assert ask_mod.unverified_numbers("1,240 of 310; top 3 in 2026", system, msgs) == []
     assert ask_mod.unverified_numbers("12 of 310 (#45), 50% and 2.5 avg", system, msgs) == [12]
+
+
+# -- M4: transcripts keep what was listed, not the values -------------------------------------
+
+
+async def test_list_values_persist_after_submission_deleted(
+    client: AsyncClient,
+    db: AsyncSession,
+    settings: Settings,
+    queue: RecordingQueue,
+    provider: ScriptedProvider,
+) -> None:
+    """Regression: the transcript stored listed rows (a sensitive national ID, respondent
+    emails) and kept them after the submissions were deleted. Now it stores what the list
+    is; opening it reads the rows again (deleted submissions drop out) and records a
+    "viewed" event for sensitive answers shown, as opening the submission does."""
+    from app.models import EventType, SubmissionEvent
+    from app.storage import get_storage
+    from app.submissions import retention
+
+    s = await setup(client, db, settings, queue)
+    fid = str(s.form.id)
+    fields = ["org_name", "national_id", "contact", "_respondent"]
+    provider.steps.extend(
+        [turn(calls=[("list_submissions", {"fields": fields})]), turn("5 are listed.")]
+    )
+    evs = await ask(client, fid, "list ids")
+    assert "A111111" in json.dumps(dict(evs)["chart"])  # the person sees it live
+    state = (await client.get(f"/api/v1/forms/{fid}/ask")).json()
+    answer = state["messages"][-1]
+    stored = json.dumps(answer, ensure_ascii=False)
+    assert "A111111" not in stored and "resp@example.org" not in stored
+    chart = answer["content"]["charts"][0]
+    assert chart["rows"] == [] and chart["stored"] is True and chart["total"] == 5
+    assert chart["spec"]["fields"] == fields
+    # Opening it reads the rows now, and logs the sensitive answers it shows.
+    url = f"/api/v1/forms/{fid}/ask/messages/{answer['id']}/lists/0"
+    res = await client.get(url)
+    assert res.status_code == 200, res.text
+    assert "A111111" in res.text and len(res.json()["rows"]) == 5
+    viewed = (
+        await db.scalars(select(SubmissionEvent).where(SubmissionEvent.type == EventType.VIEWED))
+    ).all()
+    assert viewed and all(e.payload == {"fields": ["national_id"], "via": "ask"} for e in viewed)
+    count_views = len(viewed)
+    await client.get(url)  # within the hour: not logged again
+    assert (
+        len(
+            (
+                await db.scalars(
+                    select(SubmissionEvent).where(SubmissionEvent.type == EventType.VIEWED)
+                )
+            ).all()
+        )
+        == count_views
+    )
+    row = await db.scalar(select(AuditLog).where(AuditLog.action == "ai.ask_list_view"))
+    assert row is not None and "A111111" not in json.dumps(row.meta)
+    # Deleted (trashed) submissions drop out of the list.
+    first = await db.scalar(
+        select(Submission).where(Submission.form_id == s.form.id, Submission.seq == 1)
+    )
+    assert first is not None
+    first.deleted_at = datetime.now(UTC)
+    await db.commit()
+    assert "A111111" not in (await client.get(url)).text
+    # Erasing a submission (trash purge, retention, erasure) masks the answers written since.
+    await retention.erase(db, get_storage(), first, reason="deleted")
+    await db.commit()
+    rows = (await db.scalars(select(AiMessage).where(AiMessage.role == "assistant"))).all()
+    assert all(m.content["status"] == "removed" for m in rows)
+    stored_all = json.dumps([m.content for m in rows], ensure_ascii=False)
+    assert "A111111" not in stored_all
+    assert (await client.get(url)).status_code == 404
+    # Other people can't open someone's stored list.
+    assert (
+        await client.get(f"/api/v1/forms/{fid}/ask/messages/{uuid.uuid4()}/lists/0")
+    ).status_code == 404
+
+
+async def test_ask_transcripts_follow_form_retention(db: AsyncSession) -> None:
+    from datetime import timedelta
+
+    from app.ai import service as ai_svc
+    from app.models import AiMode, AiSession
+
+    s = await seed(db, settings={"retentionDays": 30})
+    other = await seed(db)
+    now = datetime.now(UTC)
+    for form in (s, other):
+        session = AiSession(
+            org_id=form.org.id, form_id=form.form.id, provider="fake", model="m", mode=AiMode.ASK
+        )
+        db.add(session)
+        await db.flush()
+        for days in (5, 40):
+            db.add(
+                AiMessage(
+                    session_id=session.id,
+                    role="assistant",
+                    content={"text": f"{days}"},
+                    created_at=now - timedelta(days=days),
+                )
+            )
+    await db.commit()
+    await ai_svc.purge_old(db, now)
+    left = (
+        await db.execute(
+            select(AiSession.form_id, AiMessage.content).join(
+                AiSession, AiSession.id == AiMessage.session_id
+            )
+        )
+    ).all()
+    kept = sorted((fid == s.form.id, c["text"]) for fid, c in left)
+    assert kept == [(False, "40"), (False, "5"), (True, "5")]
+
+
+async def test_migration_strips_stored_rows(db: AsyncSession) -> None:
+    """The data migration removes rows kept by earlier versions from stored lists."""
+    import importlib.util
+    from pathlib import Path
+
+    from app.models import AiMode, AiSession
+
+    path = Path(__file__).parent.parent / "alembic/versions/20261027_0021_sec_ai_transcripts.py"
+    spec = importlib.util.spec_from_file_location("mig_0021", path)
+    assert spec and spec.loader
+    mig = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mig)
+    s = await seed(db)
+    session = AiSession(
+        org_id=s.org.id, form_id=s.form.id, provider="fake", model="m", mode=AiMode.ASK
+    )
+    db.add(session)
+    await db.flush()
+    old_list = {"display": "list", "rows": [{"values": {"national_id": "A111111"}}], "total": 1}
+    bar = {"display": "bar", "rows": [{"label": "Malé", "values": {"count": 2}}]}
+    msg = AiMessage(
+        session_id=session.id, role="assistant", content={"text": "x", "charts": [bar, old_list]}
+    )
+    db.add(msg)
+    await db.commit()
+    await db.execute(text(mig.STRIP_ROWS))
+    await db.commit()
+    await db.refresh(msg)
+    charts = msg.content["charts"]
+    assert charts[0] == bar
+    assert charts[1] == {"display": "list", "rows": [], "total": 1, "expired": True}

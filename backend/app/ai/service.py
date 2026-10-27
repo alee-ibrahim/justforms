@@ -10,12 +10,12 @@ from typing import Any
 
 import jsonpatch
 import jsonpointer
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.tools import element_label, iter_elements
 from app.ai.types import ChatMessage
-from app.models import ActorType, AiMessage, AiSession, AiSessionStatus, FormRecord
+from app.models import ActorType, AiMessage, AiMode, AiSession, AiSessionStatus, FormRecord
 from app.services import forms as form_svc
 
 HISTORY_TURNS = 10
@@ -355,12 +355,65 @@ def is_empty(schema: dict[str, Any]) -> bool:
 
 
 RETENTION_DAYS = 90
+# What an answer becomes when submissions it may have read are erased.
+REMOVED: dict[str, Any] = {
+    "text": "",
+    "steps": [],
+    "charts": [],
+    "link": None,
+    "status": "removed",
+    "error": None,
+}
 
 
 async def purge_old(db: AsyncSession, now: datetime | None = None) -> int:
-    """Erase transcripts older than 90 days, and chats nobody touched since (DESIGN 6)."""
-    cutoff = (now or datetime.now(UTC)) - timedelta(days=RETENTION_DAYS)
+    """Erase transcripts older than 90 days, and chats nobody touched since (DESIGN 6). Ask
+    transcripts of a form with a retention period go when its submissions would: after
+    min(90 days, retentionDays)."""
+    now = now or datetime.now(UTC)
+    cutoff = now - timedelta(days=RETENTION_DAYS)
     result = await db.execute(delete(AiMessage).where(AiMessage.created_at < cutoff))
+    count = int(getattr(result, "rowcount", 0) or 0)
     await db.execute(delete(AiSession).where(AiSession.updated_at < cutoff))
+    forms = (
+        await db.execute(
+            select(FormRecord.id, FormRecord.settings).where(
+                FormRecord.settings.has_key("retentionDays")
+            )
+        )
+    ).all()
+    for form_id, settings in forms:
+        days = (settings or {}).get("retentionDays")
+        if not isinstance(days, int) or days < 1 or days >= RETENTION_DAYS:
+            continue
+        sessions = select(AiSession.id).where(
+            AiSession.form_id == form_id, AiSession.mode == AiMode.ASK
+        )
+        result = await db.execute(
+            delete(AiMessage).where(
+                AiMessage.session_id.in_(sessions),
+                AiMessage.created_at < now - timedelta(days=days),
+            )
+        )
+        count += int(getattr(result, "rowcount", 0) or 0)
     await db.commit()
-    return int(getattr(result, "rowcount", 0) or 0)
+    return count
+
+
+async def mask_ask_answers(db: AsyncSession, form_id: uuid.UUID, since: datetime) -> None:
+    """A submission was erased: Ask answers about the form written since it arrived may
+    quote it (reply text, group labels), so they are replaced by "removed". The questions
+    stay. The caller commits."""
+    sessions = select(AiSession.id).where(
+        AiSession.form_id == form_id, AiSession.mode == AiMode.ASK
+    )
+    await db.execute(
+        update(AiMessage)
+        .where(
+            AiMessage.session_id.in_(sessions),
+            AiMessage.role == "assistant",
+            AiMessage.created_at >= since,
+            AiMessage.content["status"].astext != "removed",
+        )
+        .values(content=REMOVED)
+    )

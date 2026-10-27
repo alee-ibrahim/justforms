@@ -16,11 +16,11 @@ import asyncio
 import logging
 import uuid
 from collections.abc import AsyncIterator
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any
 
 import anyio
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, HTTPException, Path, Query, Response, status
 from fastapi.responses import StreamingResponse
 from pydantic import Field, StringConstraints
 from sqlalchemy import ColumnElement, func, select, update
@@ -35,9 +35,20 @@ from app.api.v1.submissions import _list_filters
 from app.auth.deps import DbDep, RedisDep, SettingsDep
 from app.config import Settings
 from app.insights import catalogue
-from app.insights.ask import AskOutcome, Tools, run_ask, system_prompt, today
+from app.insights.ask import AskOutcome, Tools, relist, run_ask, system_prompt, today
+from app.insights.dsl import PEOPLE, QueryError
 from app.insights.summary import summarise
-from app.models import AiMessage, AiMode, AiSession, AiSessionStatus, Submission, SubmissionStatus
+from app.integrity import append_event
+from app.models import (
+    AiMessage,
+    AiMode,
+    AiSession,
+    AiSessionStatus,
+    EventType,
+    Submission,
+    SubmissionEvent,
+    SubmissionStatus,
+)
 from app.permissions import FormAccess, FormViewer
 from app.ratelimit import enforce
 from app.services.users import audit
@@ -350,6 +361,8 @@ async def ask_message(
                 target_id=form_id,
                 meta={"session": str(sid), "fields": fields, "count": count},
             )
+        if outcome and outcome.viewed:
+            await log_views(work, outcome.viewed, user_id)
         for listed in outcome.lists if outcome else []:
             # Which questions were listed for the person, how many rows, whether the values
             # also went to the provider (never the values).
@@ -472,6 +485,90 @@ async def ask_message(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+VIEW_LOG_WINDOW = timedelta(hours=1)
+
+
+async def log_views(db: AsyncSession, viewed: dict[Any, list[str]], user_id: uuid.UUID) -> None:
+    """Sensitive answers shown in an Ask list go in each submission's activity log
+    ("viewed", as when the submission is opened), at most once an hour per person."""
+    if not viewed:
+        return
+    since = datetime.now(UTC) - VIEW_LOG_WINDOW
+    recent = set(
+        (
+            await db.scalars(
+                select(SubmissionEvent.submission_id).where(
+                    SubmissionEvent.submission_id.in_(list(viewed)),
+                    SubmissionEvent.type == EventType.VIEWED,
+                    SubmissionEvent.actor_id == user_id,
+                    SubmissionEvent.created_at >= since,
+                )
+            )
+        ).all()
+    )
+    for sub in (await db.scalars(select(Submission).where(Submission.id.in_(list(viewed))))).all():
+        if sub.id in recent:
+            continue
+        await append_event(
+            db,
+            sub,
+            EventType.VIEWED,
+            actor_id=user_id,
+            payload={"fields": sorted(viewed[sub.id]), "via": "ask"},
+        )
+
+
+@router.get("/forms/{form_id}/ask/messages/{message_id}/lists/{index}")
+async def ask_list(
+    message_id: uuid.UUID,
+    index: Annotated[int, Path(ge=0, le=100)],
+    db: DbDep,
+    access: FormViewer,
+    settings: SettingsDep,
+    provider: ProviderDep,
+) -> dict[str, Any]:
+    """The rows of a list in a stored answer, read again now with the person's access:
+    transcripts keep what was listed, never the values (deleted submissions drop out)."""
+    message = await db.get(AiMessage, message_id)
+    session = await db.get(AiSession, message.session_id) if message else None
+    if (
+        message is None
+        or session is None
+        or session.form_id != access.form.id
+        or session.user_id != access.user.id
+        or session.mode != AiMode.ASK
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "ai_message_not_found")
+    charts = (message.content or {}).get("charts") or []
+    if index >= len(charts) or charts[index].get("display") != "list":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "list_not_found")
+    cat = await catalogue.load(db, access.form)
+    tools = Tools(db, cat, access.form.id, tz=settings.tz, read_allowed=False, policy=PEOPLE)
+    try:
+        chart = await relist(tools, charts[index])
+    except (QueryError, ValueError):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "list_unavailable") from None
+    viewed = {k: sorted(v) for k, v in tools.viewed.items()}
+    await log_views(db, viewed, access.user.id)
+    await audit(
+        db,
+        "ai.ask_list_view",
+        org_id=access.form.org_id,
+        actor_id=access.user.id,
+        target_type="form",
+        target_id=access.form.id,
+        meta={
+            "session": str(session.id),
+            "message": str(message.id),
+            "fields": chart["columns"],
+            "rows": len(chart["rows"]),
+            "sensitive": chart.get("sensitive", []),
+        },
+    )
+    await db.commit()
+    return chart
 
 
 @router.post("/forms/{form_id}/ask/sessions/{session_id}/cancel", status_code=204)

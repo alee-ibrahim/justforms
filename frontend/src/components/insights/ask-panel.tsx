@@ -32,6 +32,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { FieldError } from '@/components/ui/field'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from '@/components/ui/input-group'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -87,16 +88,53 @@ function langOf(text: string, language: string) {
   return thaana.test(text) ? 'dv' : language === 'dv' ? 'dv' : 'en'
 }
 
+/** A list in a stored answer: the transcript keeps what was listed, the rows are read again
+ * (with the person's access, deleted submissions left out) when it is shown. */
+function StoredList({
+  chart,
+  formId,
+  messageId,
+  index,
+  language,
+}: {
+  chart: ChartSpec
+  formId: string
+  messageId: string
+  index: number
+  language: string
+}) {
+  const rows = useQuery({
+    queryKey: ['ask-list', formId, messageId, index],
+    queryFn: () => insightsApi.askList(formId, messageId, index),
+    enabled: !chart.expired,
+    retry: false,
+    staleTime: 60_000,
+  })
+  if (chart.expired || rows.isError)
+    return (
+      <p className="text-sm text-muted-foreground">
+        {chart.expired ? 'This list is no longer stored.' : "This list couldn't be read again."} Ask again to see it.
+      </p>
+    )
+  if (!rows.data) return <Skeleton className="h-24 w-full" />
+  return <ListTable chart={rows.data} formId={formId} language={language} />
+}
+
 function ResultChart({
   chart,
   labels,
   language,
   formId,
+  messageId,
+  index = 0,
 }: {
   chart: ChartSpec
   labels: Map<string, string>
   language: string
   formId: string
+  /** The stored answer the chart belongs to (lists in it are read again). */
+  messageId?: string
+  index?: number
 }) {
   const first = chart.columns[0]
   const numeric = chart.rows.every((r) => typeof r.values[first] === 'number')
@@ -107,7 +145,9 @@ function ResultChart({
           <bdi dir="auto">{chart.title}</bdi>
         </figcaption>
       )}
-      {chart.display === 'list' ? (
+      {chart.display === 'list' && (chart.stored || chart.expired) && messageId ? (
+        <StoredList chart={chart} formId={formId} messageId={messageId} index={index} language={language} />
+      ) : chart.display === 'list' ? (
         <ListTable chart={chart} formId={formId} language={language} />
       ) : chart.display === 'bar' && numeric && chart.columns.length === 1 ? (
         <BarList
@@ -329,6 +369,10 @@ function Answer({
       <div className="flex flex-col items-start gap-2">
         {c.status === 'cancelled' ? (
           <p className="text-sm text-muted-foreground">Stopped before an answer.</p>
+        ) : c.status === 'removed' ? (
+          <p className="text-sm text-muted-foreground">
+            This answer was removed because submissions it may have used were permanently deleted.
+          </p>
         ) : (
           <Alert variant="destructive">
             <TriangleAlertIcon />
@@ -337,7 +381,7 @@ function Answer({
         )}
         <Button variant="outline" size="sm" disabled={busy} onClick={() => onRetry(question)}>
           <RotateCcwIcon />
-          {c.status === 'cancelled' ? 'Ask again' : 'Try again'}
+          {c.status === 'cancelled' || c.status === 'removed' ? 'Ask again' : 'Try again'}
         </Button>
       </div>
     )
@@ -362,7 +406,15 @@ function Answer({
           </Alert>
         )}
         {(c.charts ?? []).map((chart, i) => (
-          <ResultChart key={i} chart={chart} labels={labels} language={language} formId={formId} />
+          <ResultChart
+            key={i}
+            chart={chart}
+            labels={labels}
+            language={language}
+            formId={formId}
+            messageId={msg.id}
+            index={i}
+          />
         ))}
         <Calculation
           steps={steps}

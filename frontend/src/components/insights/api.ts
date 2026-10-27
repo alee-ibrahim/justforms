@@ -133,6 +133,10 @@ export interface ChartSpec {
   /** list: columns that are sensitive questions. */
   sensitive?: string[]
   truncated: boolean
+  /** list in a stored answer: the rows are read again when it is shown (askList). */
+  stored?: boolean
+  /** list stored by an older version: its rows were removed and can't be read again. */
+  expired?: boolean
 }
 
 /** The submissions an answer is about ("Show these N submissions"): the count it quotes. */
@@ -146,7 +150,8 @@ export interface AnswerLink {
   where: { where: Condition[]; whereAny: Condition[] }
 }
 
-export type AskStatus = 'ok' | 'error' | 'cancelled'
+/** removed: submissions the answer may have used were erased, so it was taken out. */
+export type AskStatus = 'ok' | 'error' | 'cancelled' | 'removed'
 
 export interface AskMessage {
   id: string
@@ -212,6 +217,9 @@ export const insightsApi = {
   askOpen: (formId: string, fresh = false) => json<AskState>('POST', `/forms/${formId}/ask/sessions`, { fresh }),
   ask: (formId: string, sessionId: string, content: string, onEvent: (e: AskEvent) => void, signal: AbortSignal) =>
     stream(`/forms/${formId}/ask/sessions/${sessionId}/messages`, { content }, onEvent, signal),
+  /** The rows of a list in a stored answer, read now (deleted submissions left out). */
+  askList: (formId: string, messageId: string, index: number) =>
+    json<ChartSpec>('GET', `/forms/${formId}/ask/messages/${messageId}/lists/${index}`),
   cancel: (formId: string, sessionId: string) => json<void>('POST', `/forms/${formId}/ask/sessions/${sessionId}/cancel`),
 }
 
