@@ -3,13 +3,11 @@
  * the page under the form bar from 1024px (the page stays usable beside it, so "Show these
  * submissions" filters the list while the chat stays open), a full-height sheet below that.
  */
-import { useFormSummary } from '@/components/builder/form-context'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 
 import { AskPanel } from './ask-panel'
 
 export default function AskDock({ docked, onClose }: { docked: boolean; onClose: () => void }) {
-  const form = useFormSummary()
   if (docked)
     return (
       <aside
@@ -17,7 +15,6 @@ export default function AskDock({ docked, onClose }: { docked: boolean; onClose:
         className="sticky top-(--studio-top) h-[calc(100dvh-var(--studio-top))] w-[26rem] shrink-0 border-s xl:w-[28rem] print:hidden"
       >
         <AskPanel
-          role={form.role}
           onClose={onClose}
           title={<h2 className="truncate text-base font-medium">Ask your submissions</h2>}
         />
@@ -30,7 +27,6 @@ export default function AskDock({ docked, onClose }: { docked: boolean; onClose:
           Ask questions about this form's submissions. Answers are counted from the submissions.
         </SheetDescription>
         <AskPanel
-          role={form.role}
           onClose={onClose}
           onNavigate={onClose}
           title={<SheetTitle className="truncate text-base font-medium">Ask your submissions</SheetTitle>}

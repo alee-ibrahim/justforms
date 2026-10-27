@@ -22,9 +22,9 @@ itself). Older versions' fixed questions mapped onto a repeater (version field m
 read as rows too.
 
 Who sees what is decided by a ``Policy``: sensitive questions only ever give answered /
-unanswered counts; for the AI, contact details (email, phone) and, unless the form allows AI
-to read answers, free-text answers can be filtered and counted but are never grouped, listed
-or returned.
+unanswered counts; for the AI, unless the form allows AI to read answers, contact details
+(email, phone) and free-text answers can be filtered and counted but are never grouped,
+listed or returned.
 """
 
 from __future__ import annotations
@@ -65,7 +65,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.answers import answer_text, mask
+from app.answers import answer_text
 from app.insights.catalogue import (
     CHOICE_TYPES,
     CONTACT_TYPES,
@@ -189,12 +189,15 @@ class Where(_Model):
 
 @dataclass(frozen=True)
 class Policy:
-    """``for_ai``: the caller is the AI (contact details never leave). ``text_allowed``: free
-    text answers may be grouped and listed (people: always; the AI: when the form allows AI
-    to read answers)."""
+    """``for_ai``: the caller is the AI. ``text_allowed``: free text answers may be grouped and
+    listed; ``contact_allowed``: so may contact details (email, phone). People: always; the
+    AI: only when the form allows AI to read answers. Sensitive questions only ever give
+    answered/unanswered counts here, for everyone (their values reach the AI only through
+    ``read_answers``, see ``app.insights.ask``)."""
 
     for_ai: bool = False
     text_allowed: bool = True
+    contact_allowed: bool = True
 
 
 PEOPLE = Policy()
@@ -279,8 +282,11 @@ class Compiler:
             raise QueryError(f"{q.key!r} is sensitive: only answered/unanswered counts")
         if q.type in OBJECT_TYPES:
             raise QueryError(f"{q.key!r} is a {q.type}: only answered/unanswered counts")
-        if self.policy.for_ai and q.type in CONTACT_TYPES:
-            raise QueryError(f"{q.key!r} is a contact detail: it can't be {what}")
+        if q.type in CONTACT_TYPES and not self.policy.contact_allowed:
+            raise QueryError(
+                f"{q.key!r} is a contact detail and reading answers is off for this form: it"
+                f" can't be {what} here (list_submissions shows it to the person instead)"
+            )
         if q.type in TEXT_TYPES and not self.policy.text_allowed:
             raise QueryError(
                 f"{q.key!r} is free text and reading answers is off for this form: it can't"
@@ -996,8 +1002,3 @@ def describe(cat: Catalogue, query: Query | Where) -> str:
     if isinstance(query, Query) and query.group_by:
         text += ", grouped by " + " and ".join(_field_name(cat, g.field) for g in query.group_by)
     return text
-
-
-def masked_example(q: Question, value: Any, language: str) -> str:
-    text = answer_text(q.element, value, language)
-    return mask(text) if q.sensitive else text

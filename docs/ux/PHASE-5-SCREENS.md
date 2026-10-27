@@ -213,7 +213,7 @@ Nothing changes until you apply it." When a suggestion is shown on the canvas, a
 │ here. You check the result before anything changes.            │
 │                                                                │
 │ ⓘ Only upload blank forms                                      │
-│   The pages are sent to Google Gemini to read them. Never      │
+│   The pages are sent to the AI service to read them. Never     │
 │   upload a form someone has filled in: their answers would be  │
 │   sent too.                                                    │
 │                                                                │
@@ -229,10 +229,9 @@ Nothing changes until you apply it." When a suggestion is shown on the canvas, a
 
 - `DialogTitle` "Start from a paper form"; `DialogDescription` as above.
 - `Alert` (`ShieldAlertIcon`, default variant, not destructive: it's guidance, not an
-  error), title "Only upload blank forms", text "The pages are sent to {provider} to read
-  them. Never upload a form someone has filled in: their answers would be sent too."
-  `{provider}` is `features.aiProviderLabel` ("Google Gemini", "Anthropic Claude", or the
-  operator's label for an OpenAI-compatible service).
+  error), title "Only upload blank forms", text "The pages are sent to the AI service to read
+  them. Never upload a form someone has filled in: their answers would be sent too." The
+  studio never names the provider.
 - `Field` "File": `Input type="file" accept=".pdf,image/jpeg,image/png,image/webp"`, with
   `FieldDescription` "PDF, JPG, PNG or WebP, up to 20 MB and 10 pages." Errors
   (`FieldError`): "Choose a PDF, JPG, PNG or WebP file.", "This file is larger than 20 MB.

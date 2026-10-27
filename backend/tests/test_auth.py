@@ -22,7 +22,6 @@ async def test_meta(client: AsyncClient) -> None:
     assert res.json()["features"] == {
         "ai": False,
         "aiVision": False,
-        "aiProviderLabel": "",
         "oidc": False,
         "oidcAutoRedirect": False,
         "localLogin": True,

@@ -19,7 +19,6 @@ function meta(oidcAutoRedirect = true): Meta {
     features: {
       ai: false,
       aiVision: false,
-      aiProviderLabel: '',
       oidc: true,
       oidcAutoRedirect,
       localLogin: false,

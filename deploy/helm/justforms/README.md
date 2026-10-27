@@ -260,7 +260,7 @@ unless noted.
 | `ai.model` / `ai.visionModel` | `""` | `JUSTFORMS_AI_MODEL` (required with a provider), `JUSTFORMS_AI_VISION_MODEL` (blank paper forms; default: the model) |
 | `ai.baseUrl` | `""` | `JUSTFORMS_AI_BASE_URL` (required for `openai_compat`, e.g. a vLLM or Ollama `/v1` URL) |
 | `ai.vision` | `""` | `JUSTFORMS_AI_VISION` (`true`/`false`; empty: on for gemini and anthropic, off for openai_compat) |
-| `ai.providerLabel` | `""` | `JUSTFORMS_AI_PROVIDER_LABEL`: who staff are told receives a paper form |
+| `ai.providerLabel` | `""` | `JUSTFORMS_AI_PROVIDER_LABEL`: deprecated and ignored (the studio never names the provider) |
 | `ai.dailyTokensPerUser` / `ai.dailyTokensPerOrg` | `""` | `JUSTFORMS_AI_DAILY_TOKENS_PER_USER` / `_PER_ORG` (empty: app defaults 300k / 3M) |
 | `ai.existingSecret` / `.existingSecretKey` | `""` / `JUSTFORMS_AI_API_KEY` | `JUSTFORMS_AI_API_KEY` |
 | `webhooks.allowedCidrs` | `[]` | `JUSTFORMS_WEBHOOK_ALLOWED_CIDRS` (comma-joined) |

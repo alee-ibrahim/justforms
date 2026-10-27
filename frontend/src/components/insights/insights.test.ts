@@ -5,9 +5,10 @@ import { filterParams } from '@/lib/api'
 
 import type { Form } from '@/schema'
 
-import { askErrorText, plain } from './api'
+import { askErrorText, plain, type ChartSpec } from './api'
 import { askExamples, fieldLabels } from './ask-examples'
 import { isSubmissionsPath } from './ask-state'
+import { listCsv, listTsv, sortRows } from './list-data'
 import { fileName } from './png'
 
 describe('conditions in the Submissions URL', () => {
@@ -90,6 +91,22 @@ describe('Ask your submissions', () => {
     expect(fieldLabels(schema).get('areas')).toMatch(/^Tick the policy areas/)
   })
 
+  it('suggests listing contact details when the form asks for them', () => {
+    const withPhone = {
+      ...schema,
+      pages: [
+        {
+          id: 'p1',
+          elements: [
+            ...(schema.pages[0].elements as unknown[]),
+            { kind: 'field', id: 'phone', type: 'phone', label: 'Contact number' },
+          ],
+        },
+      ],
+    } as unknown as Form
+    expect(askExamples(withPhone)[1]).toBe('List the contact details of every submission')
+  })
+
   it('opens from the Submissions pages only', () => {
     expect(isSubmissionsPath('/forms/abc/submissions')).toBe(true)
     expect(isSubmissionsPath('/forms/abc/submissions/insights')).toBe(true)
@@ -100,5 +117,40 @@ describe('Ask your submissions', () => {
 
   it('explains an unexpected failure', () => {
     expect(askErrorText('internal')).toMatch(/Try again/)
+  })
+})
+
+describe('Listed submissions', () => {
+  const chart: ChartSpec = {
+    queryId: 'q1',
+    display: 'list',
+    title: 'CSO contacts',
+    unit: 'submissions',
+    columns: ['org', 'phone'],
+    columnLabels: { org: 'Organisation, name', phone: 'Phone' },
+    rows: [
+      { label: '#3', ref: 3, values: { org: 'beta "B"', phone: '+9607771234' } },
+      { label: '#12', ref: 12, values: { org: 'Alpha', phone: null } },
+      { label: '#7', ref: 7, values: { org: '=HYPERLINK("x")', phone: '+960 333 4444' } },
+    ],
+    total: 3,
+    truncated: false,
+  }
+
+  it('sorts by a column, unanswered last, numbers by value', () => {
+    expect(sortRows(chart.rows, { col: 'org', dir: 'asc' }).map((r) => r.ref)).toEqual([7, 12, 3])
+    expect(sortRows(chart.rows, { col: 'phone', dir: 'desc' }).map((r) => r.ref)).toEqual([3, 7, 12])
+    expect(sortRows(chart.rows, { col: '_ref', dir: 'asc' }).map((r) => r.ref)).toEqual([3, 7, 12])
+    expect(sortRows(chart.rows, null)).toBe(chart.rows)
+  })
+
+  it('copies tab-separated and downloads safe CSV with the exact values', () => {
+    expect(listTsv(chart, chart.rows).split('\n')[1]).toBe('#3\tbeta "B"\t+9607771234')
+    const csv = listCsv(chart, chart.rows)
+    expect(csv.startsWith('\ufeffNumber,"Organisation, name",Phone\r\n')).toBe(true)
+    expect(csv).toContain('#3,"beta ""B""",+9607771234\r\n')
+    expect(csv).toContain('#12,Alpha,\r\n')
+    // A formula is defused; a phone number is left as it is.
+    expect(csv).toContain(`#7,"'=HYPERLINK(""x"")",+960 333 4444`)
   })
 })

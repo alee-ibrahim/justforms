@@ -34,7 +34,7 @@ from app.submissions import version_map
 
 # Field types whose answers are free text typed by the respondent.
 TEXT_TYPES = frozenset({"short_text", "long_text", "hidden", "time"})
-# Contact details: never sent to an AI provider, never grouped or listed for it.
+# Contact details: sent to an AI provider only when the form allows AI to read answers.
 CONTACT_TYPES = frozenset({"email", "phone"})
 CHOICE_TYPES = frozenset({"single_choice", "multi_choice"})
 NUMBER_TYPES = frozenset({"number", "rating"})
@@ -209,9 +209,12 @@ def build(
     return Catalogue(language, questions, repeaters, version_ids, mapped_sources)
 
 
-def outline(cat: Catalogue, *, text_allowed: bool) -> list[dict[str, Any]]:
+def outline(
+    cat: Catalogue, *, text_allowed: bool, sensitive_readable: bool = False
+) -> list[dict[str, Any]]:
     """The questions as the AI sees them: key, type, label, options, repeater, and what it
-    may do with each."""
+    may do with each. ``text_allowed``: the form allows AI to read answers (text and contact
+    details); ``sensitive_readable``: so may sensitive answers be read."""
     out: list[dict[str, Any]] = []
 
     def entry(q: Question) -> dict[str, Any]:
@@ -223,13 +226,25 @@ def outline(cat: Catalogue, *, text_allowed: bool) -> list[dict[str, Any]]:
         if len(cat.version_ids) > 1:
             e["versions"] = q.versions
         if q.sensitive:
-            e["note"] = "sensitive: only answered/unanswered counts are available"
-        elif q.type in CONTACT_TYPES:
-            e["note"] = "contact detail: filter and count only, values are never shown to you"
+            e["note"] = (
+                "sensitive: answered/unanswered counts in query_submissions; read_answers and"
+                " list_submissions return its answers"
+                if sensitive_readable
+                else "sensitive: answered/unanswered counts only; you never see its answers"
+                " (list_submissions shows them to the person)"
+            )
         elif q.type in OBJECT_TYPES:
-            e["note"] = "file or signature: answered/unanswered only"
+            e["note"] = "file or signature: answered/unanswered only (never names or content)"
+        elif q.type in CONTACT_TYPES and not text_allowed:
+            e["note"] = (
+                "contact detail: filter and count only, you never see the values;"
+                " list_submissions shows them to the person"
+            )
         elif q.type in TEXT_TYPES and not text_allowed:
-            e["note"] = "free text: filter (contains) and count only; reading answers is off"
+            e["note"] = (
+                "free text: filter (contains) and count only; reading answers is off;"
+                " list_submissions shows the answers to the person"
+            )
         return e
 
     for q in cat.top_level():

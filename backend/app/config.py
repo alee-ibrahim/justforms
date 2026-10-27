@@ -272,7 +272,8 @@ class Settings(BaseSettings):
     ai_vision_model: str | None = None
     # Whether the model reads images. Unset: on for gemini and anthropic, off for openai_compat.
     ai_vision: bool | None = None
-    # Shown to staff in the paper-form dialog ("The pages are sent to ...").
+    # Deprecated and ignored: the studio never names the AI provider (it says "the AI
+    # service"). Kept so existing deployments that set it still start.
     ai_provider_label: str = ""
     ai_max_output_tokens: int = Field(default=4096, ge=256, le=65536)
     ai_max_tool_calls: int = Field(default=40, ge=1, le=200)
@@ -453,19 +454,6 @@ class Settings(BaseSettings):
         if self.ai_vision is not None:
             return self.ai_vision
         return self.ai_provider in ("gemini", "anthropic", "fake")
-
-    @property
-    def ai_label(self) -> str:
-        if not self.ai_enabled:
-            return ""
-        if self.ai_provider_label:
-            return self.ai_provider_label
-        return {
-            "gemini": "Google Gemini",
-            "anthropic": "Anthropic Claude",
-            "openai_compat": "the AI service this site uses",
-            "fake": "a test AI service",
-        }.get(self.ai_provider, "")
 
     @property
     def smtp_enabled(self) -> bool:

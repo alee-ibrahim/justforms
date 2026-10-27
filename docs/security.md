@@ -23,6 +23,12 @@ problem. Abuse-control settings are in [Configuration](configuration.md#abuse-co
   served from JustForms' own origin.
 - **AI assistant.** Only the form's questions go to the provider, never responses; paper forms
   must be confirmed blank each time. Give JustForms its own API key.
+- **Ask your submissions.** Counts go to the provider; answers (contact details and sensitive
+  questions included, never files, signatures or IP addresses) only on forms whose owner
+  turned on "Allow AI to read answers" (off by default). Lists are read from the database and
+  shown to the person; every read and list is audited without the values.
+- **Sensitive questions** are shown to everyone who can see the submissions; opening a
+  submission that has them is recorded in its activity log.
 - **Integrity.** Every submission has a SHA-256 content hash (RFC 8785 canonical JSON) and a
   hash-chained activity log; every change goes through that log.
 - **Demo login** (`JUSTFORMS_DEMO_LOGIN_CODE`) is for demo instances only; never set it on a

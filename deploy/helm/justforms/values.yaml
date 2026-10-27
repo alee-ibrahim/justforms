@@ -216,7 +216,7 @@ ai:
   baseUrl: ""             # JUSTFORMS_AI_BASE_URL (required for openai_compat, e.g. http://ollama:11434/v1)
   visionModel: ""         # JUSTFORMS_AI_VISION_MODEL: model for blank paper forms (default: model)
   vision: ""              # JUSTFORMS_AI_VISION: "true"/"false"; empty = on for gemini and anthropic
-  providerLabel: ""       # JUSTFORMS_AI_PROVIDER_LABEL: named to staff before a paper form is sent
+  providerLabel: ""       # JUSTFORMS_AI_PROVIDER_LABEL: deprecated and ignored
   dailyTokensPerUser: ""  # JUSTFORMS_AI_DAILY_TOKENS_PER_USER (empty = app default)
   dailyTokensPerOrg: ""   # JUSTFORMS_AI_DAILY_TOKENS_PER_ORG (empty = app default)
   # Secret with the provider key. Required for gemini and anthropic; optional for

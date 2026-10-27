@@ -124,7 +124,6 @@ export function SubmissionViewPage() {
   const { ref } = useParams({ strict: false }) as { ref: string }
   const search = useSearch({ strict: false }) as SubmissionsSearch
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const { d, missing, error, retry } = useSubmission(form.id, ref)
   const wide = useMedia('(min-width: 64rem)')
   const printing = usePrinting()
@@ -233,13 +232,6 @@ export function SubmissionViewPage() {
     )
 
   const position = d && idx >= 0 && total > 0 ? `${idx + 1} of ${total}` : null
-  const reveal = d?.canEdit
-    ? async (fieldId: string, row?: number) => {
-        const res = await api.reveal(d.id, fieldId, row)
-        void queryClient.invalidateQueries({ queryKey: ['submission', d.id] })
-        return res.value
-      }
-    : undefined
 
   const header = (
     <header className="flex flex-col gap-3 border-b bg-card px-4 py-3 sm:px-6 print:border-0 print:px-0">
@@ -358,7 +350,7 @@ export function SubmissionViewPage() {
   ) : (
     <Skeleton className="h-24" />
   )
-  const sheet = <Sheet d={d} theme={theme} printing={printing} reveal={reveal} showSkipped={showSkipped} onShowSkipped={setShowSkipped} />
+  const sheet = <Sheet d={d} theme={theme} printing={printing} showSkipped={showSkipped} onShowSkipped={setShowSkipped} />
   const activityLabel = (
     <>
       Activity
@@ -481,14 +473,12 @@ function Sheet({
   d,
   theme,
   printing,
-  reveal,
   showSkipped,
   onShowSkipped,
 }: {
   d: SubmissionDetail | undefined
   theme: Parameters<typeof themeScope>[0]
   printing: boolean
-  reveal?: (fieldId: string, row?: number) => Promise<string>
   showSkipped: boolean
   onShowSkipped: (on: boolean) => void
 }) {
@@ -508,7 +498,7 @@ function Sheet({
       {d ? (
         <>
           <SkippedSwitch d={d} on={showSkipped} onChange={onShowSkipped} />
-          <SheetBody d={d} theme={theme} reveal={reveal} showSkipped={showSkipped} />
+          <SheetBody d={d} theme={theme} showSkipped={showSkipped} />
         </>
       ) : (
         show && (
@@ -544,12 +534,10 @@ function SkippedSwitch({ d, on, onChange }: { d: SubmissionDetail; on: boolean; 
 function SheetBody({
   d,
   theme,
-  reveal,
   showSkipped,
 }: {
   d: SubmissionDetail
   theme: Parameters<typeof themeScope>[0]
-  reveal?: (fieldId: string, row?: number) => Promise<string>
   showSkipped: boolean
 }) {
   const language = formLanguage(d.schema)
@@ -567,7 +555,7 @@ function SheetBody({
           data={d.data}
           signatures={d.signatures}
           importedFiles={d.importedFiles}
-          reveal={reveal}
+         
           showSkipped={showSkipped}
         />
       </article>

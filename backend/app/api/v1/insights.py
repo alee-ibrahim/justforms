@@ -121,7 +121,6 @@ class AskSessionOut(ApiModel):
     messages: list[AskMessageOut] = Field(default_factory=list)
     # The form allows AI to read answers (Settings > AI).
     read_answers: bool = False
-    provider_label: str = ""
 
 
 class AskIn(ApiModel):
@@ -165,7 +164,6 @@ async def _out(
         id=session.id if session else None,
         messages=[AskMessageOut.model_validate(m) for m in rows],
         read_answers=read_allowed(access),
-        provider_label=settings.ai_label,
     )
 
 
@@ -276,7 +274,6 @@ async def ask_message(
             title=form_title,
             total=total,
             read_allowed=allowed,
-            provider_label=settings.ai_label,
             today=today(settings.tz),
         )
         history = await ai_svc.history(db, sid)
@@ -344,6 +341,18 @@ async def ask_message(
                 target_type="form",
                 target_id=form_id,
                 meta={"session": str(sid), "fields": fields, "count": count},
+            )
+        for listed in outcome.lists if outcome else []:
+            # Which questions were listed for the person, how many rows, whether the values
+            # also went to the provider (never the values).
+            await audit(
+                work,
+                "ai.ask_list",
+                org_id=org_id,
+                actor_id=user_id,
+                target_type="form",
+                target_id=form_id,
+                meta={"session": str(sid), **listed},
             )
         await work.commit()
         if outcome is None:

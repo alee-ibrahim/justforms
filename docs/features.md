@@ -115,7 +115,7 @@ is part of the signed PDF's approval record and shows on the verify page.
 </p>
 
 A submissions table with search, filters, status (New, In review, Approved, Rejected),
-comments, an activity log and export to Excel. Sensitive answers are masked.
+comments, an activity log and export to Excel. Sensitive answers are marked with a lock, and opening a submission that has them is recorded.
 
 **Insights** (Submissions › Insights) summarises every question under the same filters: counts
 and shares per option with the "Other" answers, averages, medians and histograms for numbers
@@ -151,10 +151,13 @@ from the AI is a draft to check. Unset, every AI feature is hidden.
 to know about disability rights?" for anyone who can see the submissions. The AI counts with a
 small, safe query language that runs on the server (it never writes SQL), every number comes
 from those counts, and each answer shows how it was calculated with a link to the matching
-submissions. By default only the questions and counts go to the provider; an owner can turn on
-**Settings › AI › Allow AI to read answers** so it can summarise written answers (at most 200
-submissions per read). Sensitive questions, files, signatures, email addresses, phone numbers
-and IP addresses are never sent.
+submissions. Ask it to list things ("contact number of all CSOs") and it shows a table read
+straight from the database, exact values you can sort, copy or download as CSV; the AI never
+types them. By default only the questions and counts go to the AI service (lists go to you,
+not to it); an owner can turn on **Settings › AI › Allow AI to read answers** (off for every
+form until then) so it can read every answer, contact details and sensitive questions
+included, to summarise or reason about them (at most 500 submissions per read). Files,
+signatures and IP addresses are never sent. The studio never names the AI provider.
 
 Behind your own reverse proxy, see [Deployment](deployment.md#reverse-proxies) for the
 streaming settings the assistant needs.

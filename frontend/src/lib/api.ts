@@ -116,8 +116,6 @@ export interface Meta {
     ai: boolean
     /** The AI model can read images ("Start from a paper form"). */
     aiVision: boolean
-    /** Who receives what the AI is sent, e.g. "Google Gemini". */
-    aiProviderLabel: string
     oidc: boolean
     /** Signed-out visitors go straight to the IdP (JUSTFORMS_OIDC_AUTO_REDIRECT). */
     oidcAutoRedirect: boolean

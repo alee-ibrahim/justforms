@@ -108,26 +108,3 @@ MASK = "••••"
 
 def mask(text: str) -> str:
     return MASK + text[-3:] if text else ""
-
-
-def mask_sensitive(form: Form, data: dict[str, Any]) -> dict[str, Any]:
-    """A copy of ``data`` with sensitive answers masked (``••••567``), top level and in
-    repeater rows. Unmasking is a separate, logged request (DESIGN 14.5)."""
-    index = FormIndex.build(form)
-    language = form.settings.language
-    out = dict(data)
-    for info in index.elements.values():
-        el = info.element
-        if info.kind != "field" or not getattr(el, "sensitive", False):
-            continue
-        if info.repeater_id is None:
-            if info.id in out:
-                out[info.id] = mask(answer_text(el, out[info.id], language))  # type: ignore[arg-type]
-            continue
-        rows = out.get(info.repeater_id)
-        if isinstance(rows, list):
-            out[info.repeater_id] = rows = [dict(r) if isinstance(r, dict) else r for r in rows]
-            for r in rows:
-                if isinstance(r, dict) and info.id in r:
-                    r[info.id] = mask(answer_text(el, r[info.id], language))  # type: ignore[arg-type]
-    return out

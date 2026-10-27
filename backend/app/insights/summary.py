@@ -43,7 +43,6 @@ from app.insights.dsl import (
     answered,
     base_select,
     jget,
-    masked_example,
     run_query,
 )
 from app.models import Submission
@@ -274,14 +273,7 @@ class Summariser:
         ).all()
         out = []
         for seq, data, vid in rows:
-            if q.repeater is None:
-                text = masked_example(q, (data or {}).get(q.key), self.cat.language)
-            else:
-                text = answer_of(self.cat, q, data or {}, vid)
-                if q.sensitive:
-                    text = "; ".join(
-                        masked_example(q, t, self.cat.language) for t in text.split("; ")
-                    )
+            text = answer_of(self.cat, q, data or {}, vid)
             out.append({"ref": seq, "text": text[:300]})
         return out
 

@@ -27,7 +27,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Condition } from '@/lib/api'
-import { cn } from '@/lib/utils'
 
 import type { Bar, ChoiceSummary, DateSummary, NumberSummary, QuestionSummary, TextSummary } from './api'
 import { BarList, Columns, type Datum } from './charts'
@@ -177,7 +176,7 @@ function Examples({ q, language, formId }: { q: TextSummary; language: string; f
             <bdi
               dir="auto"
               lang={langOf(e.text, language)}
-              className={cn('line-clamp-3 min-w-0 break-words', q.kind === 'sensitive' && 'tabular-nums')}
+              className="line-clamp-3 min-w-0 break-words"
             >
               {e.text}
             </bdi>
@@ -303,9 +302,6 @@ export function QuestionCard({
         )}
         {(q.kind === 'text' || q.kind === 'sensitive') && (
           <>
-            {q.kind === 'sensitive' && (
-              <p className="text-sm text-muted-foreground">Answers to sensitive questions stay hidden here.</p>
-            )}
             <Examples q={q} language={language} formId={formId} />
           </>
         )}

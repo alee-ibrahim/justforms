@@ -95,7 +95,7 @@ function Cell({ field, row, form }: { field: FieldElement; row: SubmissionSummar
             {text}
           </span>
         </TooltipTrigger>
-        <TooltipContent>Sensitive. Open the submission to view.</TooltipContent>
+        <TooltipContent>Sensitive answer</TooltipContent>
       </Tooltip>
     )
   return (
@@ -670,7 +670,6 @@ export function FormSubmissionsPage() {
           filters={exporting}
           count={exporting.ids ? exporting.ids.length : total}
           sensitive={sensitive}
-          canSeeSensitive={canEdit}
         />
       )}
     </PageContainer>

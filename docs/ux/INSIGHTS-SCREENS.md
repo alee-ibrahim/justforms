@@ -2,7 +2,7 @@
 
 A second view of a form's submissions: a summary of every question, and (when the install has
 an AI provider) a question box that answers from the submissions by counting them. Works for
-any form; nothing is configured per form except whether the AI may read the text of answers.
+any form; nothing is configured per form except whether the AI may read answers.
 
 Builds on [SUBMISSIONS-VIEWER-SCREENS.md](SUBMISSIONS-VIEWER-SCREENS.md) and
 [PHASE-3-SCREENS.md](PHASE-3-SCREENS.md) §4 (filters). Tokens, type and motion come from
@@ -13,7 +13,8 @@ Backend: DESIGN §15.4 (Insights) and §12.6 (Ask your submissions).
 
 New from shadcn: **chart** (`corepack pnpm dlx shadcn@latest add chart`, Recharts). Everything
 else is installed: `tabs` (line variant), `card`, `table`, `dropdown-menu`, `collapsible`,
-`select`, `switch`, `alert-dialog`, `input-group`, `badge`, `empty`, `skeleton`, `spinner`.
+`select`, `switch`, `alert-dialog`, `input-group`, `badge`, `empty`, `skeleton`, `spinner`,
+`button-group` (the list's Copy / CSV).
 
 ## 1. Route and switch
 
@@ -70,7 +71,7 @@ buttons); the Ask card sits above the summary; charts fill the card width.
 | Number, rating | Lowest / Average / Median / Highest, then a histogram (ratings: one bar per star) |
 | Date | Bars per month, per year when the answers span more than three years; "By month, from … to …." |
 | Text, email, phone | The newest three answers, each a full-width row linking to its submission (`#12` + text), and "Show the N submissions" |
-| Sensitive | "Sensitive" badge, "Answers to sensitive questions stay hidden here." and masked examples (`••••567`) |
+| Sensitive | "Sensitive" badge and the newest three answers as given |
 | File, signature | Answered count, "Files are counted, not shown here." |
 
 Description line: "{n} of {total} submissions answered" ("rows" inside a repeater); with
@@ -129,17 +130,17 @@ computed colours on the card background with the question as title, 2x.
 - Empty chat: "Ask about this form's submissions" / "Answers are counted from the
   submissions, and every answer links to the ones it counted.", then "Try asking" with up to
   four questions built from the form's choice questions ("How many ticked “<option>”?",
-  "Who ticked “<option>”?" when the form has a name question, "Breakdown by “<question>”"), a
+  "List the contact details of every submission" when the form has a name question and a
+  phone or email question, "Who ticked “<option>”?" when the form has a name question,
+  "Breakdown by “<question>”"), a
   number's average, submissions per month (and a summary of a long text when reading answers
   is on). Long labels are cut at a word with "…". A chip asks at once.
 - Composer: `InputGroupTextarea` "Ask a question about the submissions…", hint "Enter to send,
   Shift+Enter for a new line" (hidden on phones), Enter sends, Shift+Enter new line, Esc
   stops; the send button turns into "Stop" while answering. Over 2,000 characters: "Keep
   questions under 2,000 characters." Focus returns to the composer after each answer.
-- Note under the composer (info icon, `text-xs`): reading off "Your question, the form's
-  questions and counts go to {provider}; the text of answers doesn't." / on "…counts and, when
-  needed, the text of answers go to {provider}." plus a "Settings › AI" link for owners and
-  editors.
+- No data notice under the composer: what goes to the AI service is explained once, next to
+  the switch in Settings › AI. The provider is never named anywhere in the studio.
 - Question: bubble at the end side (`bg-secondary`).
 - While answering: a card with each count as it runs ("Submissions where … : 14
   submissions"), the reply when it arrives, and "Reading your question…" / "Counting…" with a
@@ -152,11 +153,29 @@ computed colours on the card background with the question as title, 2x.
   say which questions were read for how many submissions). Footer: **Show these N
   submissions** (outline button: Responses filtered to exactly what the answer counted, with
   the chip naming it) and "Copy answer" (icon, tooltip; "Copied" for two seconds).
-- "Who …" answers list the matching submissions in a compact table: "Number" (`#12`, a link
-  to the submission) and the form's name question (or the questions the AI chose; never
-  sensitive questions, contact details, files or signatures), newest 50, "Showing the newest
-  50 of N submissions." These answers are read on the server and shown to the person only;
-  the AI gets the count.
+- Lists ("contact number of all CSOs", "who ticked …"): read on the server from the
+  database (`list_submissions`), never typed by the AI. Above them "N submissions" ("
+  (newest of M)" when capped) and outline buttons: **Sort** (only in the stacked layout) and a
+  `ButtonGroup` of **Copy** (tab-separated, for spreadsheets; "Copied" for two seconds) and
+  **CSV** (UTF-8 with a byte-order mark, so Thaana opens in spreadsheets; cells that would run
+  as a formula are defused, phone numbers kept; file named after the list title). Copy and
+  CSV carry the exact stored values.
+  - Up to two questions: a compact table, "Number" (`#12`, a link to the submission) plus the
+    questions; every header is a ghost sort button (arrow icon, `aria-sort`).
+  - Three or more (e.g. name, phone, email): the panel is too narrow for a table, so each
+    submission stacks: `#12` and the first question (the name) in medium weight, then a
+    two-column list of the other questions' labels (muted) and answers, indented under the
+    name from `sm`. **Sort** is a `DropdownMenu` with radio items ("Newest first", "Number",
+    each question) and, once a column is chosen, "A to Z, low to high" / "Z to A, high to
+    low".
+  - Unanswered cells say "No answer" (muted) and sort last. Phone numbers read grouped on one
+    line (`+960 777 1234`); emails may break before "@"; other text wraps.
+  - The first 10 submissions show, then **Show all N** / **Show the first 10**. Up to 500;
+    beyond that "The newest 500 of N are listed. Export on the Responses page has them all."
+  - Sensitive answers show as given (everyone who can see submissions sees them). The AI gets
+    the counts (and the values only when the form allows AI to read answers), so it replies
+    e.g. "40 organisations are listed below. 36 of them gave a contact number." "How this was
+    calculated" says "Listed “…”, “…”. Submissions where …: N submissions".
 - Errors in place: the reason (allowance used up, too many questions, too slow, provider
   down, "The AI couldn't work out how to count that. Try asking it another way.", "Something
   went wrong while counting. Try again.") and **Try again**; a stopped answer says "Stopped
@@ -184,19 +203,21 @@ choose.
 ## 5. Settings › AI
 
 A section shown only when the install has an AI provider (`#ai`). Card "AI": "“Ask your
-submissions” on the Insights page answers questions by counting this form’s submissions.
-Anyone who can see the submissions can ask."
+submissions” answers questions by counting this form’s submissions and can list answers for
+you. Anyone who can see the submissions can ask."
 
-Switch **Allow AI to read answers** (off by default, owners only) with the description:
-off "Off: {provider} only gets the questions, counts and numbers, never the text of answers."
-/ on "On: to summarise answers or find themes, the text of answers is sent to {provider}." and
-always "Sensitive questions, files, signatures, email addresses, phone numbers and
-respondents’ IP addresses are never sent."
+Switch **Allow AI to read answers** (off by default for every form, owners only) with the
+description: off "Off: the AI service only gets the questions, counts and numbers, never the
+answers. Lists of answers you ask for are still shown to you." / on "On: answers, including
+contact details and fields marked sensitive, are sent to the AI service when someone asks a
+question." and always "Files, signatures and respondents’ IP addresses are never sent."
 
-Turning it on asks first (`AlertDialog`): "Send answers to {provider}?" / "When someone asks
-for a summary, the text of up to 200 submissions’ answers goes to {provider}. … You can turn
-this off at any time." Buttons "Cancel", "Allow AI to read answers". Turning it off is
-immediate. Toasts: "AI can read answers" / "AI no longer reads answers".
+Turning it on asks first (`AlertDialog`): "Send answers to the AI service?" / "Answers,
+including contact details and fields marked sensitive, are sent to the AI service when
+someone asks a question (up to 500 submissions per question). Files, signatures and IP
+addresses are never sent. You can turn this off at any time." Buttons "Cancel", "Allow AI to
+read answers". Turning it off is immediate. Toasts: "AI can read answers" / "AI no longer
+reads answers". The provider is never named (no product names anywhere in the studio).
 
 ## 6. Self-critique
 

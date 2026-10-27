@@ -99,7 +99,7 @@ async function json<T>(method: string, path: string, body?: unknown): Promise<T>
 // -- Ask your submissions ---------------------------------------------------------------
 
 export interface QueryStep {
-  tool: 'query_submissions' | 'read_answers' | string
+  tool: 'query_submissions' | 'list_submissions' | 'read_answers' | string
   ok: boolean
   error?: string
   queryId?: string
@@ -116,16 +116,22 @@ export interface QueryStep {
 
 export interface ChartSpec {
   queryId: string
-  /** list: the matching submissions ("who" questions), with answers to `columns`. */
+  /** list: matching submissions with the answers to `columns` (read on the server). */
   display: 'bar' | 'table' | 'list'
   title: string
   unit: string
   columns: string[]
   /** list: the questions' labels. */
   columnLabels?: Record<string, string>
+  /** list: each column's question type ("meta" for submission details). */
+  columnTypes?: Record<string, string>
   rows: { label: string; ref?: number; values: Record<string, number | string | null> }[]
   /** list: how many submissions match (rows holds the newest of them). */
   total?: number
+  /** list: how many listed submissions answered each column. */
+  answered?: Record<string, number>
+  /** list: columns that are sensitive questions. */
+  sensitive?: string[]
   truncated: boolean
 }
 
@@ -160,7 +166,6 @@ export interface AskState {
   id: string | null
   messages: AskMessage[]
   readAnswers: boolean
-  providerLabel: string
 }
 
 export type AskEvent =

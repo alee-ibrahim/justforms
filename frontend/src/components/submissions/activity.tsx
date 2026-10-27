@@ -74,7 +74,7 @@ function title(ev: SubmissionEvent): React.ReactNode {
     case 'exported':
       return `Exported to Excel by ${who}`
     case 'viewed':
-      return `${who} viewed a sensitive answer`
+      return `${who} viewed sensitive answers`
     case 'deleted':
       return `${who} deleted this submission`
     case 'approval_requested':

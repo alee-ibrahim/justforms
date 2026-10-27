@@ -160,7 +160,7 @@ Export. Opens a `Dialog`:
   (label in the form's language), then a separator and "Reset columns".
 - Default: the first three questions that are not long text, files or signatures.
 - Persisted per user per form in `localStorage` (`justforms:columns:{userId}:{formId}`).
-- Sensitive columns stay masked in the table whatever the picker says.
+- Sensitive columns show the answers with a lock icon.
 
 ## 6. Selection and bulk actions
 

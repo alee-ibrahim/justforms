@@ -4,13 +4,10 @@
  * on the public form, read-only answers on ruled lines.
  */
 import { CheckIcon, LockIcon, StarIcon, XIcon } from 'lucide-react'
-import { createContext, Fragment, useContext, useMemo, useState, type ReactNode } from 'react'
-import { toast } from 'sonner'
+import { createContext, Fragment, useContext, useMemo, type ReactNode } from 'react'
 
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ImportedFile, SignatureInfo } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { QuestionGrid } from '@/renderer/elements'
@@ -35,8 +32,6 @@ interface AnswerContextValue {
   signatures: SignatureInfo[]
   /** Copies of files and signatures imported from Jotform, by question. */
   imported: ReadonlyMap<string, FileCardEntry[]>
-  /** Set when the viewer may unmask sensitive answers (editors and owners). */
-  reveal?: (fieldId: string, row?: number) => Promise<string>
   /** Show questions the form's logic hid from this respondent. */
   showSkipped: boolean
   isVisible: (id: string, scope?: Scope) => boolean
@@ -58,45 +53,16 @@ function NoAnswer({ skipped }: { skipped?: boolean }) {
   )
 }
 
-/** A masked sensitive answer; "Show" asks the server for it (and is logged). */
-export function Sensitive({ masked, fieldId, row }: { masked: string; fieldId: string; row?: number }) {
-  const { reveal } = useContext(AnswerContext)
-  const [shown, setShown] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-  if (shown !== null)
-    return (
-      <bdi dir="auto" className="whitespace-pre-wrap">
-        {shown}
-      </bdi>
-    )
+/** A sensitive answer: shown like any other, marked with a lock (opening a submission with
+ * sensitive answers is recorded in its activity). */
+export function Sensitive({ text }: { text: string }) {
   return (
-    <span className="inline-flex items-center gap-2" lang="en" dir="ltr">
-      <LockIcon className="size-3.5 text-muted-foreground" aria-hidden />
-      <span className="tabular-nums">{masked}</span>
-      {reveal ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="link"
-              size="sm"
-              className="h-auto p-0 print:hidden"
-              disabled={busy}
-              onClick={() => {
-                setBusy(true)
-                reveal(fieldId, row)
-                  .then(setShown)
-                  .catch(() => toast.error("Couldn't show the answer. Try again."))
-                  .finally(() => setBusy(false))
-              }}
-            >
-              Show
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Viewing is recorded</TooltipContent>
-        </Tooltip>
-      ) : (
-        <span className="text-xs text-muted-foreground">Sensitive</span>
-      )}
+    <span className="inline-flex items-start gap-2">
+      <LockIcon className="mt-1 size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+      <bdi dir="auto" className="whitespace-pre-wrap">
+        {text}
+      </bdi>
+      <span className="sr-only">(sensitive)</span>
     </span>
   )
 }
@@ -151,7 +117,7 @@ export function AnswerValue({ field, value, row }: { field: FieldElement; value:
   if (field.sensitive)
     return (
       <Line>
-        <Sensitive masked={answerText(field, value, language)} fieldId={field.id} row={row} />
+        <Sensitive text={answerText(field, value, language)} />
       </Line>
     )
   switch (field.type) {
@@ -354,7 +320,6 @@ export function Answers({
   form,
   data,
   signatures = [],
-  reveal,
   showSkipped = false,
   importedFiles = NO_FILES,
 }: {
@@ -362,7 +327,6 @@ export function Answers({
   data: Data
   signatures?: SignatureInfo[]
   importedFiles?: ImportedFile[]
-  reveal?: AnswerContextValue['reveal']
   showSkipped?: boolean
 }) {
   const language = formLanguage(form)
@@ -373,7 +337,7 @@ export function Answers({
     .map((page, i) => ({ page, i }))
     .filter(({ page }) => !logic.skippedPages.has(page.id) || hasAnswers(page.elements ?? [], data))
   return (
-    <AnswerContext value={{ language, signatures, imported, reveal, showSkipped, isVisible: logic.isVisible }}>
+    <AnswerContext value={{ language, signatures, imported, showSkipped, isVisible: logic.isVisible }}>
       <div className="flex flex-col gap-[var(--df-space,2rem)]">
         {pages.map(({ page, i }, n) => (
           <Fragment key={page.id}>

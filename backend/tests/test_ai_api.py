@@ -106,7 +106,7 @@ DRAFT_STEPS = [
 async def test_meta_reports_ai_features(client: AsyncClient) -> None:
     features = (await client.get("/api/v1/meta")).json()["features"]
     assert features["ai"] is True and features["aiVision"] is True
-    assert features["aiProviderLabel"] == "Test AI"
+    assert "aiProviderLabel" not in features  # the studio never names the provider
 
 
 async def test_describe_to_draft_apply_and_undo(

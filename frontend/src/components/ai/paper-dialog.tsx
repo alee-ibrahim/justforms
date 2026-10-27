@@ -1,5 +1,4 @@
 /** "Start from a paper form" (PHASE-5-SCREENS 5): blank forms only, confirmed every time. */
-import { useQuery } from '@tanstack/react-query'
 import { ShieldAlertIcon } from 'lucide-react'
 import { useId, useState } from 'react'
 
@@ -16,7 +15,6 @@ import {
 } from '@/components/ui/dialog'
 import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { metaQuery } from '@/lib/queries'
 
 import { fileProblem } from './files'
 
@@ -33,8 +31,6 @@ export function PaperDialog({
   onOpenChange: (open: boolean) => void
   onRead: (file: File) => void
 }) {
-  const meta = useQuery(metaQuery)
-  const provider = meta.data?.features.aiProviderLabel || 'the AI service this site uses'
   const [file, setFile] = useState<File | null>(null)
   const [blank, setBlank] = useState(false)
   const fileId = useId()
@@ -74,7 +70,7 @@ export function PaperDialog({
             <ShieldAlertIcon />
             <AlertTitle>Only upload blank forms</AlertTitle>
             <AlertDescription>
-              The pages are sent to {provider} to read them. Never upload a form someone has filled in: their answers
+              The pages are sent to the AI service to read them. Never upload a form someone has filled in: their answers
               would be sent too.
             </AlertDescription>
           </Alert>

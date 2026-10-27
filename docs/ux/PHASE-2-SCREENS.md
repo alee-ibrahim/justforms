@@ -300,7 +300,7 @@ remembered per element type in localStorage.
 - Group "Logic": see §2.8. The accordion trigger shows a count `Badge` of rules.
 - Group "Advanced": "Key" `Input` mono, `FieldDescription` "Used in exports and
   integrations. Locked after the form is first published." (disabled + lock icon after first
-  publish), "Sensitive" `Switch` ("Masked in tables and left out of emails and webhooks"),
+  publish), "Sensitive" `Switch` ("Marked in the studio and left out of emails and webhooks"),
   "Width" `ToggleGroup` "Full" | "Half", "Prefill parameter".
 
 **Page**: "Title", "Description", group "Logic" (show page when…, after this page go to…).
@@ -911,7 +911,7 @@ Route `/forms/$id/submissions`. Staff triage: find, open, decide, export.
 | Table | `Table` + TanStack Table; sticky header; first two columns sticky at start on scroll |
 | Row select | `Checkbox` [add]; header checkbox selects page |
 | Status cell | `Badge`: New = carbon `default` + dot; In review = marker wash (`bg-accent text-accent-foreground`) + half-circle icon; Approved = `outline` + check; Rejected = `destructive` + x. Icon + word always |
-| Sensitive cells | masked `••••567` in mono-free tabular text, lock icon, `Tooltip` "Sensitive. Open the submission to view." |
+| Sensitive cells | the answer with a lock icon, `Tooltip` "Sensitive answer" (masking was dropped: everyone who can see submissions sees them) |
 | Thaana cells | each cell sets `dir="auto"` and Thaana font via `:lang`/`dir=auto` handling so mixed rows align correctly |
 | Paging | `Button variant="outline"` Newer/Older (cursor), "Showing 1–50" |
 | Bulk bar | `ButtonGroup`, `DropdownMenu` for status, `AlertDialog` for delete |

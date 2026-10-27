@@ -6,14 +6,13 @@
  * it counted, and says how it was calculated. One chat per person and form.
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowUpIcon,
   CalculatorIcon,
   CheckIcon,
   ChevronDownIcon,
   CopyIcon,
-  InfoIcon,
   ListIcon,
   MessageSquarePlusIcon,
   RotateCcwIcon,
@@ -36,7 +35,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Spinner } from '@/components/ui/spinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { ApiError, type Condition, type FormRole } from '@/lib/api'
+import { ApiError, type Condition } from '@/lib/api'
 import { versionQuery } from '@/lib/queries'
 import { formLanguage } from '@/schema/language'
 
@@ -53,6 +52,7 @@ import {
 import { askExamples, fieldLabels } from './ask-examples'
 import { useAsk } from './ask-state'
 import { BarList } from './charts'
+import { ListTable } from './list-table'
 
 const MAX = 2000
 
@@ -87,67 +87,6 @@ function langOf(text: string, language: string) {
   return thaana.test(text) ? 'dv' : language === 'dv' ? 'dv' : 'en'
 }
 
-/** "Who …" answers: the matching submissions with the name question, linked to each one. */
-function SubmissionList({ chart, formId, language }: { chart: ChartSpec; formId: string; language: string }) {
-  const labels = chart.columnLabels ?? {}
-  return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="h-8 w-16">Number</TableHead>
-            {chart.columns.map((c) => (
-              <TableHead key={c} className="h-8 whitespace-normal">
-                <bdi dir="auto" lang={langOf(labels[c] ?? c, language)}>
-                  {labels[c] ?? c}
-                </bdi>
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {chart.rows.map((r) => (
-            <TableRow key={r.ref ?? r.label}>
-              <TableCell className="py-1.5 align-top tabular-nums pointer-coarse:py-0">
-                {r.ref !== undefined ? (
-                  <Link
-                    to="/forms/$formId/submissions/$ref"
-                    params={{ formId, ref: String(r.ref) }}
-                    className="inline-flex items-center underline-offset-4 hover:underline pointer-coarse:min-h-11 pointer-coarse:min-w-11"
-                  >
-                    #{r.ref}
-                  </Link>
-                ) : (
-                  r.label
-                )}
-              </TableCell>
-              {chart.columns.map((c) => {
-                const v = r.values[c]
-                return (
-                  <TableCell key={c} className="py-1.5 align-top whitespace-normal pointer-coarse:py-3">
-                    {v === null || v === undefined || v === '' ? (
-                      <span className="text-muted-foreground">No answer</span>
-                    ) : (
-                      <bdi dir="auto" lang={langOf(String(v), language)}>
-                        {String(v)}
-                      </bdi>
-                    )}
-                  </TableCell>
-                )
-              })}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      {chart.truncated && chart.total !== undefined && (
-        <p className="text-xs text-muted-foreground">
-          Showing the newest {count(chart.rows.length)} of {plural(chart.total, 'submission')}.
-        </p>
-      )}
-    </div>
-  )
-}
-
 function ResultChart({
   chart,
   labels,
@@ -169,7 +108,7 @@ function ResultChart({
         </figcaption>
       )}
       {chart.display === 'list' ? (
-        <SubmissionList chart={chart} formId={formId} language={language} />
+        <ListTable chart={chart} formId={formId} language={language} />
       ) : chart.display === 'bar' && numeric && chart.columns.length === 1 ? (
         <BarList
           data={chart.rows.map((r, i) => ({
@@ -281,8 +220,11 @@ function Calculation({ steps, formId, onNavigate }: { steps: QueryStep[]; formId
                   {plural(s.count ?? 0, 'submission')}.{' '}
                 </span>
               )}
+              {s.tool === 'list_submissions' && (
+                <span>Listed {(s.fieldLabels ?? []).map((l) => `“${l}”`).join(', ')}. </span>
+              )}
               <bdi dir="auto">{s.description}</bdi>
-              {s.matched && s.tool === 'query_submissions' && (
+              {s.matched && (s.tool === 'query_submissions' || s.tool === 'list_submissions') && (
                 <span className="text-muted-foreground tabular-nums">: {matchedText(s)}</span>
               )}
               {s.where && (
@@ -435,13 +377,11 @@ interface Live {
 
 export function AskPanel({
   title,
-  role,
   onClose,
   onNavigate,
 }: {
   /** The panel's heading (a dialog title inside the phone sheet). */
   title: ReactNode
-  role: FormRole
   onClose: () => void
   /** After "Show these submissions" opens the list (the phone sheet closes). */
   onNavigate?: () => void
@@ -567,9 +507,7 @@ export function AskPanel({
   const hidden = showAll ? 0 : Math.max(0, pairs.length - 3)
   const tooLong = text.length > MAX
   const canSend = !live && !tooLong && text.trim().length > 0
-  const provider = data?.providerLabel || 'the AI service'
   const ideas = askExamples(schema, !!data?.readAnswers)
-  const canSettings = role === 'owner' || role === 'editor'
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-card">
@@ -735,7 +673,6 @@ export function AskPanel({
             ref={composer}
             id="ask-composer"
             aria-label="Question about the submissions"
-            aria-describedby="ask-note"
             placeholder="Ask a question about the submissions…"
             dir="auto"
             rows={1}
@@ -776,28 +713,6 @@ export function AskPanel({
           </InputGroupAddon>
         </InputGroup>
         {tooLong && <FieldError>Keep questions under 2,000 characters.</FieldError>}
-        <p id="ask-note" className="flex items-start gap-1.5 text-xs text-muted-foreground">
-          <InfoIcon className="mt-px size-3.5 shrink-0" aria-hidden />
-          <span>
-            {data?.readAnswers
-              ? `Your question, the form's questions, counts and, when needed, the text of answers go to ${provider}.`
-              : `Your question, the form's questions and counts go to ${provider}; the text of answers doesn't.`}
-            {canSettings && (
-              <>
-                {' '}
-                <Link
-                  to="/forms/$formId/settings"
-                  params={{ formId }}
-                  hash="ai"
-                  className="underline underline-offset-4"
-                  onClick={onNavigate}
-                >
-                  Settings › AI
-                </Link>
-              </>
-            )}
-          </span>
-        </p>
       </div>
     </div>
   )

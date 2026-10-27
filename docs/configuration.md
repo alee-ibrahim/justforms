@@ -153,7 +153,7 @@ Optional. With no provider every AI feature is hidden. See [Features](features.m
 | `JUSTFORMS_AI_BASE_URL` | | Endpoint; required for `openai_compat` (e.g. `http://ollama:11434/v1`) |
 | `JUSTFORMS_AI_VISION_MODEL` | `JUSTFORMS_AI_MODEL` | Model for "Start from a paper form" |
 | `JUSTFORMS_AI_VISION` | on for `gemini`/`anthropic`, off for `openai_compat` | Whether the model reads images |
-| `JUSTFORMS_AI_PROVIDER_LABEL` | | Provider name shown in the paper-form dialog ("The pages are sent to ..."), on Insights › Ask your submissions and in Settings › AI |
+| `JUSTFORMS_AI_PROVIDER_LABEL` | | Deprecated and ignored: the studio never names the AI provider (it says "the AI service") |
 | `JUSTFORMS_AI_DAILY_TOKENS_PER_USER`, `_PER_ORG` | `300000`, `3000000` | Daily token allowances (input + output); `0` turns one off |
 | `JUSTFORMS_AI_MAX_OUTPUT_TOKENS`, `_MAX_TOOL_CALLS`, `_TURN_SECONDS`, `_REQUEST_TIMEOUT_SECONDS`, `_MAX_FORM_CHARS` | `4096`, `40`, `120`, `90`, `80000` | Limits per turn; forms larger than `_MAX_FORM_CHARS` are not sent |
 

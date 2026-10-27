@@ -26,7 +26,7 @@ from app.models import Submission
 from tests.insights_fixture import Seeded, seed
 
 TZ = ZoneInfo("UTC")
-AI_NO_TEXT = Policy(for_ai=True, text_allowed=False)
+AI_NO_TEXT = Policy(for_ai=True, text_allowed=False, contact_allowed=False)
 AI_TEXT = Policy(for_ai=True, text_allowed=True)
 
 
@@ -257,9 +257,10 @@ async def test_policy(db: AsyncSession) -> None:
     ):
         with pytest.raises(QueryError):
             await q(db, s, query)
-    # Contact details: never grouped or listed for the AI, even with reading allowed.
-    with pytest.raises(QueryError):
-        await q(db, s, {"groupBy": [{"field": "contact"}]}, AI_TEXT)
+    # Contact details: grouped or listed for the AI only with reading allowed.
+    with pytest.raises(QueryError, match="contact detail"):
+        await q(db, s, {"groupBy": [{"field": "contact"}]}, AI_NO_TEXT)
+    assert (await q(db, s, {"groupBy": [{"field": "contact"}]}, AI_TEXT))["groups"]
     assert (await q(db, s, {"groupBy": [{"field": "contact"}]}))["groups"]  # people may
     # Free text: only when reading answers is allowed.
     with pytest.raises(QueryError, match="reading answers is off"):

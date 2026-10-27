@@ -233,6 +233,9 @@ async def seed(db: AsyncSession, *, settings: dict[str, Any] | None = None) -> S
                 data=data,
                 submitted_at=_when(day),
                 language="en",
+                # Never sent to the AI (not an answer); the respondent email is.
+                ip="198.51.100.7" if i == 1 else None,
+                respondent_email="resp@example.org" if i == 1 else None,
             )
         )
     # A deleted submission never counts.

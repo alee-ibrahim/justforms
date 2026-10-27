@@ -377,7 +377,8 @@ async def test_missing_approver_waits_until_stopped(
     detail = (await client.get(f"/api/v1/submissions/{sid}")).json()
     assert detail["approval"]["steps"][0]["state"] == "no_approver"
     assert detail["approval"]["outcomeTo"] is None
-    assert detail["events"][0]["type"] == "approval_waiting"
+    # (Opening it logged "viewed": the form has a sensitive question.)
+    assert [e["type"] for e in detail["events"]][:2] == ["viewed", "approval_waiting"]
     assert (await client.post(f"/api/v1/submissions/{sid}/approval/resend")).status_code == 409
     res = await client.post(f"/api/v1/submissions/{sid}/approval/stop", json={"reason": "No boss"})
     assert res.status_code == 200

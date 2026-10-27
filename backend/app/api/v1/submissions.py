@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
@@ -18,7 +18,7 @@ from fastapi.responses import RedirectResponse, Response, StreamingResponse
 from pydantic import Field, StringConstraints, ValidationError
 from sqlalchemy import func, select
 
-from app.answers import answer_text, mask_sensitive
+from app.answers import answer_text
 from app.api.v1.common import ApiModel
 from app.api.v1.files import PREVIEWABLE, content_disposition
 from app.approvals import service as approvals
@@ -269,7 +269,7 @@ async def list_submissions(
     for s in rows[:limit]:
         if s.form_version_id not in forms:
             forms[s.form_version_id] = await _form_of(db, s.form_version_id)
-        form, number = forms[s.form_version_id]
+        _form, number = forms[s.form_version_id]
         items.append(
             SubmissionSummary(
                 id=s.id,
@@ -280,7 +280,7 @@ async def list_submissions(
                 created_at=s.created_at,
                 submitted_at=s.submitted_at,
                 respondent_email=s.respondent_email,
-                data=mask_sensitive(form, s.data),
+                data=s.data,
                 source=s.source.value,
                 approval=(
                     {
@@ -352,7 +352,6 @@ async def _events(db: DbDep, sub: Submission) -> list[EventOut]:
 async def _detail(db: DbDep, sub: Submission, role: FormRole) -> SubmissionDetail:
     version = await db.get(FormVersion, sub.form_version_id)
     assert version is not None
-    form = Form.model_validate(version.schema)
     sigs = (await db.scalars(select(Signature).where(Signature.submission_id == sub.id))).all()
     events = await _events(db, sub)
     return SubmissionDetail(
@@ -365,7 +364,7 @@ async def _detail(db: DbDep, sub: Submission, role: FormRole) -> SubmissionDetai
         created_at=sub.created_at,
         submitted_at=sub.submitted_at,
         respondent_email=sub.respondent_email,
-        data=mask_sensitive(form, sub.data),
+        data=sub.data,
         source=sub.source.value,
         external_id=sub.external_id,
         imported_links=pending_links(sub.imported_links) or None,
@@ -475,9 +474,57 @@ async def _soft_delete(db: DbDep, sub: Submission, form: FormRecord, user: User)
 # -- one submission -------------------------------------------------------------------------
 
 
+VIEW_LOG_WINDOW = timedelta(hours=1)
+
+
+def _sensitive_answered(form: Form, data: dict[str, Any]) -> list[str]:
+    """Keys of the sensitive questions answered in ``data`` (top level and repeater rows)."""
+    out: list[str] = []
+    for info in FormIndex.build(form).elements.values():
+        if info.kind != "field" or not getattr(info.element, "sensitive", False):
+            continue
+        if info.repeater_id is None:
+            values = [data.get(info.id)]
+        else:
+            rows = data.get(info.repeater_id)
+            values = (
+                [r.get(info.id) for r in rows if isinstance(r, dict)]
+                if isinstance(rows, list)
+                else []
+            )
+        if any(v not in (None, "", [], {}) for v in values):
+            out.append(info.id)
+    return out
+
+
+async def _log_sensitive_view(db: DbDep, sub: Submission, user_id: uuid.UUID) -> None:
+    """Everyone who can see a submission sees its sensitive answers; opening one that has
+    them is recorded in its activity log ("viewed"), at most once an hour per person."""
+    form, _n = await _form_of(db, sub.form_version_id)
+    fields = _sensitive_answered(form, sub.data or {})
+    if not fields:
+        return
+    since = datetime.now(UTC) - VIEW_LOG_WINDOW
+    recent = await db.scalar(
+        select(SubmissionEvent.id)
+        .where(
+            SubmissionEvent.submission_id == sub.id,
+            SubmissionEvent.type == EventType.VIEWED,
+            SubmissionEvent.actor_id == user_id,
+            SubmissionEvent.created_at >= since,
+        )
+        .limit(1)
+    )
+    if recent is not None:
+        return
+    await append_event(db, sub, EventType.VIEWED, actor_id=user_id, payload={"fields": fields})
+    await db.commit()
+
+
 @router.get("/submissions/{submission_id}", response_model=SubmissionDetail)
-async def get_submission(db: DbDep, loaded: Loaded) -> SubmissionDetail:
+async def get_submission(db: DbDep, user: CurrentUser, loaded: Loaded) -> SubmissionDetail:
     sub, _form, role = loaded
+    await _log_sensitive_view(db, sub, user.id)
     return await _detail(db, sub, role)
 
 
@@ -495,6 +542,7 @@ async def get_submission_by_reference(
     )
     if sub is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "submission_not_found")
+    await _log_sensitive_view(db, sub, access.user.id)
     return await _detail(db, sub, access.role)
 
 
@@ -539,10 +587,9 @@ async def add_comment(
 async def reveal_sensitive(
     body: RevealIn, db: DbDep, user: CurrentUser, loaded: Loaded
 ) -> dict[str, Any]:
-    """Unmask one sensitive answer (editors and owners); every reveal is logged."""
-    sub, _form, role = loaded
-    if not has_form_role(role, FormRole.EDITOR):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "insufficient_form_role")
+    """One sensitive answer as text (anyone who can see the submission; logged). Kept for API
+    clients: the studio shows sensitive answers unmasked."""
+    sub, _form, _role = loaded
     form, _n = await _form_of(db, sub.form_version_id)
     info = FormIndex.build(form).elements.get(body.field_id)
     if info is None or not getattr(info.element, "sensitive", False):
@@ -642,8 +689,8 @@ def _export_out(e: Export) -> ExportOut:
 async def start_export(
     body: ExportIn, db: DbDep, access: FormViewer, queue: QueueDep, settings: SettingsDep
 ) -> ExportOut:
-    """Export the matching (or selected) submissions to .xlsx in the worker. Viewers get
-    sensitive answers masked."""
+    """Export the matching (or selected) submissions to .xlsx in the worker, sensitive
+    answers included (everyone who can see the submissions sees them)."""
     parsed = ListFilters.model_validate(body.model_dump(by_alias=True))
     if parsed.where or parsed.where_any:
         try:
@@ -655,7 +702,6 @@ async def start_export(
         except ValueError as exc:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_filter") from exc
     filters = parsed.model_dump(mode="json", by_alias=True, exclude_none=True)
-    filters["maskSensitive"] = not has_form_role(access.role, FormRole.EDITOR)
     export = Export(form_id=access.form.id, requested_by=access.user.id, filters=filters)
     db.add(export)
     await db.commit()

@@ -76,7 +76,7 @@ const DATA = {
   dob: '2004-02-03',
   email: 'a@example.org',
   phone: '+9607771234',
-  nid: '••••567',
+  nid: 'A111567',
   track: 'Marine biology',
   topics: ['design', 'coding'],
   minor: false,
@@ -140,11 +140,11 @@ describe('Answers (form view)', () => {
     expect(html).toContain('It is true.')
   })
 
-  it('masks sensitive answers, with Show only for people who may reveal them', () => {
-    expect(render()).toContain('••••567')
-    expect(render()).toContain('Sensitive')
-    expect(render()).not.toContain('>Show<')
-    expect(render({ reveal: async () => 'A111567' })).toContain('>Show<')
+  it('shows sensitive answers as they were given, marked sensitive', () => {
+    const html = render()
+    expect(html).toContain('A111567')
+    expect(html).toContain('(sensitive)')
+    expect(html).not.toContain('••••')
   })
 
   it('leaves out hidden values and questions the logic skipped, unless asked', () => {

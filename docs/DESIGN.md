@@ -202,7 +202,7 @@ Rules enforced by the Pydantic validators:
 | `signature` | `SignatureRef` | `attestation: string` (the "I confirm..." text shown above the pad) |
 | `hidden` | string | `prefillParam` (URL query param name) |
 
-Common field props: `label`, `description`, `placeholder` (plain strings in the form's language), `required`, `requiredIf`, `visibleIf`, `prefillParam`, `sensitive` (masks the value in table views and leaves it out of emails and webhooks unless explicitly opted in), and `width: "full" | "half"`.
+Common field props: `label`, `description`, `placeholder` (plain strings in the form's language), `required`, `requiredIf`, `visibleIf`, `prefillParam`, `sensitive` (marked with a lock in the studio, logged when a submission that has it is opened, left out of search, emails and webhooks unless explicitly opted in, and only counted by the AI unless the form allows AI to read answers), and `width: "full" | "half"`.
 
 ### 4.4 Concrete example
 
@@ -492,7 +492,7 @@ Superadmins act as admins of every organisation. An organisation always keeps at
 | Export `.xlsx` | yes | yes | yes |
 | Change submission status | — | yes | yes |
 | Edit draft, use AI, publish | — | yes | yes |
-| View sensitive fields unmasked | — | yes | yes |
+| View sensitive answers (never masked in the studio; opening a submission with them is logged) | yes | yes | yes |
 | Manage notifications & webhooks | — | — | yes |
 | Manage form permissions, close/archive/delete form, delete submissions | — | — | yes |
 
@@ -694,7 +694,7 @@ JustForms-Webhook-Signature: v1=<hex(HMAC_SHA256(secret, f"{id}.{timestamp}.{raw
 
 - The LLM **only calls tools**. Each tool maps to a deterministic schema operation implemented in Python, and the LLM never emits raw schema JSON, code, HTML or CSS.
 - Every tool call is applied to an **in-memory working copy** of the draft and validated with the full Pydantic schema validators plus the logic validator (unknown references, cycles). If validation fails, the error goes back to the model as the tool result so it can correct itself.
-- The builder's model sees the **form schema only**; submission data never goes to the provider from the builder. The only path that sends anything about submissions is "Ask your submissions" (§12.6): counts always, and the text of answers only when the form's owner turned on "Allow AI to read answers".
+- The builder's model sees the **form schema only**; submission data never goes to the provider from the builder. The only path that sends anything about submissions is "Ask your submissions" (§12.6): counts always, and answers only when the form's owner turned on "Allow AI to read answers".
 - The result is a **proposal**: an RFC 6902 patch plus a natural-language summary. Nothing reaches the draft until the user clicks **Apply**. Apply writes one `form_draft_history` entry, which a single **Undo** reverts.
 - If `JUSTFORMS_AI_PROVIDER` is unset or `none`, `/ai/*` returns 404 and `GET /api/v1/meta` reports `ai: false`, so the studio hides every AI entry point.
 
@@ -792,15 +792,29 @@ rights?") for anyone who can see them (viewers, editors, owners). Hidden, and ev
     `_version`) and aggregates (`count`, `sum`, `avg`, `min`, `max`, `median`, `distinct`),
     optionally listing up to 50 matching submission numbers with chosen answers. Returns
     numbers, option labels and references; each result gets an id (`q1`, `q2`, …).
-  - `read_answers`: the text of up to 10 questions for at most 200 matching submissions (newest
-    first), each answer cut to `maxChars` (≤ 1000) and at most 40,000 characters in all
-    (`truncated: true` beyond). Offered only when the form's `settings.aiReadAnswers` is on.
+  - `list_submissions`: a table of the matching submissions for the person, with the answers
+    to up to 8 chosen questions or submission details (`_status`, `_submitted`, `_respondent`,
+    `_approval`), newest (or oldest) 500. The server reads the values from the database and
+    shows them exactly as answered (sortable, copy as tab-separated text, CSV download), so
+    the model never writes a listed value. The model gets the row count and how many rows
+    answered each column; with "Allow AI to read answers" on it also gets the values (within
+    the size budget below, `rowsTruncated` beyond). Works with reading off: the values then
+    go to the person only. It is how "contact number of all CSOs" is answered; the prompt
+    tells the model never to call permitted data restricted.
+  - `read_answers`: every textual answer for at most 500 matching submissions (newest first):
+    chosen questions or, with no `fields`, all of them, including contact details, sensitive
+    questions, repeater rows (a repeater's key reads its rows), "Other" texts, and each
+    submission's reference, status, submitted time, respondent email and approval state.
+    Files and signatures only say whether one was provided ("1 file provided", "signed"),
+    never names or content; IP addresses never go. Each answer is cut to `maxChars` (≤ 2000).
+    At most 150,000 characters go to the model per question, shared by every
+    `read_answers` and `list_submissions` call; a cut result has `truncated: true` and a note
+    telling the model to say how many submissions it covers. Offered only when the form's
+    `settings.aiReadAnswers` is on.
   - `show_result`: shows an earlier result (by id) as a bar chart or a table under the answer,
-    or (`display: "list"`, for "who" questions) the matching submissions: number plus the
-    answers to chosen questions (default: the form's name question; never sensitive, contact,
-    file or signature questions), newest 50. The server builds it from the stored result or
-    the database, so its numbers are never the model's, and a list's answers go to the person
-    only: the model gets the count.
+    or (`display: "list"`) the submissions it counted, like `list_submissions` (default
+    column: the form's name question). The server builds it from the stored result or the
+    database, so its numbers are never the model's.
 - **Query language.** JSON validated by Pydantic (`extra="forbid"`, keys matching the question
   key pattern, bounded lists) and compiled to SQLAlchemy Core over the JSONB answers: keys and
   values are bound parameters and every key must be a question of the form, so nothing the
@@ -815,12 +829,15 @@ rights?") for anyone who can see them (viewers, editors, owners). Hidden, and ev
   mappings (§15.2) make older versions' fixed questions count as rows. Questions come from all
   published versions (`app/insights/catalogue.py`: keys are stable, options merged, a mapped
   older question is only read as rows).
-- **What may leave.** Sensitive questions only ever give answered/unanswered counts (for
-  everyone, so viewers and editors get the same answers). Files and signatures: answered or
-  not. Contact details (email, phone questions) can be filtered and counted but are never
-  grouped, listed or read. Free-text answers and "Other" texts are grouped, listed or read only
-  with "Allow AI to read answers" on; otherwise they can be filtered (`contains`) and counted.
-  Respondent IP addresses, user agents and confirmed respondent emails are never queryable.
+- **What may leave.** "Allow AI to read answers" is off by default for every form. Off: the
+  model gets counts, option labels and numbers; free text and contact details can be filtered
+  (`contains`) and counted, never grouped or read; sensitive questions, files and signatures
+  give answered/unanswered counts. On: `read_answers` and `list_submissions` send every
+  textual answer, contact details and sensitive questions included, whoever asks (viewers see
+  every answer in the studio too), and contact details and free text can be grouped.
+  Sensitive questions are still only answered/unanswered inside `query_submissions` (so a
+  "Show these submissions" link never filters on their values). Files and signatures only
+  ever say whether one was provided. Respondent IP addresses and user agents never go.
 - **Prompt.** The form's title, the number of submissions, today's date, the questions
   (key, type, label, options, repeater, versions, what is available for each), and rules:
   every number must come from a tool result, say what a count is out of, quote labels as
@@ -838,14 +855,18 @@ rights?") for anyone who can see them (viewers, editors, owners). Hidden, and ev
   conditions of what the reply counted (`link`: the first number in the reply that is a
   query's or a group's count; a breakdown links to its query), as `where` on the list (§15.4).
 - **Setting.** `PATCH /forms/{id}` `aiReadAnswers` (owners only, audited as `form.update`),
-  off by default, under Settings › AI with the provider named; turning it on asks first.
+  off by default, under Settings › AI; turning it on asks first ("Answers, including contact
+  details and fields marked sensitive, are sent to the AI service when someone asks a
+  question."). The studio never names the AI provider: it says "the AI service" everywhere
+  (`JUSTFORMS_AI_PROVIDER_LABEL` is ignored).
 - **Limits and audit.** The builder's limits apply: `ai_request` / `ai_request_org` rate
   limits, daily token allowances checked before each provider call, at most 20 tool calls and
   `JUSTFORMS_AI_TURN_SECONDS` per question, questions up to 2,000 characters, tool results cut
   to 30,000 characters. One chat per person and form (`ai_sessions.mode = ask`), kept 90 days.
   Audit: `ai.ask_session_create`, `ai.ask` (characters, outcome, tool calls, tokens, whether
-  reading was on; never the question) and one `ai.read_answers` per read (question keys and
-  the number of submissions, never the text).
+  reading was on; never the question), one `ai.read_answers` per read (question keys and
+  the number of submissions, never the text) and one `ai.ask_list` per list (columns, rows,
+  whether the values went to the provider, the sensitive columns; never the values).
 
 ## 13. Import from Jotform
 
@@ -1020,7 +1041,7 @@ The CAPTCHA is verified server-side on submit and on OTP request. A form can cho
 ### 14.5 PII and data protection
 
 - **Encryption.** Encryption at rest is the operator's responsibility (Postgres volume, the file storage volume, or S3 SSE). Application secrets such as webhook secrets and SMTP passwords are encrypted with Fernet using `JUSTFORMS_SECRET_KEY`.
-- **Sensitive fields.** Masked by the API in every list and detail response (`••••567`), unmasked one answer at a time through `POST /submissions/{id}/reveal` for editor and above (each reveal is logged as a `viewed` event), excluded from search, email and webhooks, and included in exports with a warning banner for editors and owners (masked in exports requested by viewers).
+- **Sensitive fields.** Shown as given to everyone who can see the submissions (viewers process the data; they just can't edit the form): lists, the submission page, Insights examples, exports and Ask lists, with a lock icon. Opening a submission that has sensitive answers is logged as a `viewed` event (fields only, at most once an hour per person). `POST /submissions/{id}/reveal` stays for API clients (viewers and above, logged). Excluded from search, email and webhooks; exports carry a warning banner.
 - **Collection controls.** IP and user-agent capture can be disabled per form, except on signature forms, where they form part of the audit trail.
 - **Retention.** `retentionDays` per form. A nightly job hard-deletes expired submissions together with their files, signatures and PDFs, and logs a tombstone in `audit_log`.
 - **Deletion.** Submission delete is soft for 30 days and then hard (purging files and PDFs). Owners can hard-delete immediately.
@@ -1085,7 +1106,7 @@ its submissions.
   small integer ranges and ratings, otherwise up to 8 "nice" bins).
 - Dates: per month, per year when the answers span more than three years.
 - Text, email, phone: answered count and the newest three answers.
-- Sensitive questions: answered count and masked examples (`••••567`) only.
+- Sensitive questions: answered count and the newest three answers, marked sensitive.
 - Files and signatures: answered count.
 - Repeaters: rows, submissions with rows, average rows, and the same summaries per row for
   their questions; mapped older questions count as rows. With a version filter only that
@@ -1173,7 +1194,7 @@ All endpoints are JSON. OpenAPI is served at `/api/v1/openapi.json`, and the TS 
 - `GET /submissions/{id}` — includes its schema version, events, files and signatures
 - `PATCH /submissions/{id}` with `{status, comment?}`
 - `POST /submissions/{id}/comments` (viewers too; plain text, part of the hash-chained activity log)
-- `POST /submissions/{id}/reveal` with `{fieldId, row?}` (editors; logged)
+- `POST /submissions/{id}/reveal` with `{fieldId, row?}` (viewers and above; logged; the studio no longer needs it)
 - `GET /signatures/{id}/image`
 - `POST /pdf-checks` (raw PDF body) → verdict, signer and the submission's current hash
 - `GET /submissions/{id}/pdf` (302 presigned; triggers generation if missing → 202)
@@ -1531,7 +1552,7 @@ Provider interface and adapters (Gemini, Anthropic, OpenAI-compatible), tool lay
 ### 22.1 Resolved decisions
 
 1. **File storage.** A local volume is the default (Compose named volume, Helm PVC), so self-hosters need no object store. An external S3-compatible service is optional. MinIO or any other object store is not bundled (§10, §19).
-2. **AI document import.** Paper/PDF/photo → form is for **blank** forms only, which may be sent to the cloud LLM provider. Filled-in forms are never sent to a cloud LLM (§12.3). Submission data reaches a provider only through "Ask your submissions" (§12.6): counts by default, the text of non-sensitive answers only when the form's owner turns on "Allow AI to read answers" (decided).
+2. **AI document import.** Paper/PDF/photo → form is for **blank** forms only, which may be sent to the cloud LLM provider. Filled-in forms are never sent to a cloud LLM (§12.3). Submission data reaches a provider only through "Ask your submissions" (§12.6): counts by default; every textual answer (contact details and sensitive questions included, never files, signatures or IP addresses) only when the form's owner turns on "Allow AI to read answers", off by default for every form (decided).
 3. **PDF signing.** Each install signs with its own self-signed key and certificate by default. An uploaded org certificate may be added later (§9.5).
 4. **Thaana fonts.** The font stack is `Faruma, "MV Faseyha", "Noto Sans Thaana", sans-serif`. Noto Sans Thaana is bundled as the fallback; Faruma/MV files are never committed and are supplied by operators through the `/fonts/` directory (§16). The Faruma licence is still to be confirmed (open question 6 in §22.2).
 5. **English-only UI, single-language forms.** The studio, builder and dashboard UI is English only; there is no UI internationalisation. Dhivehi exists only in form content: each form has one `settings.language` (`en` or `dv`), all form text is plain strings in that language, and direction derives from it. Thaana support (font stack, `lang`/`dir` on form content, the phonetic keyboard for `dv` forms) applies wherever form content is typed or shown (§4.2, §16).

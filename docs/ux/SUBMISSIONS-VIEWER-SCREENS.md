@@ -137,7 +137,7 @@ and `alert` are installed.
 | Rating | "4 out of 5" with the stars drawn (filled up to the answer), `aria-label` "4 out of 5" |
 | File | one card per file, the whole card is the target (≥ 44px, keyboard reachable): images show a 64px thumbnail and "Open", which shows a larger preview in a `Dialog` with [Download]; other files (PDF, Word, …) show a type icon and "Download" and download on tap. Names wrap (`break-all`), never run off a phone screen |
 | Signature | `SignatureBlock`: image on white paper, statement, audit rows |
-| Sensitive (any type) | masked `••••567`, lock icon, link `Button` "Show" (editors and owners; tooltip "Viewing is recorded"); viewers see "Sensitive" |
+| Sensitive (any type) | the answer as given with a lock icon (tooltip "Sensitive answer"), for everyone who can see the submission; opening it is recorded ("{name} viewed sensitive answers") |
 | Empty | muted "No answer" |
 
 ### 1.3.1 Imported submissions
@@ -202,7 +202,7 @@ reference, status, submitted line and respondent, then the sheet with every page
 header, form bar, actions, tabs, aside and the skipped-questions switch are not printed. The
 sheet prints without border or desk, in the light scheme, at full paper width; repeater blocks,
 signatures and file rows avoid page breaks inside (`break-inside: avoid`). Sensitive answers
-print masked unless revealed.
+print as given.
 
 ### 1.8 Navigation and keyboard
 
@@ -268,7 +268,7 @@ print masked unless revealed.
 - Second row (muted, `tabular-nums`): submitted time, ", step 1 of 2" while an approval runs.
 - Answers: a `dl` grid `grid-cols-[minmax(0,8rem)_minmax(0,1fr)]`, label muted `text-sm`,
   value `text-sm` truncated to one line (long text: two lines), `lang`/`dir="auto"` per value;
-  sensitive values masked with the lock icon. Empty answers show "-".
+  sensitive values with the lock icon. Empty answers show "-".
 - Footer (only when there is something): `PaperclipIcon` "{n} files", `SignatureIcon`
   "Signed", the respondent email (`bdi dir="ltr"`, truncated) when the form confirms addresses.
 - The card of the submission last viewed has the marker wash (as the open row had).

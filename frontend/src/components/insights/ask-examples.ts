@@ -1,7 +1,8 @@
 /**
  * "Try asking" questions for "Ask your submissions" (INSIGHTS-SCREENS 4), built from the
  * published form: its choice questions first ("How many ticked …?", "Who ticked …?",
- * "Breakdown by …"), then a number's average and submissions per month.
+ * "Breakdown by …"), contact details when the form asks for them, then a number's average and
+ * submissions per month.
  */
 import { buildIndex } from '@/logic/form-index'
 import type { FieldElement, Form } from '@/schema'
@@ -43,6 +44,8 @@ export function askExamples(schema: Form | undefined, readAnswers = false, max =
     const opts = optionsOf(choice)
     out.push(`Who ${choice.type === 'multi_choice' ? 'ticked' : 'answered'} “${short(opts[Math.min(1, opts.length - 1)].label)}”?`)
   }
+  if (named && fields.some((f) => f.type === 'phone' || f.type === 'email'))
+    out.splice(1, 0, 'List the contact details of every submission')
   if (choice?.label) out.push(`Breakdown by “${short(choice.label)}”`)
   const num = fields.find((f) => f.type === 'number' || f.type === 'rating')
   if (num?.label) out.push(`What is the average “${short(num.label)}”?`)

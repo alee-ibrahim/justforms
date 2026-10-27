@@ -42,7 +42,7 @@ response becomes a PDF that anyone can check is genuine. It is in early developm
 - **Dhivehi** forms right to left in Thaana fonts, with a phonetic Thaana keyboard.
 - **Signed PDFs** (PAdES) with a QR code to a public verify page.
 - **Approvals** in up to three steps; approvers need no account.
-- **Submissions** table with statuses, comments, masking and Excel export; emails and signed webhooks.
+- **Submissions** table with statuses, comments, sensitive answers marked and logged, and Excel export; emails and signed webhooks.
 - **People and roles**: invite by email as admin, form creator or member; share forms per person.
 - **AI assistant** (optional) and **Jotform import** to get forms in quickly.
 - **Branding and form themes**, OIDC or emailed-code sign-in, Docker Compose or Helm.

@@ -14,7 +14,6 @@ class Features(ApiModel):
     # The model can read images ("Start from a paper form").
     ai_vision: bool = False
     # Who receives what the AI is sent (named in the paper-form dialog).
-    ai_provider_label: str = ""
     oidc: bool
     # Signed-out visitors go straight to the IdP (JUSTFORMS_OIDC_AUTO_REDIRECT).
     oidc_auto_redirect: bool = False
@@ -41,7 +40,6 @@ async def meta(settings: SettingsDep) -> Meta:
         features=Features(
             ai=settings.ai_enabled,
             ai_vision=settings.ai_vision_enabled,
-            ai_provider_label=settings.ai_label,
             oidc=settings.oidc_enabled,
             oidc_auto_redirect=settings.oidc_enabled and settings.oidc_auto_redirect,
             local_login=settings.local_login_enabled,

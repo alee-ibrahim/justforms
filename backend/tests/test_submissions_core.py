@@ -160,19 +160,26 @@ async def test_filters(
     assert res.status_code == 422
 
 
-async def test_masking_reveal_comments(
+async def test_sensitive_shown_viewing_logged_comments(
     app: Any, client: AsyncClient, db: AsyncSession, settings: Settings, queue: RecordingQueue
 ) -> None:
+    """Everyone who can see the submissions sees sensitive answers as given; opening a
+    submission that has them is recorded ("viewed"), at most once an hour per person."""
     me = await admin_client(client, db, settings, queue)
     pub = await _seed(client, me)
     page = await _list(client, pub)
     row = next(i for i in page["items"] if i["data"]["name"] == "Aminath Ali")
-    assert row["data"]["national_id"] == "••••567"
-    assert row["data"]["dependents"][0]["dep_id"] == "••••001"
+    assert row["data"]["national_id"] == "A111567"
+    assert row["data"]["dependents"][0]["dep_id"] == "A900001"
 
     sid = row["id"]
     detail = (await client.get(f"/api/v1/submissions/{sid}")).json()
-    assert detail["data"]["national_id"] == "••••567" and detail["canDelete"] is True
+    assert detail["data"]["national_id"] == "A111567" and detail["canDelete"] is True
+    viewed = [e for e in detail["events"] if e["type"] == "viewed"]
+    assert len(viewed) == 1 and viewed[0]["payload"] == {"fields": ["national_id", "dep_id"]}
+    again = (await client.get(f"/api/v1/submissions/{sid}")).json()
+    assert len([e for e in again["events"] if e["type"] == "viewed"]) == 1
+    # The reveal endpoint stays for API clients.
     res = await client.post(f"/api/v1/submissions/{sid}/reveal", json={"fieldId": "national_id"})
     assert res.json() == {"value": "A111567"}
     res = await client.post(
@@ -185,7 +192,7 @@ async def test_masking_reveal_comments(
     res = await client.post(f"/api/v1/submissions/{sid}/comments", json={"text": "  Looks fine.  "})
     assert res.status_code == 201
     events = res.json()["events"]
-    assert [e["type"] for e in events[:3]] == ["comment", "viewed", "viewed"]
+    assert [e["type"] for e in events[:4]] == ["comment", "viewed", "viewed", "viewed"]
     assert events[0]["payload"] == {"text": "Looks fine."} and events[0]["actorName"]
     res = await client.post(f"/api/v1/submissions/{sid}/comments", json={"text": "   "})
     assert res.status_code == 422
@@ -204,7 +211,7 @@ async def test_detail_by_reference(
     assert res.status_code == 200, res.text
     detail = res.json()
     assert detail["id"] == row["id"] and detail["seq"] == row["seq"]
-    assert detail["data"]["national_id"] == "••••903" and detail["schema"]["pages"]
+    assert detail["data"]["national_id"] == "A222903" and detail["schema"]["pages"]
     assert (await client.get(f"/api/v1/forms/{pub.id}/submissions/seq/99")).status_code == 404
     assert (await client.get(f"/api/v1/forms/{pub.id}/submissions/seq/0")).status_code == 422
     # Deleted submissions are gone by reference too; other forms' references don't leak.
@@ -448,7 +455,7 @@ async def test_export_xlsx(
     assert header[-1] == "Notes (version 1) (notes)"
 
 
-async def test_export_dv_and_viewer_masking(
+async def test_export_dv_and_viewer_sees_everything(
     app: Any,
     client: AsyncClient,
     db: AsyncSession,
@@ -472,8 +479,9 @@ async def test_export_dv_and_viewer_masking(
     assert (await client.get(f"/api/v1/exports/{eid.id}")).status_code == 404
     assert wb["Submissions"].sheet_view.rightToLeft is True
     sheet = rows(wb["Submissions"])
-    assert sheet[1][4] == "Dhivehi" and sheet[1][7] == "••••567"
-    assert rows(wb["Dependents"])[1][3] == "••••001"
+    # Viewers process the data: their exports carry sensitive answers as given.
+    assert sheet[1][4] == "Dhivehi" and sheet[1][7] == "A111567"
+    assert rows(wb["Dependents"])[1][3] == "A900001"
 
 
 def test_safe_text() -> None:
@@ -540,7 +548,7 @@ MATRIX: dict[str, tuple[str, str, Any, str]] = {
     "request_pdf": ("POST", "/api/v1/submissions/{sub}/pdf", None, "viewer"),
     "export": ("POST", "/api/v1/forms/{form}/exports", {}, "viewer"),
     "status": ("PATCH", "/api/v1/submissions/{sub}", {"status": "in_review"}, "editor"),
-    "reveal": ("POST", "/api/v1/submissions/{sub}/reveal", {"fieldId": "national_id"}, "editor"),
+    "reveal": ("POST", "/api/v1/submissions/{sub}/reveal", {"fieldId": "national_id"}, "viewer"),
     "bulk_status": (
         "POST",
         "/api/v1/forms/{form}/submissions/bulk",

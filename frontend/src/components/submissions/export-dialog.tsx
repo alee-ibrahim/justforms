@@ -17,7 +17,6 @@ export function ExportDialog({
   filters,
   count,
   sensitive,
-  canSeeSensitive,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -26,7 +25,6 @@ export function ExportDialog({
   count: number
   /** Labels of sensitive questions in the form. */
   sensitive: string[]
-  canSeeSensitive: boolean
 }) {
   const start = useMutation({ mutationFn: () => api.startExport(formId, filters) })
   const jobId = start.data?.id
@@ -76,20 +74,15 @@ export function ExportDialog({
             versions. Repeaters go to their own sheets.
           </DialogDescription>
         </DialogHeader>
-        {sensitive.length > 0 &&
-          (canSeeSensitive ? (
-            <Alert>
-              <TriangleAlertIcon />
-              <AlertTitle>Includes sensitive answers</AlertTitle>
-              <AlertDescription>
-                <bdi dir="auto">{sensitive.join(', ')}</bdi>. Store the file somewhere safe.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <Alert>
-              <AlertDescription>Sensitive answers are masked in your export.</AlertDescription>
-            </Alert>
-          ))}
+        {sensitive.length > 0 && (
+          <Alert>
+            <TriangleAlertIcon />
+            <AlertTitle>Includes sensitive answers</AlertTitle>
+            <AlertDescription>
+              <bdi dir="auto">{sensitive.join(', ')}</bdi>. Store the file somewhere safe.
+            </AlertDescription>
+          </Alert>
+        )}
         {status && status !== 'failed' && (
           <div className="flex flex-col gap-2" aria-live="polite">
             <Progress value={status === 'ready' ? 100 : (pct ?? 5)} aria-label="Export progress" />
