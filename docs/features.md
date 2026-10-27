@@ -159,10 +159,13 @@ small, safe query language that runs on the server (it never writes SQL), every 
 from those counts, and each answer shows how it was calculated with a link to the matching
 submissions. Ask it to list things ("contact number of all CSOs") and it shows a table read
 straight from the database, exact values you can sort, copy or download as CSV; the AI never
-types them. By default only the questions and counts go to the AI service (lists go to you,
-not to it); an owner can turn on **Settings › AI › Allow AI to read answers** (off for every
+types them. By default only the questions, counts, and sums, averages and groups over at least 5
+submissions go to the AI service, never a single submission's answers (lists go to you, not
+to it); an owner can turn on **Settings › AI › Allow AI to read answers** (off for every
 form until then) so it can read every answer, contact details and sensitive questions
-included, to summarise or reason about them (at most 500 submissions per read). Files,
+included, to summarise or reason about them (the answers of at most 500 submissions per
+question). Answers keep lists as what was listed and read them again when opened, so
+deleted submissions drop out. Files,
 signatures and IP addresses are never sent. The studio never names the AI provider.
 
 Behind your own reverse proxy, see [Deployment](deployment.md#reverse-proxies) for the

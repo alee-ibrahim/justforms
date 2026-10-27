@@ -456,7 +456,7 @@ All primary keys are UUIDv7, so they sort by time. All tables carry `created_at`
 | `webhook_deliveries` | `id`, `webhook_id`, `event_id`, `event`, `payload` jsonb, `attempt`, `status` (`pending`,`succeeded`,`failed`), `response_code`, `response_snippet` (first 1 KB), `next_attempt_at`, `duration_ms` | Kept for 30 days. |
 | `exports` | `id`, `form_id`, `requested_by`, `format` (`xlsx`), `filters` jsonb, `status`, `storage_key`, `row_count`, `expires_at` | File expires after 24 h. |
 | `ai_sessions` | `id`, `org_id`, `form_id`, `user_id`, `provider`, `model`, `mode` (`create`,`edit`,`import`, and `ask` for "Ask your submissions", §12.6), `status` (`idle`,`proposal`,`closed`), `base_revision`, `base_schema`, `working_schema` (the pending suggestion), `flags`, `tokens_in`, `tokens_out` | One chat per person and form; other editors can't see it. Nothing in it reaches the draft until Apply. |
-| `ai_messages` | `id`, `session_id`, `role` (`user`,`assistant`,`status`), `content` jsonb (request text or the uploaded file's name and page count, reply, tool steps, outcome), `created_at` | Erased after 90 days by the nightly job. Builder chats never contain submission data or the uploaded document; `ask` chats hold the questions, answers and the counts behind them, never the text of answers the AI read. |
+| `ai_messages` | `id`, `session_id`, `role` (`user`,`assistant`,`status`), `content` jsonb (request text or the uploaded file's name and page count, reply, tool steps, outcome), `created_at` | Erased after 90 days by the nightly job (Ask chats: after the form's `retentionDays` when shorter; answers written since an erased submission arrived become `removed`). Builder chats never contain submission data or the uploaded document; `ask` chats hold the questions, answers and the counts behind them, and lists only as their definition, never the text of answers the AI read or the listed values. |
 | `audit_log` | `id`, `org_id`, `actor_id`, `action`, `target_type`, `target_id`, `ip`, `meta` jsonb | Org-level admin actions: permission changes, publishes, webhook edits, exports, deletions. |
 
 Submission `search` is built at insert time. It is a `simple`-config tsvector over the text values of non-sensitive fields, so Thaana text gets whitespace tokenisation and no stemming.
@@ -735,11 +735,11 @@ User prompt → system prompt (role, schema rules summary, field type catalogue,
 
 **Paper / PDF / photo → form** (`mode=import`). **Blank forms only (decided):** this flow exists to recreate the structure of an empty paper form. The upload dialog names the provider the pages go to, and the person must tick "This form is blank" for every upload (the API refuses requests without `blankConfirmed=true`). Filled-in forms never leave the server for an AI provider, and the builder's assistant never sends respondent data; the one path that sends anything about submissions is "Ask your submissions" (§12.6), under its own rules.
 1. The studio posts the file itself to `POST /forms/{formId}/ai/sessions/{id}/import` (raw body, at most 20 MB; PDF, JPEG, PNG or WebP). It is read in memory for that request and never stored. HEIC is not accepted (no licence-clean decoder in the image); phones can share JPEG.
-2. The API rasterises PDF pages with `pypdfium2` (150 dpi, at most 10 pages) and normalises photos (EXIF orientation, max 2048 px, JPEG). This takes a second or two, so import runs in the request like a chat turn (same SSE stream, Stop and limits) instead of a worker job.
+2. The API rasterises PDF pages with `pypdfium2` (150 dpi, at most 10 pages, scaled down so a page is never more than 2048 px on its longer side, page boxes over 200 in refused) and normalises photos (EXIF orientation, max 2048 px, JPEG; JPEGs are decoded at a reduced scale, and an image over 40 megapixels after that is refused before decoding with 413 `image_too_large`), so a tiny file can't make the server allocate gigabytes. This takes a second or two, so import runs in the request like a chat turn (same SSE stream, Stop and limits) instead of a worker job.
 3. It calls a vision-capable provider with the images, instructing the model to recreate the structure (sections, fields, choices, signature boxes, labels as printed, in the form's language) using the tools, and to call `flag_uncertain` wherever it is unsure.
 4. The suggestion is stored on the `ai_session` and streamed to the studio, where the person reviews it, including flagged items, before applying. If the model sees a filled-in document it calls `report_filled_in` instead, and nothing is added.
 
-**Loop limits:** at most 40 tool calls per request (`JUSTFORMS_AI_MAX_TOOL_CALLS`), 12 rejected tool calls, a 120 s wall clock (`JUSTFORMS_AI_TURN_SECONDS`), daily token allowances per person and per organisation (`JUSTFORMS_AI_DAILY_TOKENS_PER_USER`, `_PER_ORG`, checked before every provider call), rate limits `ai_request` (per person and per organisation) and `ai_import`, requests of at most 4,000 characters, and forms of at most `JUSTFORMS_AI_MAX_FORM_CHARS` of JSON. Requests stream to the studio over SSE, with events `message.delta`, `tool.applied`, `tool.error`, `proposal`, `error`, `cancelled`, `filled_in` and `done`. A request that fails, times out or is stopped keeps nothing.
+**Loop limits:** at most 40 tool calls per request (`JUSTFORMS_AI_MAX_TOOL_CALLS`), 12 rejected tool calls, a 120 s wall clock (`JUSTFORMS_AI_TURN_SECONDS`), daily token allowances per person and per organisation (`JUSTFORMS_AI_DAILY_TOKENS_PER_USER`, `_PER_ORG`: every provider call first reserves its worst case, input characters / 3 plus the output limit, atomically against both and is refused when that would pass either; the reservation is then settled with the real usage, estimated from characters when the provider reports none; the day's first call always goes), one running AI request per person (a newer request on any form, or reopening a chat with `fresh`, stops the older one within half a second), rate limits `ai_request` (per person and per organisation) and `ai_import`, requests of at most 4,000 characters, and forms of at most `JUSTFORMS_AI_MAX_FORM_CHARS` of JSON. Requests stream to the studio over SSE, with events `message.delta`, `tool.applied`, `tool.error`, `proposal`, `error`, `cancelled`, `filled_in` and `done`. A request that fails, times out or is stopped keeps nothing.
 
 ### 12.4 Provider interface
 
@@ -836,9 +836,14 @@ rights?") for anyone who can see them (viewers, editors, owners). Hidden, and ev
   published versions (`app/insights/catalogue.py`: keys are stable, options merged, a mapped
   older question is only read as rows).
 - **What may leave.** "Allow AI to read answers" is off by default for every form. Off: the
-  model gets counts, option labels and numbers; free text and contact details can be filtered
-  (`contains`) and counted, never grouped or read; sensitive questions, files and signatures
-  give answered/unanswered counts. On: `read_answers` and `list_submissions` send every
+  model gets counts, option labels, and sums, averages and groups over at least 5 submissions
+  (`AI_MIN_GROUP`; smaller groups are merged into one "fewer than 5 each" group), never a
+  single submission's answers: free text, contact, hidden and time questions only filter as
+  answered/unanswered (no value filters, which would reveal them one count at a time);
+  `listLimit` gives submission numbers only and `listFields` is refused; dates group by month
+  or year; min and max (and distinct on dates) are refused. Filtered counts are exact, so a
+  narrow filter can still say something about a few submissions. Sensitive questions, files
+  and signatures give answered/unanswered counts. On: `read_answers` and `list_submissions` send every
   textual answer, contact details and sensitive questions included, whoever asks (viewers see
   every answer in the studio too), and contact details and free text can be grouped.
   Sensitive questions are still only answered/unanswered inside `query_submissions` (so a
@@ -868,7 +873,29 @@ rights?") for anyone who can see them (viewers, editors, owners). Hidden, and ev
 - **Limits and audit.** The builder's limits apply: `ai_request` / `ai_request_org` rate
   limits, daily token allowances checked before each provider call, at most 20 tool calls and
   `JUSTFORMS_AI_TURN_SECONDS` per question, questions up to 2,000 characters, tool results cut
-  to 30,000 characters. One chat per person and form (`ai_sessions.mode = ask`), kept 90 days.
+  to 30,000 characters and every tool result counted against one 150,000-character budget per
+  question (answer reads keep 5,000 back for counts; free-text group keys are the answer's
+  first 200 characters), answers of at most 500 submissions per question across all calls,
+  a provider request of at most 400,000 characters (`too_large`), the questions outline
+  within `JUSTFORMS_AI_MAX_FORM_CHARS` (long option lists cut with a note, else 413
+  `form_too_large`), group by at most one multi-choice question, and `SET LOCAL
+  statement_timeout` of 10 s on every tool call. A turn that times out or is stopped cancels
+  its query, and the answer is stored with a fresh database session (status `error`/`timeout`
+  with the tokens used). One chat per person and form (`ai_sessions.mode = ask`), kept 90 days,
+  or the form's `retentionDays` when shorter.
+- **Untrusted answers.** With reading on, respondents' text in tool results is nested under
+  `untrustedAnswers` / `untrusted_answer` with a notice that it is data, never instructions.
+  After the reply, every whole number in it is checked against the tool results, the question
+  and the prompt; numbers found nowhere are stored as `unverifiedNumbers` (a `check` event) and
+  shown as a warning on the answer, and "How this was calculated" is open by default when the
+  form allows reading. Replies are plain text: no links or Markdown are rendered.
+- **Stored lists.** The transcript keeps a list's definition (`spec`: conditions, questions,
+  order, limit) and counts, never its rows; opening the answer reads the rows again
+  (`GET /forms/{id}/ask/messages/{message}/lists/{n}`) with the person's access, deleted
+  submissions left out, audited as `ai.ask_list_view`. Sensitive answers shown in a list (live
+  or reopened) add a `viewed` event to each submission, at most once an hour per person.
+  Erasing a submission replaces the Ask answers about its form written since it arrived with
+  `status: removed`.
   Audit: `ai.ask_session_create`, `ai.ask` (characters, outcome, tool calls, tokens, whether
   reading was on; never the question), one `ai.read_answers` per read (question keys and
   the number of submissions, never the text) and one `ai.ask_list` per list (columns, rows,

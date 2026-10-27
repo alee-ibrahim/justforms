@@ -55,10 +55,22 @@ problem. Abuse-control settings are in [Configuration](configuration.md#abuse-co
   served from JustForms' own origin.
 - **AI assistant.** Only the form's questions go to the provider, never responses; paper forms
   must be confirmed blank each time. Give JustForms its own API key.
-- **Ask your submissions.** Counts go to the provider; answers (contact details and sensitive
-  questions included, never files, signatures or IP addresses) only on forms whose owner
-  turned on "Allow AI to read answers" (off by default). Lists are read from the database and
-  shown to the person; every read and list is audited without the values.
+- **Ask your submissions.** Counts, and sums, averages and groups over at least 5 submissions,
+  go to the provider; never a single submission's answers, free text or contact details
+  (those only filter as answered/unanswered). A narrow filter's count is still exact, so it
+  can say something about a few submissions. Answers (contact details and sensitive questions
+  included, never files, signatures or IP addresses; at most 500 submissions per question)
+  go only on forms whose owner turned on "Allow AI to read answers" (off by default), labelled
+  as untrusted data; numbers in a reply that no counted result contains are flagged. Lists are
+  read from the database and shown to the person; transcripts keep what was listed, not the
+  values, and sensitive answers shown in a list are logged on the submission. Every read and
+  list is audited without the values.
+- **AI limits.** Token allowances are reserved before each provider call (parallel requests
+  can't overshoot), a person runs one AI request at a time, every Ask query has a 10 s
+  database statement timeout, and tool results, provider requests and the form outline are
+  size-capped. Provider error bodies are not logged (status and error type only). Paper form
+  pages are rendered at most 2048 px and images over 40 megapixels are refused before
+  decoding.
 - **Sensitive questions** are shown to everyone who can see the submissions; opening a
   submission that has them is recorded in its activity log. Only owners can turn the flag off
   on a published question, or change the websites allowed to frame the form.

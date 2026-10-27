@@ -207,14 +207,16 @@ submissions” answers questions by counting this form’s submissions and can l
 you. Anyone who can see the submissions can ask."
 
 Switch **Allow AI to read answers** (off by default for every form, owners only) with the
-description: off "Off: the AI service only gets the questions, counts and numbers, never the
-answers. Lists of answers you ask for are still shown to you." / on "On: answers, including
+description: off "Off: the AI service gets the questions and their options, counts, and totals
+or averages over at least 5 submissions. It never gets a single submission’s answers, text
+answers or contact details, though a count for a narrow filter can still say something about
+a few submissions. Lists of answers you ask for are shown only to you." / on "On: answers, including
 contact details and fields marked sensitive, are sent to the AI service when someone asks a
 question." and always "Files, signatures and respondents’ IP addresses are never sent."
 
 Turning it on asks first (`AlertDialog`): "Send answers to the AI service?" / "Answers,
 including contact details and fields marked sensitive, are sent to the AI service when
-someone asks a question (up to 500 submissions per question). Files, signatures and IP
+someone asks a question (the answers of at most 500 submissions per question). Files, signatures and IP
 addresses are never sent. You can turn this off at any time." Buttons "Cancel", "Allow AI to
 read answers". Turning it off is immediate. Toasts: "AI can read answers" / "AI no longer
 reads answers". The provider is never named (no product names anywhere in the studio).
