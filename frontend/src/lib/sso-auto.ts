@@ -5,9 +5,9 @@
  * not with `?manual=1`, and not twice within ATTEMPT_WINDOW_MS in the same tab.
  *
  * The signed-out flag lives in sessionStorage: per tab, and it survives the round trip to the
- * IdP. The attempt time is a short-lived cookie instead, because a successful sign-in sends
- * Clear-Site-Data "storage" (which never clears cookies): if the session cookie then fails to
- * stick, the guard still stops a second bounce.
+ * IdP. The attempt time is a short-lived cookie instead, so it outlives browser storage being
+ * cleared: if the session cookie then fails to stick, the guard still stops a second bounce.
+ * It is written before leaving, so a second start in the same page is refused too.
  */
 import { ssoLoginUrl, type Meta } from '@/lib/api'
 

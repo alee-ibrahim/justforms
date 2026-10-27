@@ -24,6 +24,15 @@ class _AccessLogWithoutQuery(logging.Filter):
 
 logging.getLogger("uvicorn.access").addFilter(_AccessLogWithoutQuery())
 
+# The API's own messages from INFO up (e.g. which state check a sign-in passed) go to stderr
+# next to uvicorn's; without a handler only warnings would show.
+_app_log = logging.getLogger("app")
+if not _app_log.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(levelname)s:     %(name)s: %(message)s"))
+    _app_log.addHandler(_handler)
+    _app_log.setLevel(logging.INFO)
+
 
 def create_app() -> FastAPI:
     settings = get_settings()

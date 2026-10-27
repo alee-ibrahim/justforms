@@ -186,8 +186,8 @@ async def login(client: AsyncClient, queue: RecordingQueue, email: str) -> dict[
         "/api/v1/auth/local/verify", json={"email": email, "code": queue.last_code(email)}
     )
     assert res.status_code == 200, res.text
-    # A sign-in clears what an earlier app on the hostname left behind (never the cookies).
-    assert res.headers["clear-site-data"] == '"cache", "storage"'
+    # No Clear-Site-Data on sign-in (some mobile browsers hold the session cookie meanwhile).
+    assert "clear-site-data" not in res.headers
     client.headers["X-CSRF-Token"] = client.cookies["justforms_csrf"]
     return res.json()
 

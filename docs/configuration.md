@@ -103,15 +103,12 @@ with `?manual=1` (the normal sign-in page), or a second time within 30 seconds i
 browser. Public forms, approver and verify pages are not affected. Set it to `false` to always
 show the sign-in page with its single sign-on button.
 
-**After signing in.** Without a `next`, people land on `/forms` (the studio home), not `/`. A
-successful sign-in (OIDC callback or emailed code) answers with
-`Clear-Site-Data: "cache", "storage"`: when JustForms replaces another app on the same
-hostname, the browser may still hold that app's cached redirects (e.g. `/` pointing at another
-site) or its service worker, and this clears them. Cookies are kept (the session cookie is set
-on the same response). The trade-off: browser-stored UI preferences on this site (such as the
-appearance choice) are dropped and read again from the account. The bundled nginx also answers
+**After signing in.** Without a `next`, people land on `/forms` (the studio home), not `/`, so a
+redirect for `/` cached by an app that used the hostname before is not followed. A sign-in does
+not send `Clear-Site-Data`: some mobile browsers hold the whole response, session cookie
+included, while they clear their cache, and the sign-in never lands. The bundled nginx answers
 404 for the usual service-worker script paths (`/sw.js`, `/service-worker.js`, …), so a
-leftover service worker unregisters itself at its next update check.
+leftover service worker of an earlier app unregisters itself at its next update check.
 
 ### Matching accounts by email
 

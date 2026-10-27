@@ -32,7 +32,6 @@ from app.auth.oidc import (
 )
 from app.auth.sessions import (
     clear_session_cookies,
-    clear_stale_site_data,
     create_session,
     delete_session,
     revoke_user_sessions,
@@ -213,7 +212,6 @@ async def local_verify(
     await db.commit()
     token, session = await create_session(redis, settings, str(user.id))
     set_session_cookies(response, settings, token, session)
-    clear_stale_site_data(response)
     return await build_me(db, user)
 
 
@@ -541,9 +539,18 @@ async def oidc_callback(
 ) -> RedirectResponse:
     if error or not code or not state:
         return _sso_failed(settings)
-    if not state_matches(state, request.cookies.get(state_cookie_name(settings))):
-        log.warning("OIDC callback rejected: state not started in this browser")
+    # Login CSRF, best effort: a state cookie from another sign-in is refused. A missing cookie
+    # is allowed: on phones the IdP (an authenticator broker, in-app browser or custom tab)
+    # often finishes in another browser context. The server-side state below is still single
+    # use and carries the PKCE verifier and nonce.
+    cookie = request.cookies.get(state_cookie_name(settings))
+    if cookie is None:
+        log.info("OIDC callback: no state cookie, relying on the server-side state")
+    elif not state_matches(state, cookie):
+        log.warning("OIDC callback rejected: state cookie belongs to another sign-in")
         return _sso_failed(settings)
+    else:
+        log.info("OIDC callback: state cookie matches")
     try:
         claims, id_token, next_path = await get_oidc_client(settings).finish(redis, code, state)
         user, reduced = await upsert_oidc_user(db, settings, claims)
@@ -568,7 +575,6 @@ async def oidc_callback(
     response.delete_cookie(
         state_cookie_name(settings), path="/", secure=settings.secure_cookies, samesite="lax"
     )
-    clear_stale_site_data(response)
     return response
 
 

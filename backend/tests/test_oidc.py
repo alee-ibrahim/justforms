@@ -116,8 +116,9 @@ async def test_oidc_login_creates_user_with_mapped_role(
     assert res.status_code == 302
     assert res.headers["location"] == "/forms"
     assert "justforms_session" in client.cookies
-    # Stale cached redirects and service workers of an earlier app go; cookies stay.
-    assert res.headers["clear-site-data"] == '"cache", "storage"'
+    # No Clear-Site-Data on sign-in: some mobile browsers hold the response (and its session
+    # cookie) while they clear the cache.
+    assert "clear-site-data" not in res.headers
     # PKCE verifier and client auth were sent to the token endpoint.
     assert idp.token_requests[0]["code_verifier"]
 
@@ -758,23 +759,69 @@ def test_safe_next_rejects_what_url_parsing_rewrites() -> None:
     assert safe_next("/my-form?embed=1#x") == "/my-form?embed=1#x"
 
 
-async def test_callback_must_come_back_to_the_browser_that_started(
-    app: Any, client: AsyncClient, idp: FakeIdP, db: AsyncSession
+async def test_state_cookie_present_and_matching_signs_in(
+    client: AsyncClient, idp: FakeIdP, db: AsyncSession
 ) -> None:
-    """Login CSRF: an attacker starts a sign-in as themselves and sends the victim the callback
-    link; the victim's browser has no matching state cookie, so it is refused."""
+    state = await _start(client, idp)
+    assert "justforms_oidc_state" in client.cookies
+    res = await client.get("/api/v1/auth/callback", params={"code": "abc", "state": state})
+    assert res.headers["location"] == "/forms"
+    assert "justforms_session" in client.cookies
+    assert "justforms_oidc_state" not in client.cookies
+
+
+async def test_state_cookie_of_another_sign_in_is_refused(
+    app: Any, client: AsyncClient, idp: FakeIdP, db: AsyncSession, redis: Any
+) -> None:
+    """Login CSRF: an attacker sends the callback link of their own sign-in to a browser that
+    started a sign-in of its own; the cookie doesn't match, so it is refused."""
     from tests.conftest import make_client
 
+    await _start(client, idp)  # the victim's own sign-in sets its state cookie
     async with make_client(app) as attacker:
         state = await _start(attacker, idp)
     res = await client.get("/api/v1/auth/callback", params={"code": "abc", "state": state})
     assert res.headers["location"] == "/login?error=sso_failed"
     assert "justforms_session" not in client.cookies
+    assert idp.token_requests == []
     # A forged cookie doesn't help either.
+    client.cookies.clear()
     client.cookies.set("justforms_oidc_state", "0" * 64)
     res = await client.get("/api/v1/auth/callback", params={"code": "abc", "state": state})
     assert res.headers["location"] == "/login?error=sso_failed"
-    # The browser that started a sign-in finishes it, and the cookie is cleared.
-    client.cookies.clear()
-    await _sign_in(client, idp)
+    assert "justforms_session" not in client.cookies
+    # The refused state is not used up.
+    assert await redis.exists(f"oidc_state:{state}")
+
+
+async def test_callback_without_state_cookie_uses_the_server_state(
+    app: Any, client: AsyncClient, idp: FakeIdP, db: AsyncSession
+) -> None:
+    """On phones the IdP often finishes in another browser context (authenticator broker,
+    in-app browser, custom tab) that never saw the state cookie: the one-time server-side state
+    (PKCE verifier and nonce) is enough then."""
+    from tests.conftest import make_client
+
+    async with make_client(app) as started:
+        state = await _start(started, idp)
     assert "justforms_oidc_state" not in client.cookies
+    res = await client.get("/api/v1/auth/callback", params={"code": "abc", "state": state})
+    assert res.headers["location"] == "/forms"
+    assert "justforms_session" in client.cookies
+    assert idp.token_requests[0]["code_verifier"]
+    assert (await client.get("/api/v1/auth/me")).status_code == 200
+    # Still single use.
+    client.cookies.clear()
+    res = await client.get("/api/v1/auth/callback", params={"code": "abc", "state": state})
+    assert res.headers["location"] == "/login?error=sso_failed"
+
+
+async def test_callback_without_state_cookie_and_unknown_state_is_refused(
+    client: AsyncClient, idp: FakeIdP, db: AsyncSession
+) -> None:
+    res = await client.get(
+        "/api/v1/auth/callback", params={"code": "abc", "state": "never-started"}
+    )
+    assert res.headers["location"] == "/login?error=sso_failed"
+    assert "justforms_session" not in client.cookies
+    assert idp.token_requests == []

@@ -83,8 +83,13 @@ problem. Abuse-control settings are in [Configuration](configuration.md#abuse-co
   respondent and approver tokens and keys code HMACs, and encrypts the PDF signing key.
 - **Cookies and caching.** Behind HTTPS the session and CSRF cookies use the `__Host-` prefix
   (Secure, whole site, no Domain), so a sibling subdomain can't plant them. OIDC sign-in binds
-  its `state` to the browser with a short-lived cookie, so a callback link can't sign someone
-  into another account. Signing out sends `Clear-Site-Data: "cookies"`. Staff API responses,
+  its `state` to the browser with a short-lived cookie, best effort: a callback carrying the
+  cookie of another sign-in is refused, so a callback link can't sign someone into another
+  account from a browser that started its own sign-in. A callback without the cookie is
+  accepted on the one-time server-side state (single use, 10 minutes, with the PKCE verifier
+  and nonce), because on phones the IdP often finishes in another browser context (an
+  authenticator broker, in-app browser or custom tab) that never saw the cookie. The API logs
+  which path a sign-in took. Signing out sends `Clear-Site-Data: "cookies"`. Staff API responses,
   token links and authenticated downloads are `Cache-Control: no-store`. After signing in, only
   a same-origin path is followed (`next`); control characters, spaces and backslashes are
   refused.
