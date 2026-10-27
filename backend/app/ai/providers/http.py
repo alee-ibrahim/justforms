@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -42,9 +43,12 @@ async def post_json(
         if res.status_code in RETRY_STATUS:
             raise ProviderError("unavailable", f"HTTP {res.status_code}")
         if res.status_code >= 400:
-            # The body explains what the provider rejected; providers never echo the key.
+            # Only the status and the provider's error type are logged: the body can quote
+            # the request (answers, form text).
             log.warning(
-                "AI provider refused the request: HTTP %s %s", res.status_code, res.text[:500]
+                "AI provider refused the request: HTTP %s (%s)",
+                res.status_code,
+                error_type(res),
             )
             raise ProviderError("bad_response", f"HTTP {res.status_code}")
         try:
@@ -55,6 +59,28 @@ async def post_json(
             raise ProviderError("bad_response", "reply is not an object")
         return data
     raise ProviderError("unavailable")  # pragma: no cover
+
+
+_ERROR_TYPE = re.compile(r"^[A-Za-z0-9_.\-]{1,64}$")
+
+
+def error_type(res: httpx.Response) -> str:
+    """The provider's error type or code (``invalid_request_error``, ``INVALID_ARGUMENT``),
+    never its message."""
+    try:
+        data = res.json()
+    except ValueError:
+        return "unknown"
+    err = data.get("error") if isinstance(data, dict) else None
+    candidates: list[Any] = []
+    if isinstance(err, dict):
+        candidates += [err.get("type"), err.get("status"), err.get("code")]
+    if isinstance(data, dict):
+        candidates.append(data.get("type"))
+    for value in candidates:
+        if isinstance(value, (str, int)) and _ERROR_TYPE.match(str(value)):
+            return str(value)
+    return "unknown"
 
 
 def to_json(value: Any) -> str:

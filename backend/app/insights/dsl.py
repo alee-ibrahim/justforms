@@ -36,7 +36,7 @@ from decimal import Decimal
 from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 from pydantic.alias_generators import to_camel
 from sqlalchemy import (
     BigInteger,
@@ -106,6 +106,8 @@ Op = Literal[
     "unanswered",
 ]
 Scalar = bool | int | float | str
+NO_VALUE_OPS = frozenset({"answered", "unanswered", "is_other"})
+ONE_VALUE_OPS = frozenset({"contains", "gt", "gte", "lt", "lte"})
 Key = Annotated[
     str, StringConstraints(pattern=r"^(_status|_submitted|_version|[a-z][a-z0-9_]{0,62})$")
 ]
@@ -145,6 +147,22 @@ class Condition(_Model):
         max_length=100,
         description="Values for in, not_in, includes_any, includes_all, excludes, between [lo, hi]",
     )
+
+    @model_validator(mode="after")
+    def _value_count(self) -> Condition:
+        """The number of values fits the operator (the compiler relies on it)."""
+        if self.op in NO_VALUE_OPS:
+            return self
+        n = len(self.values) if self.values is not None else (0 if self.value is None else 1)
+        if self.values is not None and self.value is not None:
+            raise ValueError("give value or values, not both")
+        if self.op in ONE_VALUE_OPS and n != 1:
+            raise ValueError(f"{self.op} needs exactly one value")
+        if self.op == "between" and n != 2:
+            raise ValueError("between needs two values: [low, high]")
+        if n == 0:
+            raise ValueError(f"{self.op} needs a value")
+        return self
 
 
 class GroupBy(_Model):
@@ -688,6 +706,12 @@ async def run_query(
         if q.type in CONTACT_TYPES | TEXT_TYPES and g.bucket != "value":
             raise QueryError(f"{q.key}: bucket only applies to dates")
         group_specs.append((g, q))
+    if sum(1 for _g, gq in group_specs if gq is not None and gq.type == "multi_choice") > 1:
+        # Each would multiply the rows per submission by its ticked options.
+        raise QueryError(
+            "group by at most one multi-choice question at a time; filter by the other"
+            " (includes_any) and run one query per option instead"
+        )
     agg_specs: list[tuple[Aggregate, Question | None]] = []
     for a in query.aggregates or [Aggregate(op="count")]:
         if a.op == "count":

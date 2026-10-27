@@ -41,7 +41,7 @@ def test_huge_pdf_page_box_renders_small_and_fast(monkeypatch: pytest.MonkeyPatc
 
     def spy(self: pdfium.PdfPage, *args: object, **kwargs: object) -> pdfium.PdfBitmap:
         scales.append(float(kwargs["scale"]))  # type: ignore[arg-type]
-        return real(self, *args, **kwargs)  # type: ignore[arg-type]
+        return real(self, *args, **kwargs)
 
     monkeypatch.setattr(pdfium.PdfPage, "render", spy)
     start = time.monotonic()

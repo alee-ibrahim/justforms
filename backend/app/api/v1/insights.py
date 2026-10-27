@@ -26,9 +26,10 @@ from pydantic import Field, StringConstraints
 from sqlalchemy import ColumnElement, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai import limits
 from app.ai import service as ai_svc
-from app.ai.orchestrator import BudgetExceeded
-from app.api.v1.ai import ProviderDep, _cancel_key, _lock_key, _sse
+from app.ai.limits import BudgetExceeded
+from app.api.v1.ai import ProviderDep, _cancel_key, _lock_key, _sse, claim
 from app.api.v1.common import ApiModel
 from app.api.v1.submissions import _list_filters
 from app.auth.deps import DbDep, RedisDep, SettingsDep
@@ -192,6 +193,7 @@ async def ask_state(
 async def ask_open(
     body: AskSessionIn,
     db: DbDep,
+    redis: RedisDep,
     access: FormViewer,
     settings: SettingsDep,
     provider: ProviderDep,
@@ -200,7 +202,7 @@ async def ask_open(
     if existing is not None and not body.fresh:
         return await _out(db, access, settings, existing)
     if existing is not None:
-        await db.execute(
+        closed = await db.scalars(
             update(AiSession)
             .where(
                 AiSession.form_id == access.form.id,
@@ -209,7 +211,10 @@ async def ask_open(
                 AiSession.status != AiSessionStatus.CLOSED,
             )
             .values(status=AiSessionStatus.CLOSED)
+            .returning(AiSession.id)
         )
+        # A question still being answered in a closed chat stops.
+        await limits.stop_sessions(redis, list(closed))
     session = AiSession(
         org_id=access.form.org_id,
         form_id=access.form.id,
@@ -252,12 +257,13 @@ async def ask_message(
     form_id, form_title = access.form.id, access.form.title
     question = body.content
     try:
-        await ai_svc.check_budget(redis, settings, user_id, org_id)
+        await limits.check(redis, settings, user_id, org_id)
     except BudgetExceeded:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "ai_budget_exceeded") from None
     if not await redis.set(_lock_key(sid), "1", nx=True, ex=settings.ai_turn_seconds + 60):
         raise HTTPException(status.HTTP_409_CONFLICT, "ai_busy")
     await redis.delete(_cancel_key(sid))
+    token = await claim(redis, settings, user_id)
     try:
         cat = await catalogue.load(db, access.form)
         allowed = read_allowed(access)
@@ -280,6 +286,7 @@ async def ask_message(
         db.add(AiMessage(session_id=sid, role="user", content={"text": question}))
         await db.commit()
     except BaseException:
+        await limits.unclaim(redis, user_id, token)
         await redis.delete(_lock_key(sid))
         raise
     engine = db.bind
@@ -372,21 +379,24 @@ async def ask_message(
 
     async def stream() -> AsyncIterator[bytes]:
         # The answer runs in its own task with its own database session; nothing here
-        # touches the request's session, which may already be closed.
+        # touches the request's session, which may already be closed. The answer is stored
+        # with a fresh session: a stopped or timed-out query can leave ``work`` unusable.
         work = AsyncSession(engine, expire_on_commit=False)
         queue: asyncio.Queue[tuple[str, dict[str, Any]]] = asyncio.Queue()
+        allowance = limits.Allowance(redis, settings, user_id, org_id)
 
         async def emit(event: str, data: dict[str, Any]) -> None:
             queue.put_nowait((event, data))
 
-        async def should_cancel() -> bool:
-            return bool(await redis.exists(_cancel_key(sid)))
-
-        async def check() -> None:
-            await ai_svc.check_budget(redis, settings, user_id, org_id)
-
-        async def charge(usage: Any) -> None:
-            await ai_svc.charge(redis, settings, user_id, org_id, usage)
+        async def record(outcome: AskOutcome | None) -> list[bytes]:
+            await allowance.release()
+            try:
+                await work.rollback()
+            except Exception:  # pragma: no cover - a connection a stopped query broke
+                log.warning("ask: could not roll back the answer's session", exc_info=True)
+                await work.invalidate()
+            async with AsyncSession(engine, expire_on_commit=False) as rec:
+                return await finish(rec, outcome)
 
         tools = Tools(work, cat, form_id, tz=settings.tz, read_allowed=allowed, total=total)
         task = asyncio.create_task(
@@ -400,9 +410,9 @@ async def ask_message(
                 max_output_tokens=settings.ai_max_output_tokens,
                 turn_seconds=settings.ai_turn_seconds,
                 emit=emit,
-                should_cancel=should_cancel,
-                check_budget=check,
-                charge=charge,
+                should_cancel=limits.should_stop(redis, user_id, sid, token),
+                check_budget=allowance.reserve,
+                charge=allowance.settle,
             )
         )
         getter: asyncio.Future[tuple[str, dict[str, Any]]] | None = None
@@ -433,9 +443,8 @@ async def ask_message(
                 outcome = task.result()
             except Exception:
                 log.exception("ask: the answer failed")
-                await work.rollback()
                 outcome = AskOutcome(status="error", error="internal")
-            for chunk in await finish(work, outcome):
+            for chunk in await record(outcome):
                 yield chunk
             finished = True
         finally:
@@ -450,11 +459,11 @@ async def ask_message(
                 if not finished:
                     # The person left or the connection dropped: record that it stopped.
                     try:
-                        await work.rollback()
-                        await finish(work, None)
+                        await record(None)
                     except Exception:  # pragma: no cover - best effort on disconnect
                         log.exception("could not record a stopped question")
                 await work.close()
+                await limits.unclaim(redis, user_id, token)
                 await redis.delete(_lock_key(sid))
 
     return StreamingResponse(

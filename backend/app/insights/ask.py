@@ -38,11 +38,11 @@ from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo
 
 from pydantic import Field, StringConstraints, ValidationError
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, func, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.orchestrator import BudgetExceeded
+from app.ai.limits import BudgetExceeded, estimate_input, run_stoppable, usage_of
 from app.ai.providers.http import clean_schema
 from app.ai.types import AIProvider, ChatMessage, ProviderError, ToolResult, ToolSpec, Usage
 from app.answers import answer_text
@@ -111,6 +111,8 @@ ListKey = Annotated[
     StringConstraints(pattern=r"^(_status|_submitted|_respondent|_approval|[a-z][a-z0-9_]{0,62})$"),
 ]
 RESULT_CHARS = 30_000  # a tool result sent back to the model, at most
+# The database stops any one query of a tool call after this long.
+QUERY_TIMEOUT_SECONDS = 10.0
 LIST_AI_CHARS = 1000  # one listed value sent to the AI, at most
 
 Emit = Callable[[str, dict[str, Any]], Awaitable[None]]
@@ -316,6 +318,9 @@ class Tools:
             # A savepoint per call: a query the database refuses fails this call only and
             # leaves the session usable for the next one (and for saving the answer).
             async with self.db.begin_nested():
+                # Every query of the call is stopped by the database after this long.
+                ms = int(QUERY_TIMEOUT_SECONDS * 1000)
+                await self.db.execute(text(f"SET LOCAL statement_timeout = {ms}"))
                 if name == "query_submissions":
                     return await self._query(args)
                 if name == "read_answers":
@@ -325,9 +330,16 @@ class Tools:
                 if name == "show_result":
                     return await self._show(args)
                 raise QueryError(f"unknown tool {name!r}")
-        except DBAPIError:
+        except DBAPIError as exc:
+            if _timed_out(exc):
+                log.warning("ask: a %s call took longer than %ss", name, QUERY_TIMEOUT_SECONDS)
+                msg = (
+                    f"That query took longer than {QUERY_TIMEOUT_SECONDS:g} seconds and was"
+                    " stopped. Ask for something simpler (fewer groups or conditions)."
+                )
+                return False, {"error": msg}, {"tool": name, "ok": False, "error": "timeout"}
             # The database's message can quote stored answers: it is logged, not sent.
-            log.warning("ask: the database refused a %s call", name, exc_info=True)
+            log.warning("ask: the database refused a %s call (%s)", name, type(exc.orig).__name__)
             msg = (
                 "The database couldn't run that query. Check the operators and value types"
                 " against the question types, or ask for something simpler."
@@ -340,6 +352,12 @@ class Tools:
             return False, {"error": f"Invalid arguments: {msg}"}, {"tool": name, "ok": False}
         except QueryError as exc:
             return False, {"error": str(exc)}, {"tool": name, "ok": False, "error": str(exc)}
+        except (IndexError, KeyError, TypeError, ValueError, ArithmeticError):
+            # A query the checks above let through but the compiler can't build: a tool
+            # error the model can correct, never a failed answer.
+            log.warning("ask: could not build a %s call", name, exc_info=True)
+            msg = "That query couldn't be built. Check the operators and values and try again."
+            return False, {"error": msg}, {"tool": name, "ok": False, "error": "invalid"}
 
     async def _query(self, args: dict[str, Any]) -> tuple[bool, dict[str, Any], dict[str, Any]]:
         query = Query.model_validate(args)
@@ -693,6 +711,13 @@ class Tools:
         return content, chart
 
 
+def _timed_out(exc: DBAPIError) -> bool:
+    """The database cancelled the statement (statement_timeout, SQLSTATE 57014)."""
+    orig = exc.orig
+    code = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
+    return code == "57014" or "QueryCanceled" in type(orig).__name__
+
+
 def name_question(cat: Catalogue) -> str | None:
     """The question that most likely names the respondent (for "who" lists): a top-level
     short text whose label says name, organisation or title; else the first short text."""
@@ -855,7 +880,7 @@ async def run_ask(
     turn_seconds: float,
     emit: Emit = _noop,
     should_cancel: Callable[[], Awaitable[bool]] = _never,
-    check_budget: Callable[[], Awaitable[None]] = _noop,
+    check_budget: Callable[[int], Awaitable[None]] = _noop,
     charge: Callable[[Usage], Awaitable[None]] = _noop,
 ) -> AskOutcome:
     outcome = AskOutcome(status="ok")
@@ -869,13 +894,15 @@ async def run_ask(
             if await should_cancel():
                 outcome.status = "cancelled"
                 return
-            await check_budget()
+            estimated = estimate_input(system, messages, specs)
+            await check_budget(estimated)
             result = await provider.run_turn(
                 system, messages, specs, max_output_tokens=max_output_tokens
             )
-            outcome.usage.input_tokens += result.usage.input_tokens
-            outcome.usage.output_tokens += result.usage.output_tokens
-            await charge(result.usage)
+            usage = usage_of(result, estimated)
+            outcome.usage.input_tokens += usage.input_tokens
+            outcome.usage.output_tokens += usage.output_tokens
+            await charge(usage)
             messages.append(
                 ChatMessage(
                     "assistant",
@@ -928,7 +955,8 @@ async def run_ask(
 
     try:
         async with asyncio.timeout(turn_seconds):
-            await loop()
+            if await run_stoppable(loop, should_cancel):
+                outcome.status = "cancelled"
     except TimeoutError:
         outcome.status, outcome.error = "error", "timeout"
     except ProviderError as exc:
@@ -936,6 +964,10 @@ async def run_ask(
         outcome.error = "provider_unavailable" if exc.code == "unavailable" else "provider_error"
     except BudgetExceeded:
         outcome.status, outcome.error = "error", "ai_budget_exceeded"
+    except Exception:
+        # Anything else: the answer failed, but the tokens already used are still recorded.
+        log.exception("ask: the answer failed")
+        outcome.status, outcome.error = "error", "internal"
     outcome.lists = list(tools.lists_shown)
     return outcome
 

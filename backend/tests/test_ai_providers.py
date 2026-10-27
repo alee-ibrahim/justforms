@@ -261,3 +261,34 @@ def test_factory_and_capabilities() -> None:
 def test_settings_validation(kwargs: dict[str, Any]) -> None:
     with pytest.raises(ValueError):
         Settings(**{"environment": "test", **kwargs})
+
+
+async def test_refused_request_logs_the_error_type_not_the_body(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A provider's error body can quote the request (answers, form text): only the status
+    and the error type are logged."""
+    body = {
+        "type": "error",
+        "error": {"type": "invalid_request_error", "message": "bad value 'A111111 secret'"},
+    }
+    rec = Recorder((400, body))
+    p = AnthropicProvider(model="m", api_key=KEY, client=rec.client())
+    with caplog.at_level("WARNING"), pytest.raises(ProviderError):
+        await p.run_turn("s", [ChatMessage("user", text="x")], [], max_output_tokens=10)
+    logged = caplog.text
+    assert "HTTP 400" in logged and "invalid_request_error" in logged
+    assert "A111111" not in logged and "bad value" not in logged
+
+
+async def test_missing_usage_is_estimated() -> None:
+    """Some OpenAI-compatible servers report no usage: the allowance is charged an estimate
+    from characters instead of nothing."""
+    from app.ai.limits import usage_of
+
+    rec = Recorder((200, {"choices": [{"message": {"content": "x" * 300}}]}))
+    p = OpenAICompatProvider(model="m", base_url="http://llm/v1", api_key=None, client=rec.client())
+    out = await p.run_turn("s", [ChatMessage("user", text="y")], [], max_output_tokens=500)
+    assert out.usage.total == 0
+    usage = usage_of(out, 1234)
+    assert usage.input_tokens == 1234 and usage.output_tokens == 101

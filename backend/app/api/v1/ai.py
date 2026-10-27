@@ -22,12 +22,14 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import Field, StringConstraints
 from sqlalchemy import select, update
 
+from app.ai import limits
 from app.ai import service as ai_svc
 from app.ai.images import MAX_BYTES, DocumentError, prepare
-from app.ai.orchestrator import BudgetExceeded, TurnOutcome, run_request
+from app.ai.limits import BudgetExceeded
+from app.ai.orchestrator import TurnOutcome, run_request
 from app.ai.providers import make_provider
 from app.ai.tools import WorkingCopy, compact
-from app.ai.types import AIProvider, ChatMessage, Usage
+from app.ai.types import AIProvider, ChatMessage
 from app.api.v1.common import ApiModel
 from app.api.v1.forms import DraftOut, draft_out
 from app.auth.deps import DbDep, RedisDep, SettingsDep
@@ -146,7 +148,7 @@ async def _load(db: DbDep, access: FormAccess, session_id: uuid.UUID) -> AiSessi
 
 @router.post("/forms/{form_id}/ai/sessions", response_model=SessionOut)
 async def open_session(
-    body: SessionCreate, db: DbDep, access: FormEditor, provider: ProviderDep
+    body: SessionCreate, db: DbDep, redis: RedisDep, access: FormEditor, provider: ProviderDep
 ) -> SessionOut:
     """The person's current chat on this form, or a new one."""
     form, user = access.form, access.user
@@ -164,7 +166,7 @@ async def open_session(
     if existing is not None and not body.fresh:
         return await _session_out(db, existing)
     if body.fresh:
-        await db.execute(
+        closed = await db.scalars(
             update(AiSession)
             .where(
                 AiSession.form_id == form.id,
@@ -173,7 +175,10 @@ async def open_session(
                 AiSession.mode != AiMode.ASK,
             )
             .values(status=AiSessionStatus.CLOSED, working_schema=None, base_schema=None)
+            .returning(AiSession.id)
         )
+        # A request still running in a closed chat stops.
+        await limits.stop_sessions(redis, list(closed))
     session = AiSession(
         org_id=form.org_id,
         form_id=form.id,
@@ -213,7 +218,7 @@ def _lock_key(session_id: uuid.UUID) -> str:
 
 
 def _cancel_key(session_id: uuid.UUID) -> str:
-    return f"ai:cancel:{session_id}"
+    return limits.cancel_key(session_id)
 
 
 async def _limits(
@@ -224,7 +229,7 @@ async def _limits(
     if importing:
         await enforce(redis, settings, "ai_import", str(access.user.id))
     try:
-        await ai_svc.check_budget(redis, settings, access.user.id, access.form.org_id)
+        await limits.check(redis, settings, access.user.id, access.form.org_id)
     except BudgetExceeded:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "ai_budget_exceeded") from None
 
@@ -256,6 +261,11 @@ async def _start(
     return working, base_revision, base_schema
 
 
+async def claim(redis: RedisDep, settings: Settings, user_id: uuid.UUID) -> str:
+    """This request becomes the person's only running AI request (older ones stop)."""
+    return await limits.claim(redis, user_id, settings.ai_turn_seconds + 60)
+
+
 def _stream(
     *,
     db: DbDep,
@@ -271,6 +281,7 @@ def _stream(
     history: list[ChatMessage],
     audit_action: str,
     audit_meta: dict[str, Any],
+    token: str,
 ) -> StreamingResponse:
     queue: asyncio.Queue[tuple[str, dict[str, Any]]] = asyncio.Queue()
     user_id, org_id = access.user.id, access.form.org_id
@@ -282,14 +293,8 @@ def _stream(
     async def emit(event: str, data: dict[str, Any]) -> None:
         await queue.put((event, data))
 
-    async def should_cancel() -> bool:
-        return bool(await redis.exists(_cancel_key(session.id)))
-
-    async def check() -> None:
-        await ai_svc.check_budget(redis, settings, user_id, org_id)
-
-    async def charge(usage: Usage) -> None:
-        await ai_svc.charge(redis, settings, user_id, org_id, usage)
+    allowance = limits.Allowance(redis, settings, user_id, org_id)
+    should_cancel = limits.should_stop(redis, user_id, session.id, token)
 
     async def finish(outcome: TurnOutcome | None) -> list[bytes]:
         """Store the outcome; returns the closing events."""
@@ -373,8 +378,8 @@ def _stream(
                 turn_seconds=settings.ai_turn_seconds,
                 emit=emit,
                 should_cancel=should_cancel,
-                check_budget=check,
-                charge=charge,
+                check_budget=allowance.reserve,
+                charge=allowance.settle,
             )
         )
         finished = False
@@ -409,6 +414,8 @@ def _stream(
                         await finish(None)
                     except Exception:  # pragma: no cover - best effort on disconnect
                         log.exception("could not record a stopped AI request")
+                await allowance.release()
+                await limits.unclaim(redis, user_id, token)
                 await redis.delete(_lock_key(session.id))
 
     return StreamingResponse(
@@ -434,6 +441,7 @@ async def send_message(
     working, base_revision, base_schema = await _start(
         db, redis, settings, access, session, importing=False
     )
+    token = await claim(redis, settings, access.user.id)
     db.add(AiMessage(session_id=session.id, role="user", content={"text": body.content}))
     await db.commit()
     return _stream(
@@ -450,6 +458,7 @@ async def send_message(
         history=history,
         audit_action="ai.request",
         audit_meta={"chars": len(body.content)},
+        token=token,
     )
 
 
@@ -490,6 +499,7 @@ async def import_document(
     working, base_revision, base_schema = await _start(
         db, redis, settings, access, session, importing=True
     )
+    token = await claim(redis, settings, access.user.id)
     attachment = {
         "name": name.strip()[:200],
         "pages": len(document.pages),
@@ -520,6 +530,7 @@ async def import_document(
         history=history,
         audit_action="ai.import",
         audit_meta={"blankConfirmed": True, "mime": document.mime, "pages": pages},
+        token=token,
     )
 
 

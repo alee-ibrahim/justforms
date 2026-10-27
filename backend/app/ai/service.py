@@ -10,14 +10,11 @@ from typing import Any
 
 import jsonpatch
 import jsonpointer
-from redis.asyncio import Redis
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.orchestrator import BudgetExceeded
 from app.ai.tools import element_label, iter_elements
-from app.ai.types import ChatMessage, Usage
-from app.config import Settings
+from app.ai.types import ChatMessage
 from app.models import ActorType, AiMessage, AiSession, AiSessionStatus, FormRecord
 from app.services import forms as form_svc
 
@@ -351,41 +348,6 @@ async def history(db: AsyncSession, session_id: uuid.UUID) -> list[ChatMessage]:
     while out and out[0].role != "user":
         out.pop(0)
     return out
-
-
-def _day(settings: Settings) -> str:
-    return datetime.now(settings.tz).strftime("%Y%m%d")
-
-
-def _keys(settings: Settings, user_id: uuid.UUID, org_id: uuid.UUID) -> tuple[str, str]:
-    day = _day(settings)
-    return f"ai:tokens:user:{user_id}:{day}", f"ai:tokens:org:{org_id}:{day}"
-
-
-async def check_budget(
-    redis: Redis, settings: Settings, user_id: uuid.UUID, org_id: uuid.UUID
-) -> None:
-    user_key, org_key = _keys(settings, user_id, org_id)
-    used_user, used_org = await redis.mget(user_key, org_key)
-    if (
-        settings.ai_daily_tokens_per_user
-        and int(used_user or 0) >= settings.ai_daily_tokens_per_user
-    ):
-        raise BudgetExceeded
-    if settings.ai_daily_tokens_per_org and int(used_org or 0) >= settings.ai_daily_tokens_per_org:
-        raise BudgetExceeded
-
-
-async def charge(
-    redis: Redis, settings: Settings, user_id: uuid.UUID, org_id: uuid.UUID, usage: Usage
-) -> None:
-    if not usage.total:
-        return
-    async with redis.pipeline(transaction=True) as pipe:
-        for key in _keys(settings, user_id, org_id):
-            pipe.incrby(key, usage.total)
-            pipe.expire(key, 2 * 24 * 3600)
-        await pipe.execute()
 
 
 def is_empty(schema: dict[str, Any]) -> bool:

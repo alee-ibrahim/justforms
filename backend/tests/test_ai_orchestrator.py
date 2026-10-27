@@ -159,9 +159,12 @@ async def test_budget_is_checked_before_each_call_and_charged() -> None:
     charged: list[int] = []
     calls = 0
 
-    async def check() -> None:
+    estimates: list[int] = []
+
+    async def check(estimate: int) -> None:
         nonlocal calls
         calls += 1
+        estimates.append(estimate)
         if calls > 1:
             raise BudgetExceeded
 
@@ -173,6 +176,8 @@ async def test_budget_is_checked_before_each_call_and_charged() -> None:
     )
     assert out.status == "error" and out.error == "ai_budget_exceeded"
     assert charged == [120]
+    # Each call reserves an estimate of its input (characters / 3) before it is made.
+    assert len(estimates) == 2 and 0 < estimates[0] < estimates[1]
 
 
 async def test_filled_in_document_stops_at_once() -> None:

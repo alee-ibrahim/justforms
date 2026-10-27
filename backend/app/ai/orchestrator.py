@@ -10,22 +10,22 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from app.ai.limits import BudgetExceeded, estimate_input, run_stoppable, usage_of
 from app.ai.prompts import Mode, system_prompt
 from app.ai.tools import StepResult, WorkingCopy, compact, tool_specs
 from app.ai.types import AIProvider, ChatMessage, ProviderError, ToolResult, Usage
+
+log = logging.getLogger(__name__)
 
 # After this many failed tool calls in one request the assistant gives up.
 MAX_TOOL_ERRORS = 12
 
 Emit = Callable[[str, dict[str, Any]], Awaitable[None]]
-
-
-class BudgetExceeded(Exception):
-    """The person's or organisation's daily token allowance is used up."""
 
 
 @dataclass
@@ -60,7 +60,7 @@ async def run_request(
     turn_seconds: float,
     emit: Emit = _noop,
     should_cancel: Callable[[], Awaitable[bool]] = _never,
-    check_budget: Callable[[], Awaitable[None]] = _noop,
+    check_budget: Callable[[int], Awaitable[None]] = _noop,
     charge: Callable[[Usage], Awaitable[None]] = _noop,
 ) -> TurnOutcome:
     copy_ = WorkingCopy(
@@ -80,13 +80,15 @@ async def run_request(
             if await should_cancel():
                 outcome.status = "cancelled"
                 return
-            await check_budget()
+            estimated = estimate_input(system, messages, tools)
+            await check_budget(estimated)
             result = await provider.run_turn(
                 system, messages, tools, max_output_tokens=max_output_tokens
             )
-            outcome.usage.input_tokens += result.usage.input_tokens
-            outcome.usage.output_tokens += result.usage.output_tokens
-            await charge(result.usage)
+            usage = usage_of(result, estimated)
+            outcome.usage.input_tokens += usage.input_tokens
+            outcome.usage.output_tokens += usage.output_tokens
+            await charge(usage)
             if result.text:
                 await emit("message.delta", {"text": result.text})
             messages.append(
@@ -137,7 +139,8 @@ async def run_request(
 
     try:
         async with asyncio.timeout(turn_seconds):
-            await loop()
+            if await run_stoppable(loop, should_cancel):
+                outcome.status = "cancelled"
     except TimeoutError:
         outcome.status, outcome.error = "error", "timeout"
     except ProviderError as exc:
@@ -145,4 +148,8 @@ async def run_request(
         outcome.error = "provider_unavailable" if exc.code == "unavailable" else "provider_error"
     except BudgetExceeded:
         outcome.status, outcome.error = "error", "ai_budget_exceeded"
+    except Exception:
+        # Anything else: the request failed, but the tokens already used are still recorded.
+        log.exception("ai: the request failed")
+        outcome.status, outcome.error = "error", "internal"
     return outcome
