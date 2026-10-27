@@ -60,6 +60,8 @@ class RuleOut(ApiModel):
     include_answers: bool = False
     attach_pdf: bool = False
     email_field: str | None = None
+    to_unverified: bool = False
+    unverified_answers: bool = False
     subject: str | None = None
     message: str | None = None
     reply_to: str | None = None
@@ -75,6 +77,10 @@ class RuleIn(ApiModel):
     include_answers: bool = False
     attach_pdf: bool = False
     email_field: Annotated[str, StringConstraints(max_length=63)] | None = None
+    # Receipts: also send to a typed address nobody confirmed (and, with
+    # ``unverified_answers``, include the answers and the PDF in those).
+    to_unverified: bool = False
+    unverified_answers: bool = False
     # Custom wording: plain text with {reference}, {form_title}, {submitted} and
     # {answer:<question key>}; empty or missing = the built-in text.
     subject: Subject | None = None
@@ -127,6 +133,8 @@ def _rule_out(rule: NotificationRule | None) -> RuleOut:
         include_answers=rule.include_answers,
         attach_pdf=rule.attach_pdf,
         email_field=rule.email_field,
+        to_unverified=rule.to_unverified,
+        unverified_answers=rule.unverified_answers,
         subject=rule.subject,
         message=rule.message,
         reply_to=rule.reply_to,
@@ -228,6 +236,9 @@ async def put_notification(
     rule.include_answers = body.include_answers if rule_type == RuleType.OWNER_EMAIL else False
     rule.attach_pdf = body.attach_pdf if rule_type == RuleType.RESPONDENT_RECEIPT else False
     rule.email_field = body.email_field if rule_type == RuleType.RESPONDENT_RECEIPT else None
+    receipt = rule_type == RuleType.RESPONDENT_RECEIPT
+    rule.to_unverified = body.to_unverified if receipt else False
+    rule.unverified_answers = body.unverified_answers and rule.to_unverified
     rule.subject = body.subject or None
     rule.message = body.message or None
     rule.reply_to = str(body.reply_to).lower() if body.reply_to else None
@@ -238,7 +249,12 @@ async def put_notification(
         actor_id=access.user.id,
         target_type="form",
         target_id=form.id,
-        meta={"type": rule_type.value, "enabled": body.enabled},
+        meta={
+            "type": rule_type.value,
+            "enabled": body.enabled,
+            **({"toUnverified": rule.to_unverified} if receipt else {}),
+            **({"unverifiedAnswers": True} if rule.unverified_answers else {}),
+        },
     )
     await db.commit()
     return await _notifications(db, settings, access)

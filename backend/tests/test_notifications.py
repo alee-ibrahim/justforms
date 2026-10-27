@@ -350,7 +350,13 @@ async def test_owner_email_and_receipt(
     assert res.status_code == 422
     await client.put(
         f"{url}/respondent_receipt",
-        json={"enabled": True, "emailField": "email", "attachPdf": True},
+        json={
+            "enabled": True,
+            "emailField": "email",
+            "attachPdf": True,
+            "toUnverified": True,
+            "unverifiedAnswers": True,
+        },
     )
     sub = await _submit(client, pub, db)
     jobs = await events.dispatch(db, settings, "submission.created", sub.id)
@@ -381,7 +387,13 @@ async def test_receipt_waits_for_pdf(
     pub, _me = await _setup(client, db, settings, queue)
     await client.put(
         f"/api/v1/forms/{pub.id}/notifications/respondent_receipt",
-        json={"enabled": True, "emailField": "email", "attachPdf": True},
+        json={
+            "enabled": True,
+            "emailField": "email",
+            "attachPdf": True,
+            "toUnverified": True,
+            "unverifiedAnswers": True,
+        },
     )
     sub = await _submit(client, pub, db)
     sub.pdf_status = PdfStatus.PENDING
@@ -530,6 +542,8 @@ async def test_custom_wording_reply_to_and_placeholders(
         json={
             "enabled": True,
             "emailField": "email",
+            "toUnverified": True,
+            "unverifiedAnswers": True,
             "subject": "We received {form_title} ({reference})",
             "message": "Dear {answer:name},\n\nThank you. <b>We'll be in touch.</b>",
             "replyTo": "Team@Example.org",

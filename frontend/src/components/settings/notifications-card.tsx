@@ -272,6 +272,45 @@ export function NotificationsCard({ form, canManage }: { form: FormSummary; canM
                   ))}
                 </NativeSelect>
               </Field>
+              {receipt.emailField && (
+                <>
+                  <Field orientation="horizontal">
+                    <FieldContent>
+                      <FieldLabel htmlFor="receipt-unverified">Send to addresses nobody confirmed</FieldLabel>
+                      <FieldDescription>
+                        {receipt.toUnverified
+                          ? 'Anyone can type any address here, so these receipts say only that a response was received, with its reference. At most 3 an hour go to one address.'
+                          : 'Off: a receipt only goes out when the answer is the address the person confirmed. Anyone can type any address into a question.'}
+                      </FieldDescription>
+                    </FieldContent>
+                    <Switch
+                      id="receipt-unverified"
+                      checked={receipt.toUnverified}
+                      disabled={disabled}
+                      onCheckedChange={(on) =>
+                        put('respondent_receipt', { ...receipt, toUnverified: on, unverifiedAnswers: on && receipt.unverifiedAnswers })
+                      }
+                    />
+                  </Field>
+                  {receipt.toUnverified && (
+                    <Field orientation="horizontal">
+                      <FieldContent>
+                        <FieldLabel htmlFor="receipt-unverified-answers">Include answers in those receipts</FieldLabel>
+                        <FieldDescription>
+                          Also send the answers and the signed PDF to unconfirmed addresses. Someone could use your form to send
+                          their own text, from your address, to anyone.
+                        </FieldDescription>
+                      </FieldContent>
+                      <Switch
+                        id="receipt-unverified-answers"
+                        checked={receipt.unverifiedAnswers}
+                        disabled={disabled}
+                        onCheckedChange={(on) => put('respondent_receipt', { ...receipt, unverifiedAnswers: on })}
+                      />
+                    </Field>
+                  )}
+                </>
+              )}
               <Field orientation="horizontal" data-disabled={!n.hasSignature ? true : undefined}>
                 <FieldContent>
                   <FieldLabel htmlFor="receipt-pdf">Attach the signed PDF</FieldLabel>

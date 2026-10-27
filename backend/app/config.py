@@ -276,6 +276,9 @@ class Settings(BaseSettings):
     captcha_busy_threshold: int = Field(default=1000, ge=1)
     # Proof-of-work difficulty for altcha (largest secret number).
     altcha_max_number: int = Field(default=100_000, ge=1000)
+    # Receipts to typed (unconfirmed) addresses, for forms that opt in: at most this many per
+    # form an hour (each address also gets at most 3 an hour per form). 0 = none.
+    receipt_unverified_per_hour: int = Field(default=100, ge=0)
 
     # -- webhooks (DESIGN 11.2) ----------------------------------------------------------------
     # Private, loopback and link-local addresses are refused unless inside one of these

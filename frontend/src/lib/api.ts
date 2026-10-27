@@ -784,6 +784,10 @@ export interface NotificationRule {
   includeAnswers: boolean
   attachPdf: boolean
   emailField: string | null
+  /** Receipts: also send to a typed address nobody confirmed (rate limited). */
+  toUnverified: boolean
+  /** Receipts to unconfirmed addresses carry the answers and the PDF too. */
+  unverifiedAnswers: boolean
   /** Custom subject and opening text (placeholders like {reference}); null = built-in text. */
   subject: string | null
   message: string | null

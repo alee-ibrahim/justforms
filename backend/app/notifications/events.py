@@ -17,7 +17,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
@@ -159,11 +159,46 @@ async def owner_addresses(db: AsyncSession, form: FormRecord) -> list[str]:
     return sorted(set(admins))
 
 
+# A receipt row for an address nobody confirmed (``EmailDelivery.detail``).
+UNVERIFIED = "unverified"
+# Receipts to unconfirmed addresses: per address and form, per hour.
+RECEIPTS_PER_ADDRESS_HOUR = 3
+
+
 def receipt_address(rule: NotificationRule, sub: Submission) -> str | None:
-    if rule.email_field:
-        value = sub.data.get(rule.email_field)
-        return value.strip() if isinstance(value, str) and "@" in value else None
-    return sub.respondent_email
+    return receipt_target(rule, sub)[0]
+
+
+def receipt_target(rule: NotificationRule, sub: Submission) -> tuple[str | None, bool]:
+    """Where the receipt goes and whether that address was confirmed (email code or staff
+    sign-in). A typed address only counts as confirmed when it is the confirmed one."""
+    confirmed = sub.respondent_email
+    if not rule.email_field:
+        return confirmed, confirmed is not None
+    value = sub.data.get(rule.email_field)
+    typed = value.strip() if isinstance(value, str) and "@" in value else None
+    if typed and confirmed and typed.lower() == confirmed.lower():
+        return confirmed, True
+    return typed, False
+
+
+async def _unverified_receipt_refused(
+    db: AsyncSession, settings: Settings, form_id: uuid.UUID, to: str
+) -> str | None:
+    """Why a receipt to an unconfirmed address can't go now (None: it can)."""
+    since = datetime.now(UTC) - timedelta(hours=1)
+    recent = select(func.count(EmailDelivery.id)).where(
+        EmailDelivery.form_id == form_id,
+        EmailDelivery.kind == "receipt",
+        EmailDelivery.detail == UNVERIFIED,
+        EmailDelivery.created_at >= since,
+    )
+    if (await db.scalar(recent) or 0) >= settings.receipt_unverified_per_hour:
+        return "Not sent: too many receipts to unconfirmed addresses this hour"
+    same = recent.where(func.lower(EmailDelivery.to_address) == to.lower())
+    if (await db.scalar(same) or 0) >= RECEIPTS_PER_ADDRESS_HOUR:
+        return "Not sent: too many receipts to this address this hour"
+    return None
 
 
 async def _has_receipt(db: AsyncSession, sub: Submission) -> bool:
@@ -237,13 +272,28 @@ async def dispatch(
         new_emails += [_email(form.id, sub.id, "owner_new", to) for to in recipients]
     receipt = rules.get(RuleType.RESPONDENT_RECEIPT)
     if receipt is not None and receipt.enabled:
-        to = receipt_address(receipt, sub)
+        to, confirmed = receipt_target(receipt, sub)
+        if not confirmed and not receipt.to_unverified:
+            to = None  # receipts to typed addresses are opt-in
         waits = receipt.attach_pdf and sub.pdf_status == PdfStatus.PENDING
+        if not confirmed and not receipt.unverified_answers:
+            waits = False  # no PDF goes to an unconfirmed address
         now = (event == "submission.created" and not waits) or (
             event in ("submission.pdf_ready", PDF_FAILED) and receipt.attach_pdf
         )
         if to and now and not await _has_receipt(db, sub):
-            new_emails.append(_email(form.id, sub.id, "receipt", to))
+            row = _email(form.id, sub.id, "receipt", to)
+            refused = None
+            if not confirmed:
+                row.detail = UNVERIFIED
+                refused = await _unverified_receipt_refused(db, settings, form.id, to)
+            if refused:
+                # Shown in the Settings page's email log, never sent.
+                row.status = EmailStatus.FAILED
+                row.last_error = refused
+                db.add(row)
+            else:
+                new_emails.append(row)
     if event in ("submission.pdf_ready", PDF_FAILED) and await _outcome_due(db, sub, event):
         assert sub.approval_outcome_to
         new_emails.append(_email(form.id, sub.id, "approval_outcome", sub.approval_outcome_to))
@@ -366,14 +416,29 @@ async def render_email(
         )
     if row.kind == "receipt":
         rule = rules.get(RuleType.RESPONDENT_RECEIPT)
+        # To an address nobody confirmed: a confirmation and the reference only, unless the
+        # owner allowed answers there (read now, so turning it off applies to queued emails).
+        full = row.detail != UNVERIFIED or bool(rule and rule.unverified_answers)
         pdf: tuple[str, bytes] | None = None
         if (
-            rule is not None
+            full
+            and rule is not None
             and rule.attach_pdf
             and sub.pdf_status == PdfStatus.READY
             and sub.signed_pdf_key
         ):
             pdf = (f"submission-{sub.seq:04d}.pdf", await storage.read(sub.signed_pdf_key))
+        receipt_words = (
+            words(rule)
+            if full
+            else wording(
+                rule,
+                title=title,
+                reference=reference,
+                submitted=_submitted_text(sub.submitted_at, settings.tz),
+                answers={},
+            )
+        )
         return emails.receipt_message(
             org_name=org_name,
             brand=eb,
@@ -382,9 +447,9 @@ async def render_email(
             reference=reference,
             submitted=sub.submitted_at,
             tz=settings.tz,
-            answers=emails.answers_for_email(schema, sub.data),
+            answers=emails.answers_for_email(schema, sub.data) if full else [],
             pdf=pdf,
-            wording=words(rule),
+            wording=receipt_words,
         )
     return None
 

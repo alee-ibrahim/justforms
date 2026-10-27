@@ -261,6 +261,7 @@ are made again when it changes. Restart the API and worker after replacing the f
 | `JUSTFORMS_CAPTCHA_PROVIDER` | `none` | `altcha` (proof of work, no third party), `turnstile` or `hcaptcha` |
 | `JUSTFORMS_CAPTCHA_SITE_KEY`, `_SECRET_KEY`, `_BUSY_THRESHOLD` | | Provider keys; responses per hour that count as "busy" (default `1000`) |
 | `JUSTFORMS_ALTCHA_MAX_NUMBER` | `100000` | ALTCHA proof-of-work difficulty |
+| `JUSTFORMS_RECEIPT_UNVERIFIED_PER_HOUR` | `100` | Receipts to typed, unconfirmed addresses (forms that opt in) per form an hour; each address also gets at most 3 an hour per form. `0` sends none |
 | `JUSTFORMS_CSP_EXTRA_CONNECT_SRC` | empty | Extra origins for the web container's CSP (e.g. your S3 bucket) |
 
 ## Signed PDFs, approvals and webhooks

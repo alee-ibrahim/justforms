@@ -43,6 +43,12 @@ class NotificationRule(IdMixin, TimestampMixin, Base):
     attach_pdf: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     # Receipt: the email question to send to; None = the confirmed (OTP/staff) address.
     email_field: Mapped[str | None] = mapped_column(String(63))
+    # Receipt: also send to a typed address nobody confirmed (rate limited; no answers or PDF
+    # unless ``unverified_answers``). Off: only the confirmed address gets a receipt.
+    to_unverified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    unverified_answers: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
     # Custom wording (plain text with placeholders, DESIGN 11.1); None = the built-in text.
     subject: Mapped[str | None] = mapped_column(String(200))
     message: Mapped[str | None] = mapped_column(Text)
