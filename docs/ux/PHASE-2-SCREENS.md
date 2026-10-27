@@ -382,6 +382,8 @@ Rule editor (composed: `Card` + `Select` + `Input` + `Button` + `Popover`/`Comma
 - After destructive actions (delete field/page, remove rule) a `sonner` toast: "Deleted
   “Full name”" with action "Undo" (5s). Undo selects and scrolls to the restored element.
 - Tooltip text: "Undo (Ctrl+Z)" / "Redo (Ctrl+Shift+Z)" with `Kbd`; on macOS show ⌘.
+- The buttons, the phone menu items and the shortcuts exist on Edit only; the other form pages
+  don't show the draft (SUBMISSIONS-SORT-AND-TRASH 5).
 
 ### 2.10 Preview
 

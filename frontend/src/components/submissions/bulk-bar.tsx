@@ -2,14 +2,13 @@
  * Selection bar for bulk status changes, approval decisions, export and delete
  * (PHASE-3-SCREENS 6, APPROVALS-SCREENS 3.5).
  */
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckIcon, ChevronDownIcon, FileSpreadsheetIcon, TrashIcon, XIcon } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -25,6 +24,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { api, type BulkDecideResult, type SubmissionStatus } from '@/lib/api'
+import { metaQuery } from '@/lib/queries'
 
 import { STATUS_LABELS } from './labels'
 
@@ -75,7 +75,6 @@ export function BulkBar({
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
   const [reasonError, setReasonError] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState(false)
   const [deciding, setDeciding] = useState<'approve' | 'reject' | null>(null)
   const [comment, setComment] = useState('')
   const [commentError, setCommentError] = useState<string | null>(null)
@@ -99,19 +98,35 @@ export function BulkBar({
     onError: () => toast.error("Couldn't save the decisions. Try again."),
   })
   const skipped = n - waiting
+  const trashDays = useQuery(metaQuery).data?.trashDays ?? 30
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ['submissions', formId] })
+    void queryClient.invalidateQueries({ queryKey: ['submission'] })
+    void queryClient.invalidateQueries({ queryKey: ['forms'] })
+  }
+  /** Undo a delete: the same submissions come back from Deleted. */
+  const undoDelete = (deleted: string[]) =>
+    api.bulk(formId, { ids: deleted, action: 'restore' }).then(
+      (res) => {
+        refresh()
+        toast(`Restored ${plural(res.changed)}`)
+      },
+      () => toast.error("Couldn't restore them. Find them under Deleted."),
+    )
   const run = useMutation({
     mutationFn: (body: { action: 'status' | 'delete'; status?: SubmissionStatus; reason?: string }) =>
       api.bulk(formId, { ids, ...body }),
     onSuccess: (res, body) => {
-      void queryClient.invalidateQueries({ queryKey: ['submissions', formId] })
-      void queryClient.invalidateQueries({ queryKey: ['submission'] })
-      toast(
-        body.action === 'delete'
-          ? `Deleted ${plural(res.changed)}`
-          : `Changed ${plural(res.changed)} to ${STATUS_LABELS[body.status!]}`,
-      )
+      refresh()
+      if (body.action === 'delete') {
+        const deleted = [...ids]
+        toast(`Deleted ${plural(res.changed)}`, {
+          description: `In Deleted for ${trashDays} days.`,
+          action: { label: 'Undo', onClick: () => void undoDelete(deleted) },
+          duration: 10_000,
+        })
+      } else toast(`Changed ${plural(res.changed)} to ${STATUS_LABELS[body.status!]}`)
       setRejecting(false)
-      setDeleting(false)
       setReason('')
       onClear()
     },
@@ -157,9 +172,10 @@ export function BulkBar({
           </Button>
         </ButtonGroup>
       )}
-      {/* Apart from the group and styled as destructive, so it never reads like Export. */}
+      {/* Apart from the group and styled as destructive, so it never reads like Export. No
+          confirmation: deleting goes to Deleted and the toast offers Undo (REVIEW-CHECKLIST E). */}
       {canDelete && (
-        <Button variant="destructive" size="sm" onClick={() => setDeleting(true)}>
+        <Button variant="destructive" size="sm" disabled={run.isPending} onClick={() => run.mutate({ action: 'delete' })}>
           <TrashIcon />
           Delete
         </Button>
@@ -251,22 +267,6 @@ export function BulkBar({
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={deleting} onOpenChange={setDeleting}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {plural(n)}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              They are removed from lists and exports now and erased for good after 30 days.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => run.mutate({ action: 'delete' })}>
-              Delete {n}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }

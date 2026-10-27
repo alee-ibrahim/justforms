@@ -114,8 +114,14 @@ is part of the signed PDF's approval record and shows on the verify page.
   <img src="images/submissions.webp" alt="The submissions table with status badges and masked national ID numbers" width="880">
 </p>
 
-A submissions table with search, filters, status (New, In review, Approved, Rejected),
-comments, an activity log and export to Excel. Sensitive answers are marked with a lock, and opening a submission that has them is recorded.
+A submissions table with search, filters, sorting by any column (answers by their type: text
+alphabetically, numbers by value, dates by time, choices in option order), status (New, In
+review, Approved, Rejected), comments, an activity log and export to Excel. Sensitive answers are marked with a lock, and opening a submission that has them is recorded.
+
+**Trash.** Deleted submissions and forms can be brought back: deleting shows an Undo toast, and
+owners find them under Submissions › Deleted and Forms › Trash for 30 days (configurable) before
+they are erased for good. Restored submissions keep their reference numbers; restoring a form
+brings back its submissions too.
 
 **Insights** (Submissions › Insights) summarises every question under the same filters: counts
 and shares per option with the "Other" answers, averages, medians and histograms for numbers

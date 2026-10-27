@@ -58,6 +58,13 @@ class Submission(IdMixin, TimestampMixin, Base):
             postgresql_include=["status", "approval_state"],
             postgresql_where=text("deleted_at IS NULL"),
         ),
+        # The trash: a form's deleted submissions, newest deletion first.
+        Index(
+            "ix_submissions_form_trash",
+            "form_id",
+            "deleted_at",
+            postgresql_where=text("deleted_at IS NOT NULL"),
+        ),
         # Imported rows keep the source's id, so importing the same file twice skips them.
         Index(
             "uq_submissions_form_source_external_id",
@@ -124,6 +131,10 @@ class Submission(IdMixin, TimestampMixin, Base):
     imported_links: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     # Soft delete: hidden from lists and exports at once, erased by the nightly job later.
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Who moved it to the trash (outside the content hash; the "deleted" event records it too).
+    deleted_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
 
 
 class ExportStatus(StrEnum):
@@ -164,6 +175,7 @@ class EventType(StrEnum):
     EXPORTED = "exported"
     VIEWED = "viewed"
     DELETED = "deleted"
+    RESTORED = "restored"
     APPROVAL_REQUESTED = "approval_requested"
     APPROVAL_DECIDED = "approval_decided"
     APPROVAL_WAITING = "approval_waiting"

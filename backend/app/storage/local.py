@@ -115,6 +115,17 @@ class LocalStorage(Storage):
     async def delete(self, key: str) -> None:
         await to_thread.run_sync(self._delete_sync, key)
 
+    def _delete_prefix_sync(self, prefix: str) -> int:
+        folder = self.path_for(prefix)
+        if not folder.is_dir():
+            return 0
+        count = sum(1 for p in folder.rglob("*") if p.is_file())
+        shutil.rmtree(folder, ignore_errors=True)
+        return count
+
+    async def delete_prefix(self, prefix: str) -> int:
+        return await to_thread.run_sync(self._delete_prefix_sync, prefix)
+
     # -- reads ------------------------------------------------------------------
 
     def _stat_sync(self, key: str) -> ObjectInfo:

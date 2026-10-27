@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { FileInputIcon, FilePlusIcon, FileTextIcon, SearchIcon } from 'lucide-react'
+import { FileInputIcon, FilePlusIcon, FileTextIcon, SearchIcon, TrashIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { CreateFormDialog } from '@/components/forms/create-form-dialog'
@@ -242,8 +242,16 @@ export function FormsPage() {
     <PageContainer>
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold tracking-tight">Forms</h1>
-        {org && canCreate && (
-          <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {/* Deleted forms, restorable for the trash period (SUBMISSIONS-SORT-AND-TRASH 4). */}
+          <Button variant="ghost" asChild>
+            <Link to="/forms/trash" aria-label="Trash">
+              <TrashIcon />
+              <span className="max-sm:hidden">Trash</span>
+            </Link>
+          </Button>
+          {org && canCreate && (
+            <>
             <Button variant="outline" asChild>
               <Link to="/forms/import/jotform">
                 <FileInputIcon />
@@ -251,8 +259,9 @@ export function FormsPage() {
               </Link>
             </Button>
             <CreateFormDialog orgId={org.id} />
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
       {org ? (
         <FormsSection orgId={org.id} meId={me?.id} canCreate={canCreate} />

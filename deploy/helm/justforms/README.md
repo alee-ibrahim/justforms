@@ -205,6 +205,7 @@ unless noted.
 | `timezone` | `UTC` | `JUSTFORMS_TIMEZONE` |
 | `trustedProxies` | `[]` | `JUSTFORMS_TRUSTED_PROXIES` (comma-joined). Include the pod CIDR: the bundled nginx is the first hop. |
 | `maxUploadMb` | `25` | `JUSTFORMS_MAX_UPLOAD_MB` |
+| `trash.days` | `30` | `JUSTFORMS_TRASH_DAYS`: days deleted forms and submissions stay restorable before the worker erases them |
 | `thaanaFontCssUrl` | dvfonts CDN | `JUSTFORMS_THAANA_FONT_CSS_URL` (also on the frontend) |
 | `thaanaFonts` | `[]` (built-in list) | `JUSTFORMS_THAANA_FONTS` (comma-joined): Thaana fonts form themes can choose |
 | `fonts.server.configMap` / `.secret` | `""` | ConfigMap (`binaryData`) or Secret holding a Thaana TTF/OTF for server rendering (signed PDFs, link-preview images), mounted read-only at `fonts.server.mountPath` (`/etc/justforms/fonts`) in the API, worker and migration job. Empty: the bundled Noto Sans Thaana |

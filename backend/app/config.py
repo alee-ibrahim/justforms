@@ -236,6 +236,9 @@ class Settings(BaseSettings):
     approval_link_days: int = Field(default=14, ge=1, le=365)
     # How long an invitation to join an organisation stays open (a resend restarts it).
     invite_days: int = Field(default=14, ge=1, le=365)
+    # Deleted forms and submissions stay in the trash (restorable) this many days, then the
+    # nightly job erases them with their files (DESIGN 14.5).
+    trash_days: int = Field(default=30, ge=1, le=3650)
 
     # -- abuse controls (DESIGN 14.1, 14.2) ---------------------------------------------------
     rate_limit_enabled: bool = True

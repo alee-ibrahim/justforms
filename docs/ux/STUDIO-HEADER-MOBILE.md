@@ -44,8 +44,9 @@ with something to publish:
 
 Menu: label "Go to", then `DropdownMenuRadioGroup` with Edit / Preview / Share / Submissions /
 Settings (icons; current one checked; viewers see Share, Submissions, Settings); separator;
-Undo, Redo (the menu stays open so they repeat; disabled with "Apply or discard the suggestion
-first" while an AI suggestion is shown); AI assistant (when on); View all logic; when there is
+on Edit only, Undo, Redo (the menu stays open so they repeat; disabled with "Apply or discard
+the suggestion first" while an AI suggestion is shown; SUBMISSIONS-SORT-AND-TRASH 5); AI
+assistant (when on); View all logic; when there is
 nothing to publish, a disabled "Publish" with "No changes since version N".
 
 The title is not click-to-rename here; the title block on the canvas is editable.

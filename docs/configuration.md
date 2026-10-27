@@ -230,6 +230,7 @@ are made again when it changes. Restart the API and worker after replacing the f
 | `JUSTFORMS_PDF_TSA_URL` | unset | RFC 3161 timestamp authority |
 | `JUSTFORMS_PDF_SIGNER_NAME` | `JustForms document signing` | Name on the install's own signing certificate |
 | `JUSTFORMS_APPROVAL_LINK_DAYS` | `14` | How long an approver's link works (steps decided in the studio have no link) |
+| `JUSTFORMS_TRASH_DAYS` | `30` | Days deleted forms and submissions stay in the trash (restorable) before the nightly job erases them and their files; a form's shorter retention period still wins |
 | `JUSTFORMS_WEBHOOK_ALLOWED_CIDRS` | empty | Private networks webhooks may reach (plain `http` only to these) |
 | `JUSTFORMS_WEBHOOK_TIMEOUT_SECONDS` | `10` | Timeout per webhook delivery |
 

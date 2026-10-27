@@ -137,6 +137,11 @@ class Storage(ABC):
     async def delete(self, key: str) -> None:
         """Delete ``key``. Deleting a missing object is not an error."""
 
+    @abstractmethod
+    async def delete_prefix(self, prefix: str) -> int:
+        """Delete every object under the folder ``prefix`` (a valid key; ``a/b`` covers
+        ``a/b/...``). Returns how many objects went; a missing folder is not an error."""
+
     async def presign_upload(
         self,
         key: str,

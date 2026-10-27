@@ -128,6 +128,8 @@ export interface Meta {
     captchaBusyThreshold: number
   }
   thaanaFontCssUrl: string
+  /** Days deleted forms and submissions stay restorable. */
+  trashDays: number
 }
 
 export interface Me {
@@ -493,6 +495,7 @@ export type EventType =
   | 'exported'
   | 'viewed'
   | 'deleted'
+  | 'restored'
   | 'approval_requested'
   | 'approval_decided'
   | 'approval_waiting'
@@ -581,6 +584,37 @@ export interface ListFilters {
   where?: Condition[]
   /** At least one must hold. */
   whereAny?: Condition[]
+  /** Column order (`_seq`, `_submitted`, `_status`, `_approval`, `_respondent` or a question
+   * key); unset is newest first. Exports use it for "in the current order". */
+  sort?: string
+  dir?: SortDir
+}
+
+export type SortDir = 'asc' | 'desc'
+
+/** A submission in the trash (owners). */
+export interface DeletedSubmission extends SubmissionSummary {
+  deletedAt: string
+  deletedBy: PersonRef | null
+  /** When it is erased for good (the trash period, or the form's retention when sooner). */
+  purgeAt: string | null
+}
+
+/** A form in the trash. */
+export interface TrashedForm {
+  id: string
+  title: string
+  slug: string
+  status: FormStatus
+  language: 'en' | 'dv'
+  deletedAt: string
+  deletedBy: PersonRef | null
+  purgeAt: string
+  /** Submissions that come back with it. */
+  submissionCount: number
+  /** Another form took its address meanwhile. */
+  slugTaken: boolean
+  slugSuggestion: string | null
 }
 
 /** Query string of the list filters (the list, Insights). */
@@ -594,6 +628,8 @@ export function filterParams(f: ListFilters): URLSearchParams {
   if (f.fields?.length) qs.set('filter', JSON.stringify(f.fields))
   if (f.where?.length || f.whereAny?.length)
     qs.set('where', JSON.stringify({ where: f.where ?? [], whereAny: f.whereAny ?? [] }))
+  if (f.sort) qs.set('sort', f.sort)
+  if (f.sort && f.dir) qs.set('dir', f.dir)
   return qs
 }
 
@@ -892,6 +928,10 @@ export const api = {
   patchForm: (formId: string, body: FormPatch) =>
     request<FormSummary>('PATCH', `/forms/${formId}`, body),
   deleteForm: (formId: string) => request<void>('DELETE', `/forms/${formId}`),
+  formsTrash: (orgId: string) => request<TrashedForm[]>('GET', `/orgs/${orgId}/forms/trash`),
+  /** 409 `slug_taken` (with `suggestion`) when another form took the address: send `slug`. */
+  restoreForm: (formId: string, slug?: string) => request<FormSummary>('POST', `/forms/${formId}/restore`, { slug }),
+  eraseForm: (formId: string) => request<void>('DELETE', `/forms/${formId}/permanent`),
   duplicateForm: (formId: string) => request<FormSummary>('POST', `/forms/${formId}/duplicate`),
   getDraft: (formId: string) => request<Draft>('GET', `/forms/${formId}/draft`),
   patchDraft: (formId: string, baseRevision: number, patch: Operation[]) =>
@@ -914,7 +954,13 @@ export const api = {
     )
   },
   submissionStats: (formId: string) =>
-    request<Record<SubmissionStatus | 'all', number>>('GET', `/forms/${formId}/submissions/stats`),
+    request<Record<SubmissionStatus | 'all' | 'deleted', number>>('GET', `/forms/${formId}/submissions/stats`),
+  deletedSubmissions: (formId: string, cursor?: number) =>
+    request<{ items: DeletedSubmission[]; nextCursor: number | null; total: number }>(
+      'GET',
+      `/forms/${formId}/submissions/deleted${cursor !== undefined ? `?cursor=${cursor}` : ''}`,
+    ),
+  restoreSubmission: (id: string) => request<void>('POST', `/submissions/${id}/restore`),
   getSubmission: (id: string) => request<SubmissionDetail>('GET', `/submissions/${id}`),
   /** By reference number (#0047 is 47). */
   getSubmissionByReference: (formId: string, seq: number) =>
@@ -924,7 +970,10 @@ export const api = {
   addComment: (id: string, text: string) => request<SubmissionDetail>('POST', `/submissions/${id}/comments`, { text }),
   reveal: (id: string, fieldId: string, row?: number) =>
     request<{ value: string }>('POST', `/submissions/${id}/reveal`, { fieldId, row }),
-  bulk: (formId: string, body: { ids: string[]; action: 'status' | 'delete'; status?: SubmissionStatus; reason?: string }) =>
+  bulk: (
+    formId: string,
+    body: { ids: string[]; action: 'status' | 'delete' | 'restore' | 'purge'; status?: SubmissionStatus; reason?: string },
+  ) =>
     request<{ changed: number }>('POST', `/forms/${formId}/submissions/bulk`, body),
   startExport: (formId: string, filters: ListFilters) => request<ExportJob>('POST', `/forms/${formId}/exports`, filters),
   getExport: (id: string) => request<ExportJob>('GET', `/exports/${id}`),

@@ -48,8 +48,9 @@ from app.permissions import FormViewer, effective_form_role, has_form_role
 from app.queue import JobQueue, get_queue
 from app.schemas.form import Form
 from app.services.users import audit
+from app.submissions import sort as sorting
 from app.submissions.query import FieldFilter, ListFilters, apply_filters
-from app.submissions.retention import erase
+from app.submissions.retention import erase, purge_at
 
 router = APIRouter(tags=["submissions"])
 
@@ -77,6 +78,27 @@ class SubmissionSummary(ApiModel):
 
 class SubmissionPage(ApiModel):
     items: list[SubmissionSummary]
+    # The reference number to continue below (newest first), or the offset of the next page
+    # when another column order was asked for.
+    next_cursor: int | None
+    total: int
+
+
+class PersonOut(ApiModel):
+    id: uuid.UUID
+    name: str
+    email: str
+
+
+class DeletedSubmission(SubmissionSummary):
+    deleted_at: datetime
+    deleted_by: PersonOut | None
+    # When the nightly job erases it for good (the trash period, or retention when sooner).
+    purge_at: datetime | None
+
+
+class DeletedPage(ApiModel):
+    items: list[DeletedSubmission]
     next_cursor: int | None
     total: int
 
@@ -152,7 +174,8 @@ class RevealIn(ApiModel):
 
 class BulkIn(ApiModel):
     ids: Annotated[list[uuid.UUID], Field(min_length=1, max_length=1000)]
-    action: Literal["status", "delete"]
+    # delete: to the trash; restore / purge: submissions in the trash (owners).
+    action: Literal["status", "delete", "restore", "purge"]
     status: SubmissionStatus | None = None
     reason: Reason | None = None
 
@@ -171,6 +194,9 @@ class ExportIn(ApiModel):
     ids: Annotated[list[uuid.UUID], Field(max_length=10_000)] | None = None
     where: list[Condition] = Field(default_factory=list, max_length=20)
     where_any: list[Condition] = Field(default_factory=list, max_length=20)
+    # "Export in the current order": the table's column order (else oldest first).
+    sort: Annotated[str, StringConstraints(max_length=64)] | None = None
+    dir: Literal["asc", "desc"] | None = None
 
 
 class ExportOut(ApiModel):
@@ -244,11 +270,21 @@ async def list_submissions(
     version: Annotated[int | None, Query(ge=1)] = None,
     filter_: Annotated[str | None, Query(alias="filter", max_length=4000)] = None,
     where: Annotated[str | None, Query(max_length=8000)] = None,
-    cursor: int | None = None,
+    cursor: Annotated[int | None, Query(ge=0)] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    sort: Annotated[str | None, Query(max_length=64)] = None,
+    dir_: Annotated[Literal["asc", "desc"] | None, Query(alias="dir")] = None,
 ) -> SubmissionPage:
     filters = _list_filters(status_, q, from_, to, version, filter_, where)
-    cat = await catalogue.load(db, access.form) if filters.where or filters.where_any else None
+    custom = not sorting.is_default(sort, dir_)
+    needs_cat = filters.where or filters.where_any or (custom and sort not in sorting.META_KEYS)
+    cat = await catalogue.load(db, access.form) if needs_cat else None
+    order: list[Any] = []
+    if custom:
+        try:
+            order = sorting.order_by(sort, dir_, cat, icu=await sorting.has_icu(db))
+        except sorting.SortError as exc:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_sort") from exc
     try:
         base = apply_filters(
             select(Submission).where(Submission.form_id == access.form.id),
@@ -259,8 +295,13 @@ async def list_submissions(
     except ValueError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_filter") from exc
     total = int(await db.scalar(select(func.count()).select_from(base.subquery())) or 0)
-    query = base if cursor is None else base.where(Submission.seq < cursor)
-    rows = (await db.scalars(query.order_by(Submission.seq.desc()).limit(limit + 1))).all()
+    if custom:
+        # Another column order pages by offset (the cursor is the next page's offset).
+        query = base.order_by(*order).offset(cursor or 0)
+    else:
+        query = base if cursor is None else base.where(Submission.seq < cursor)
+        query = query.order_by(Submission.seq.desc())
+    rows = (await db.scalars(query.limit(limit + 1))).all()
     forms: dict[uuid.UUID, tuple[Form, int]] = {}
     items = []
     totals = await approvals.counts(
@@ -293,11 +334,12 @@ async def list_submissions(
                 ),
             )
         )
-    return SubmissionPage(
-        items=items,
-        next_cursor=items[-1].seq if len(rows) > limit and items else None,
-        total=total,
-    )
+    more = len(rows) > limit and bool(items)
+    if custom:
+        next_cursor = (cursor or 0) + len(items) if more else None
+    else:
+        next_cursor = items[-1].seq if more else None
+    return SubmissionPage(items=items, next_cursor=next_cursor, total=total)
 
 
 @router.get("/forms/{form_id}/submissions/stats", response_model=dict[str, int])
@@ -311,6 +353,15 @@ async def submission_stats(db: DbDep, access: FormViewer) -> dict[str, int]:
     for st, n in rows.all():
         counts[st.value if isinstance(st, SubmissionStatus) else str(st)] = n
     counts["all"] = sum(counts.values())
+    # The trash (only owners open it; the number alone tells nothing new).
+    counts["deleted"] = int(
+        await db.scalar(
+            select(func.count()).where(
+                Submission.form_id == access.form.id, Submission.deleted_at.is_not(None)
+            )
+        )
+        or 0
+    )
     return counts
 
 
@@ -458,8 +509,10 @@ async def _status_event(
 
 
 async def _soft_delete(db: DbDep, sub: Submission, form: FormRecord, user: User) -> None:
+    """To the trash: hidden everywhere, restorable for JUSTFORMS_TRASH_DAYS (DESIGN 14.5)."""
     await append_event(db, sub, EventType.DELETED, actor_id=user.id)
     sub.deleted_at = datetime.now(UTC)
+    sub.deleted_by = user.id
     await audit(
         db,
         "submission.delete",
@@ -469,6 +522,105 @@ async def _soft_delete(db: DbDep, sub: Submission, form: FormRecord, user: User)
         target_id=sub.id,
         meta={"seq": sub.seq},
     )
+
+
+async def _restore(db: DbDep, sub: Submission, form: FormRecord, user: User) -> None:
+    """Back from the trash with its reference number, answers and activity log."""
+    deleted_at = sub.deleted_at
+    await append_event(db, sub, EventType.RESTORED, actor_id=user.id)
+    sub.deleted_at = None
+    sub.deleted_by = None
+    await audit(
+        db,
+        "submission.restore",
+        org_id=form.org_id,
+        actor_id=user.id,
+        target_type="submission",
+        target_id=sub.id,
+        meta={"seq": sub.seq, "deleted_at": deleted_at.isoformat() if deleted_at else None},
+    )
+
+
+# -- the trash ------------------------------------------------------------------------------
+
+
+@router.get("/forms/{form_id}/submissions/deleted", response_model=DeletedPage)
+async def list_deleted(
+    db: DbDep,
+    access: FormViewer,
+    settings: SettingsDep,
+    cursor: Annotated[int | None, Query(ge=0)] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> DeletedPage:
+    """The form's deleted submissions, most recently deleted first. Owners only: whoever
+    may delete may restore."""
+    if not has_form_role(access.role, FormRole.OWNER):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "insufficient_form_role")
+    form = access.form
+    where = (Submission.form_id == form.id, Submission.deleted_at.is_not(None))
+    total = int(await db.scalar(select(func.count()).where(*where)) or 0)
+    rows = (
+        await db.execute(
+            select(Submission, User)
+            .outerjoin(User, User.id == Submission.deleted_by)
+            .where(*where)
+            .order_by(Submission.deleted_at.desc(), Submission.id.desc())
+            .offset(cursor or 0)
+            .limit(limit + 1)
+        )
+    ).all()
+    forms: dict[uuid.UUID, tuple[Form, int]] = {}
+    items: list[DeletedSubmission] = []
+    for s, by in rows[:limit]:
+        if s.form_version_id not in forms:
+            forms[s.form_version_id] = await _form_of(db, s.form_version_id)
+        _f, number = forms[s.form_version_id]
+        assert s.deleted_at is not None
+        items.append(
+            DeletedSubmission(
+                id=s.id,
+                seq=s.seq,
+                status=s.status,
+                language=s.language,
+                version=number,
+                created_at=s.created_at,
+                submitted_at=s.submitted_at,
+                respondent_email=s.respondent_email,
+                data=s.data,
+                source=s.source.value,
+                deleted_at=s.deleted_at,
+                deleted_by=(
+                    PersonOut(id=by.id, name=by.display_name or "", email=by.email) if by else None
+                ),
+                purge_at=purge_at(s, form, settings.trash_days),
+            )
+        )
+    more = len(rows) > limit
+    return DeletedPage(
+        items=items, next_cursor=(cursor or 0) + len(items) if more else None, total=total
+    )
+
+
+async def _load_deleted(
+    db: DbDep, user: CurrentUser, submission_id: uuid.UUID
+) -> tuple[Submission, FormRecord]:
+    sub = await db.get(Submission, submission_id)
+    form = await db.get(FormRecord, sub.form_id) if sub else None
+    role = await effective_form_role(db, user, form) if form and form.deleted_at is None else None
+    if sub is None or form is None or role is None or sub.deleted_at is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "submission_not_found")
+    if not has_form_role(role, FormRole.OWNER):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "insufficient_form_role")
+    return sub, form
+
+
+@router.post("/submissions/{submission_id}/restore", status_code=status.HTTP_204_NO_CONTENT)
+async def restore_submission(db: DbDep, user: CurrentUser, submission_id: uuid.UUID) -> Response:
+    """Owners: bring a deleted submission back (the Undo of a delete, or from the trash)."""
+    sub, form = await _load_deleted(db, user, submission_id)
+    await _restore(db, sub, form, user)
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # -- one submission -------------------------------------------------------------------------
@@ -617,7 +769,8 @@ async def delete_submission(
     storage: StorageDep,
     hard: bool = False,
 ) -> Response:
-    """Owners delete: soft by default (erased after 30 days), ``?hard=true`` erases now."""
+    """Owners delete: to the trash by default (erased after JUSTFORMS_TRASH_DAYS),
+    ``?hard=true`` erases now."""
     sub, form, role = loaded
     if not has_form_role(role, FormRole.OWNER):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "insufficient_form_role")
@@ -633,24 +786,38 @@ async def delete_submission(
 
 
 @router.post("/forms/{form_id}/submissions/bulk", response_model=BulkOut)
-async def bulk_action(body: BulkIn, db: DbDep, access: FormViewer, queue: QueueDep) -> BulkOut:
-    """Change status (editors) or delete (owners) several submissions of one form."""
-    needed = FormRole.OWNER if body.action == "delete" else FormRole.EDITOR
+async def bulk_action(
+    body: BulkIn, db: DbDep, access: FormViewer, queue: QueueDep, storage: StorageDep
+) -> BulkOut:
+    """Change status (editors), delete, restore or erase (owners) several submissions of one
+    form. Restore and purge act on submissions in the trash only."""
+    needed = FormRole.EDITOR if body.action == "status" else FormRole.OWNER
     if not has_form_role(access.role, needed):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "insufficient_form_role")
     if body.action == "status" and body.status is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "status_required")
+    in_trash = body.action in ("restore", "purge")
     subs = (
         await db.scalars(
             select(Submission)
             .where(
                 Submission.id.in_(body.ids),
                 Submission.form_id == access.form.id,
-                Submission.deleted_at.is_(None),
+                Submission.deleted_at.is_not(None) if in_trash else Submission.deleted_at.is_(None),
             )
             .order_by(Submission.seq)
         )
     ).all()
+    if body.action == "purge":
+        for sub in subs:
+            await erase(db, storage, sub, reason="owner", actor_id=access.user.id)
+        await db.commit()
+        return BulkOut(changed=len(subs))
+    if body.action == "restore":
+        for sub in subs:
+            await _restore(db, sub, access.form, access.user)
+        await db.commit()
+        return BulkOut(changed=len(subs))
     changed = 0
     moved: list[tuple[Submission, SubmissionStatus]] = []
     for sub in subs:
@@ -701,6 +868,12 @@ async def start_export(
             )
         except ValueError as exc:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_filter") from exc
+    if parsed.sort is not None:
+        cat = await catalogue.load(db, access.form)
+        try:
+            sorting.order_by(parsed.sort, parsed.dir, cat)
+        except sorting.SortError as exc:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_sort") from exc
     filters = parsed.model_dump(mode="json", by_alias=True, exclude_none=True)
     export = Export(form_id=access.form.id, requested_by=access.user.id, filters=filters)
     db.add(export)

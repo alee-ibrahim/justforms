@@ -53,6 +53,9 @@ class ListFilters(BaseModel):
     where_any: Annotated[list[Condition], Field(max_length=20)] = Field(
         default_factory=list, alias="whereAny"
     )
+    # Column order (app/submissions/sort.py); exports use it for "in the current order".
+    sort: Annotated[str, StringConstraints(pattern=r"^_?[a-z][a-z0-9_]{0,62}$")] | None = None
+    dir: Literal["asc", "desc"] | None = None
 
 
 def _escape_like(text: str) -> str:

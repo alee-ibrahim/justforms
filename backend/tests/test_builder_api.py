@@ -216,6 +216,6 @@ async def test_submissions_list_detail_and_status(
     )
     assert res.status_code == 200 and res.json()["status"] == "rejected"
     stats = (await client.get(f"/api/v1/forms/{fid}/submissions/stats")).json()
-    assert stats == {"new": 2, "in_review": 0, "approved": 0, "rejected": 1, "all": 3}
+    assert stats == {"new": 2, "in_review": 0, "approved": 0, "rejected": 1, "all": 3, "deleted": 0}
     filtered = (await client.get(f"/api/v1/forms/{fid}/submissions?status=new")).json()
     assert len(filtered["items"]) == 2

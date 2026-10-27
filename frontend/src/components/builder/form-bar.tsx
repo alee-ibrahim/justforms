@@ -410,11 +410,13 @@ type CompactProps = {
   onPublish?: () => void
   onLogic: () => void
   trigger: RefObject<HTMLButtonElement | null>
+  /** On the builder (Edit): only there do undo and redo show (STUDIO-HEADER-MOBILE 2). */
+  editing: boolean
 }
 
 /** The compact bar's one menu: the form's pages, history, assistant, logic, and Publish with
  * the reason when there is nothing to publish. */
-function CompactMenu({ form, store, nav, active, canPublish, onPublish, onLogic, trigger }: CompactProps) {
+function CompactMenu({ form, store, nav, active, canPublish, onPublish, onLogic, trigger, editing }: CompactProps) {
   const navigate = useNavigate()
   const ai = useAiEntry(form.id)
   const AiIcon = ai?.icon
@@ -450,7 +452,7 @@ function CompactMenu({ form, store, nav, active, canPublish, onPublish, onLogic,
         {store && (
           <>
             <DropdownMenuSeparator />
-            <UndoRedoItems store={store} />
+            {editing && <UndoRedoItems store={store} />}
             <DropdownMenuItem onSelect={onLogic}>
               <SplitIcon />
               View all logic
@@ -527,6 +529,8 @@ export function FormBar({
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const active = activeNav(pathname)
+  // Undo and redo change the draft: they belong to the builder only.
+  const editing = pathname.endsWith('/edit')
   const nav = store ? NAV : NAV.filter((n) => n.label !== 'Edit' && n.label !== 'Preview')
   const canPublish = unpublished || form.currentVersion === null
   const bar = useRef<HTMLDivElement>(null)
@@ -555,6 +559,7 @@ export function FormBar({
         onPublish={onPublish}
         onLogic={openLogic}
         trigger={compactTrigger}
+        editing={editing}
       />
       <div className="flex items-center gap-3 px-4 py-2 max-lg:hidden">
         <Breadcrumb className="min-w-0">
@@ -579,7 +584,7 @@ export function FormBar({
         {store && <SaveStatus />}
         <div className="ms-auto flex shrink-0 items-center gap-2">
           <AiButton formId={form.id} />
-          {store && <UndoRedo store={store} />}
+          {store && editing && <UndoRedo store={store} />}
           <nav aria-label="Form" className="flex items-center">
             {nav.map((n) => (
               <Button key={n.to} asChild variant="ghost" size="sm">

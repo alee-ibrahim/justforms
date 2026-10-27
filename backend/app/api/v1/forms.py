@@ -17,7 +17,7 @@ from sqlalchemy.orm import aliased
 from app.api.v1.common import ApiModel
 from app.approvals.config import active as approvals_active
 from app.approvals.config import load_config as load_approvals
-from app.auth.deps import CurrentUser, DbDep, SettingsDep
+from app.auth.deps import CurrentUser, DbDep, SettingsDep, StorageDep
 from app.captcha import CaptchaMode, form_mode
 from app.config import Settings
 from app.models import (
@@ -41,6 +41,8 @@ from app.permissions import (
     FormOwner,
     FormViewer,
     OrgCreator,
+    OrgMember,
+    effective_form_role,
     has_form_role,
     has_org_role,
     org_role,
@@ -50,7 +52,7 @@ from app.services import form_diff, slugs
 from app.services import forms as svc
 from app.services.progress import DEFAULT_SAVE_PROGRESS_DAYS, MAX_SAVE_PROGRESS_DAYS, progress_out
 from app.services.users import audit
-from app.submissions import version_map
+from app.submissions import retention, version_map
 
 router = APIRouter(tags=["forms"])
 
@@ -597,8 +599,12 @@ async def patch_form(
 
 @router.delete("/forms/{form_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_form(db: DbDep, access: FormOwner) -> Response:
+    """To the trash: the form, its link and its submissions are hidden until restored or
+    erased after JUSTFORMS_TRASH_DAYS (DESIGN 14.5). Its submissions keep their own state, so
+    restoring the form brings back exactly what was there."""
     form = access.form
-    form.deleted_at = datetime.now().astimezone()
+    form.deleted_at = datetime.now(UTC)
+    form.deleted_by = access.user.id
     await audit(
         db,
         "form.delete",
@@ -607,6 +613,170 @@ async def delete_form(db: DbDep, access: FormOwner) -> Response:
         target_type="form",
         target_id=form.id,
     )
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# -- the trash ------------------------------------------------------------------------------
+
+
+class TrashPerson(ApiModel):
+    id: uuid.UUID
+    name: str
+    email: str
+
+
+class TrashedForm(ApiModel):
+    id: uuid.UUID
+    title: str
+    slug: str
+    status: FormStatus
+    language: str
+    deleted_at: datetime
+    deleted_by: TrashPerson | None
+    # When the nightly job erases it (and its submissions) for good.
+    purge_at: datetime
+    # Submissions that come back with it (ones deleted on their own stay in its trash).
+    submission_count: int
+    # Another form took the address meanwhile: restoring needs a new one.
+    slug_taken: bool
+    slug_suggestion: str | None = None
+
+
+class RestoreIn(ApiModel):
+    slug: Annotated[str, StringConstraints(pattern=slugs.SLUG_PATTERN)] | None = None
+
+
+@router.get("/orgs/{org_id}/forms/trash", response_model=list[TrashedForm])
+async def list_trash(
+    org_id: uuid.UUID, db: DbDep, user: CurrentUser, settings: SettingsDep, role: OrgMember
+) -> list[TrashedForm]:
+    """Deleted forms the person may restore: every one in the organisation for admins and
+    superadmins, else the ones they own. Most recently deleted first."""
+    is_admin = role == OrgRole.ADMIN
+    by = aliased(User)
+    query = (
+        select(FormRecord, by)
+        .outerjoin(by, by.id == FormRecord.deleted_by)
+        .where(FormRecord.org_id == org_id, FormRecord.deleted_at.is_not(None))
+        .order_by(FormRecord.deleted_at.desc(), FormRecord.id.desc())
+    )
+    if not is_admin:
+        query = query.join(
+            FormPermission,
+            (FormPermission.form_id == FormRecord.id)
+            & (FormPermission.user_id == user.id)
+            & (FormPermission.role == FormRole.OWNER),
+        )
+    rows = (await db.execute(query)).all()
+    counts: dict[uuid.UUID, int] = {}
+    if rows:
+        counts = {
+            fid: n
+            for fid, n in (
+                await db.execute(
+                    select(Submission.form_id, func.count())
+                    .where(
+                        Submission.form_id.in_([f.id for f, _ in rows]),
+                        Submission.deleted_at.is_(None),
+                    )
+                    .group_by(Submission.form_id)
+                )
+            ).all()
+        }
+    out: list[TrashedForm] = []
+    for form, person in rows:
+        taken = await slugs.taken(db, form.slug, form.id)
+        assert form.deleted_at is not None
+        out.append(
+            TrashedForm(
+                id=form.id,
+                title=form.title,
+                slug=form.slug,
+                status=form.status,
+                language="dv"
+                if (form.draft_schema or {}).get("settings", {}).get("language") == "dv"
+                else "en",
+                deleted_at=form.deleted_at,
+                deleted_by=TrashPerson(
+                    id=person.id, name=person.display_name or "", email=person.email
+                )
+                if person
+                else None,
+                purge_at=retention.form_purge_at(form, settings.trash_days) or form.deleted_at,
+                submission_count=counts.get(form.id, 0),
+                slug_taken=taken,
+                slug_suggestion=await slugs.unique_slug(db, form.slug, form.id) if taken else None,
+            )
+        )
+    return out
+
+
+async def _trashed(db: DbDep, user: CurrentUser, form_id: uuid.UUID) -> FormRecord:
+    """A deleted form the person owns (admins own every form of their organisation)."""
+    form = await db.get(FormRecord, form_id)
+    role = await effective_form_role(db, user, form) if form is not None else None
+    if form is None or form.deleted_at is None or role is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "form_not_found")
+    if not has_form_role(role, FormRole.OWNER):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "insufficient_form_role")
+    return form
+
+
+@router.post("/forms/{form_id}/restore", response_model=FormOut)
+async def restore_form(
+    form_id: uuid.UUID, body: RestoreIn, db: DbDep, user: CurrentUser, settings: SettingsDep
+) -> FormOut | JSONResponse:
+    """Bring a form back from the trash with its link, versions and submissions. When another
+    form took the address meanwhile, answers 409 ``slug_taken`` with a suggestion; send
+    ``slug`` to restore it at a new address."""
+    form = await _trashed(db, user, form_id)
+    slug = body.slug or form.slug
+    found = await slugs.problem(db, slug, form.id)
+    if found == "taken" and body.slug is None:
+        return JSONResponse(
+            {
+                "detail": "slug_taken",
+                "slug": form.slug,
+                "suggestion": await slugs.unique_slug(db, form.slug, form.id),
+            },
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if found is not None:
+        await _check_slug(db, slug, form.id)
+    deleted_at, previous = form.deleted_at, form.slug
+    form.slug = slug
+    form.deleted_at = None
+    form.deleted_by = None
+    await audit(
+        db,
+        "form.restore",
+        org_id=form.org_id,
+        actor_id=user.id,
+        target_type="form",
+        target_id=form.id,
+        meta={
+            "deleted_at": deleted_at.isoformat() if deleted_at else None,
+            **({"slug": slug, "previous_slug": previous} if slug != previous else {}),
+        },
+    )
+    try:
+        await db.commit()
+    except IntegrityError:  # another form took the address between the check and the commit
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "slug_taken") from None
+    role = await effective_form_role(db, user, form)
+    assert role is not None
+    return await form_out(db, settings, form, role)
+
+
+@router.delete("/forms/{form_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)
+async def erase_form(
+    form_id: uuid.UUID, db: DbDep, user: CurrentUser, storage: StorageDep
+) -> Response:
+    """Owners: erase a form in the trash now, with every submission and file. No undo."""
+    form = await _trashed(db, user, form_id)
+    await retention.erase_form(db, storage, form, reason="owner", actor_id=user.id)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

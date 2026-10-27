@@ -630,6 +630,22 @@ function scenarios(d) {
   add('submissions-cards', `${formPath}/submissions?status=all`, [
     ['', async (page) => void (await clickIf(page, page.getByRole('radio', { name: 'Cards' })))],
   ], { fullPage: true })
+  // Sorting (SUBMISSIONS-SORT-AND-TRASH 1): a sorted table and the cards' Sort menu.
+  add('submissions-sorted', `${formPath}/submissions?status=all&sort=_seq&dir=asc`, [
+    ['', null],
+    ['sort-menu', async (page) => void (await clickIf(page, page.getByRole('button', { name: /^Sort: / }).first()))],
+  ], { fullPage: true })
+  // The trash (SUBMISSIONS-SORT-AND-TRASH 3, 4): Deleted submissions and deleted forms.
+  add('submissions-deleted', `${formPath}/submissions?status=deleted`, [
+    ['', null],
+    ['selected', async (page) => {
+      await clickIf(page, page.getByRole('checkbox', { name: /^Select #/ }))
+    }],
+  ], { fullPage: true })
+  add('forms-trash', '/forms/trash', [
+    ['', null],
+    ['more', async (page) => void (await clickIf(page, page.getByRole('button', { name: /^More actions for / }).first()))],
+  ], { fullPage: true })
   // The submission's own page (SUBMISSIONS-VIEWER-SCREENS 1): the form view, its tabs, a file preview.
   const viewerSteps = [
     ['', null],

@@ -1,7 +1,8 @@
 /** Submissions view state kept in the URL (PHASE-3-SCREENS 4): shareable, and Back works. */
-import type { Condition, FieldFilter, FilterOp, SubmissionStatus } from '@/lib/api'
+import type { Condition, FieldFilter, FilterOp, SortDir, SubmissionStatus } from '@/lib/api'
 
-export type Tab = SubmissionStatus | 'all'
+/** A status, All, or Deleted (the trash; owners). */
+export type Tab = SubmissionStatus | 'all' | 'deleted'
 
 export interface SubmissionsSearch {
   status?: Tab
@@ -17,9 +18,13 @@ export interface SubmissionsSearch {
   whereLabel?: string
   /** Submission to open in the detail sheet (links from notification emails). */
   open?: string
+  /** Column order (a column key, see `sort.ts`); unset is newest first. */
+  sort?: string
+  dir?: SortDir
 }
 
-const TABS = new Set(['new', 'in_review', 'approved', 'rejected', 'all'])
+const TABS = new Set(['new', 'in_review', 'approved', 'rejected', 'all', 'deleted'])
+const SORT_KEY = /^_?[a-z][a-z0-9_]{0,62}$/
 const OPS = new Set<FilterOp>(['contains', 'eq', 'neq', 'gte', 'lte', 'includes', 'answered', 'unanswered'])
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 
@@ -67,5 +72,7 @@ export function validateSubmissionsSearch(search: Record<string, unknown>): Subm
     whereAny: conditions(search.whereAny),
     whereLabel: typeof search.whereLabel === 'string' && search.whereLabel ? search.whereLabel.slice(0, 300) : undefined,
     open: typeof search.open === 'string' && /^[0-9a-f-]{36}$/i.test(search.open) ? search.open : undefined,
+    sort: typeof search.sort === 'string' && SORT_KEY.test(search.sort) ? search.sort : undefined,
+    dir: search.dir === 'asc' || search.dir === 'desc' ? search.dir : undefined,
   }
 }

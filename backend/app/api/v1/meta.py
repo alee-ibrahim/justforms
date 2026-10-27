@@ -31,6 +31,8 @@ class Meta(ApiModel):
     version: str
     features: Features
     thaana_font_css_url: str
+    # Days deleted forms and submissions stay restorable (JUSTFORMS_TRASH_DAYS).
+    trash_days: int = 30
 
 
 @router.get("/meta", response_model=Meta)
@@ -49,4 +51,5 @@ async def meta(settings: SettingsDep) -> Meta:
             captcha_busy_threshold=settings.captcha_busy_threshold,
         ),
         thaana_font_css_url=settings.thaana_font_css_url,
+        trash_days=settings.trash_days,
     )

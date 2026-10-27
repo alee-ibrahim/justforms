@@ -176,6 +176,8 @@ env:
     value: {{ join "," $v.trustedProxies | quote }}
   - name: JUSTFORMS_MAX_UPLOAD_MB
     value: {{ $v.maxUploadMb | quote }}
+  - name: JUSTFORMS_TRASH_DAYS
+    value: {{ $v.trash.days | quote }}
   - name: JUSTFORMS_THAANA_FONT_CSS_URL
     value: {{ $v.thaanaFontCssUrl | quote }}
   {{- with $v.thaanaFonts }}

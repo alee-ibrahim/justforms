@@ -81,7 +81,7 @@ export function FormInsightsPage() {
       },
       replace: true,
     } as never)
-  const tab: Tab = search.status ?? 'all'
+  const tab: Tab = search.status && search.status !== 'deleted' ? search.status : 'all'
   const filters = useMemo(() => listFilters(search, tab), [search, tab])
   const live = useQuery(versionQuery(form.id, form.currentVersion))
   const versions = useQuery({ ...versionsQuery(form.id), enabled: form.currentVersion !== null })
@@ -173,7 +173,7 @@ export function FormInsightsPage() {
             <SelectContent>
               {TABS.map((t) => (
                 <SelectItem key={t} value={t}>
-                  {t === 'all' ? 'All statuses' : STATUS_LABELS[t]}
+                  {t === 'all' || t === 'deleted' ? 'All statuses' : STATUS_LABELS[t]}
                 </SelectItem>
               ))}
             </SelectContent>

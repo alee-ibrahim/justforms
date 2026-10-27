@@ -92,6 +92,10 @@ class FormRecord(IdMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="SET NULL")
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Who moved the form to the trash (shown in the trash; DESIGN 14.5).
+    deleted_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
 
 
 class FormVersion(IdMixin, TimestampMixin, Base):

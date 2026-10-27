@@ -173,6 +173,25 @@ class S3Storage(Storage):
         validate_key(key)
         await to_thread.run_sync(lambda: self.client.delete_object(Bucket=self.bucket, Key=key))
 
+    def _delete_prefix_sync(self, prefix: str) -> int:
+        count = 0
+        pages = self.client.get_paginator("list_objects_v2").paginate(
+            Bucket=self.bucket, Prefix=f"{prefix}/"
+        )
+        for page in pages:
+            keys = [{"Key": o["Key"]} for o in page.get("Contents", [])]
+            # delete_objects takes at most 1000 keys; a listing page holds at most 1000.
+            if keys:
+                self.client.delete_objects(
+                    Bucket=self.bucket, Delete={"Objects": keys, "Quiet": True}
+                )
+                count += len(keys)
+        return count
+
+    async def delete_prefix(self, prefix: str) -> int:
+        validate_key(prefix)
+        return await to_thread.run_sync(self._delete_prefix_sync, prefix)
+
     async def presign_upload(
         self,
         key: str,

@@ -1,5 +1,5 @@
 /** Forms list rows (docs/ux/FORMS-LIST-SCREENS.md): a table on ≥ lg, compact cards below. */
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import {
   BuildingIcon,
@@ -16,17 +16,8 @@ import { toast } from 'sonner'
 
 import { FormStatusBadge } from '@/components/forms/form-status-badge'
 import { openPath, type FormsSort } from '@/components/forms/forms-view'
+import { restoreForm } from '@/components/forms/restore-form'
 import { useMenuTooltip } from '@/components/layout/use-menu-tooltip'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -42,6 +33,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { api, type AccessMode, type FormListItem, type PersonRef } from '@/lib/api'
 import { formatDateTime, formatRelative } from '@/lib/format'
+import { metaQuery } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 
 const FOCUS = 'rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
@@ -211,12 +203,30 @@ export function RowMenu({ form, orgId, canCreate }: { form: FormListItem; orgId:
   const menuTip = useMenuTooltip()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [confirm, setConfirm] = useState(false)
+  const trashDays = useQuery(metaQuery).data?.trashDays ?? 30
+  // Undo puts it back at once (its address was free a moment ago; if not, the trash asks).
+  const undo = async () => {
+    try {
+      const res = await restoreForm(form.id)
+      await queryClient.invalidateQueries({ queryKey: ['forms', orgId] })
+      if (res.ok) toast('Restored the form')
+      else
+        toast.warning('Its address was taken meanwhile', {
+          action: { label: 'Open Trash', onClick: () => void navigate({ to: '/forms/trash' }) },
+        })
+    } catch {
+      toast.error("Couldn't restore the form. Find it in Trash.")
+    }
+  }
   const remove = useMutation({
     mutationFn: () => api.deleteForm(form.id),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['forms', orgId] })
-      toast.success('Deleted the form')
+      toast('Moved the form to Trash', {
+        description: `Restorable for ${trashDays} days, with its submissions.`,
+        action: { label: 'Undo', onClick: () => void undo() },
+        duration: 10_000,
+      })
     },
     onError: () => toast.error("Couldn't delete the form. Try again."),
   })
@@ -265,30 +275,13 @@ export function RowMenu({ form, orgId, canCreate }: { form: FormListItem; orgId:
           {form.role === 'owner' && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onSelect={() => setConfirm(true)}>
+              <DropdownMenuItem variant="destructive" onSelect={() => remove.mutate()}>
                 Delete
               </DropdownMenuItem>
             </>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-      <AlertDialog open={confirm} onOpenChange={setConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this form?</AlertDialogTitle>
-            <AlertDialogDescription>
-              <bdi dir="auto">{form.title || 'Untitled form'}</bdi> and its link stop working for everyone.
-              Submissions are kept for the retention period.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => remove.mutate()}>
-              Delete form
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   )
 }

@@ -17,7 +17,7 @@ import {
   TableIcon,
   UploadIcon,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useFormSummary } from '@/components/builder/form-context'
 import { PageContainer } from '@/components/layout/page'
@@ -25,6 +25,9 @@ import { ConditionChip, SubmissionsTabs } from '@/components/insights/nav'
 import { BulkBar } from '@/components/submissions/bulk-bar'
 import { CheckPdfDialog } from '@/components/submissions/check-pdf-dialog'
 import { ColumnPicker } from '@/components/submissions/column-picker'
+import { DeletedSubmissions } from '@/components/submissions/deleted-list'
+import { SortableHead, SortMenu } from '@/components/submissions/sort'
+import { fieldKind, isSortable, normalise, type SortState } from '@/components/submissions/sort-state'
 import { CardFieldPicker, SubmissionCards } from '@/components/submissions/cards'
 import { cardFields } from '@/components/submissions/card-fields'
 import { ExportDialog } from '@/components/submissions/export-dialog'
@@ -62,6 +65,7 @@ import { formLanguage } from '@/schema/language'
 import { hasThaana } from '@yashau/thaana-react'
 
 const TABS: Tab[] = ['new', 'in_review', 'approved', 'rejected', 'all']
+const APPROVAL_WORDS: Record<string, string> = { approved: 'Approved', rejected: 'Rejected', stopped: 'Stopped' }
 
 /** The generated Checkbox draws a tick for every checked state; show a dash when only some
  * rows are selected (REVIEW P2-13). Styling at the call site, the component is unchanged. */
@@ -69,8 +73,8 @@ const INDETERMINATE =
   "data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary data-[state=indeterminate]:[&_svg]:hidden data-[state=indeterminate]:before:h-0.5 data-[state=indeterminate]:before:w-2 data-[state=indeterminate]:before:rounded-full data-[state=indeterminate]:before:bg-primary-foreground data-[state=indeterminate]:before:content-['']"
 
 /** The first status tab with submissions in it, else All. */
-function firstNonEmptyTab(counts: Record<Tab, number>): Tab {
-  return TABS.find((t) => t !== 'all' && counts[t] > 0) ?? 'all'
+function firstNonEmptyTab(counts: Record<Exclude<Tab, 'deleted'>, number>): Tab {
+  return TABS.find((t) => t !== 'all' && t !== 'deleted' && counts[t] > 0) ?? 'all'
 }
 const EMPTY = new Set<string>()
 
@@ -127,8 +131,10 @@ export function FormSubmissionsPage() {
     enabled: form.currentVersion !== null,
   })
   // Without a tab in the link, open the first tab that has submissions, else All, and keep it
-  // in the URL so later count changes don't move the view (REVIEW P3-10).
-  const tab: Tab = search.status ?? (stats.data ? firstNonEmptyTab(stats.data) : 'new')
+  // in the URL so later count changes don't move the view (REVIEW P3-10). Deleted is for owners.
+  const canRestore = form.role === 'owner'
+  const asked = search.status === 'deleted' && !canRestore ? 'all' : search.status
+  const tab: Tab = asked ?? (stats.data ? firstNonEmptyTab(stats.data) : 'new')
   const pickedTab = !!search.status || !!stats.data || stats.isError
   useEffect(() => {
     if (search.status || !stats.data) return
@@ -157,10 +163,12 @@ export function FormSubmissionsPage() {
           fields: fieldFilters,
           where: search.where,
           whereAny: search.whereAny,
+          sort: search.sort,
+          dir: search.dir,
         },
         tab,
       ),
-    [tab, search.q, search.from, search.to, search.version, fieldFilters, search.where, search.whereAny],
+    [tab, search.q, search.from, search.to, search.version, fieldFilters, search.where, search.whereAny, search.sort, search.dir],
   )
   // A link like ?open=<id> (from a notification email) opens that submission's page.
   useEffect(() => {
@@ -173,7 +181,12 @@ export function FormSubmissionsPage() {
     } as never)
   }, [search, navigate, form.id])
   // The view state a submission's page keeps, so Previous / Next walk this list.
-  const viewSearch = useMemo(() => listSearch({ ...search, status: search.status ?? tab }), [search, tab])
+  const viewSearch = useMemo(
+    () => listSearch({ ...search, status: tab === 'deleted' ? 'all' : (search.status ?? tab) }),
+    [search, tab],
+  )
+  const sortState: SortState = { sort: search.sort, dir: search.dir }
+  const setSort = (next: SortState) => setSearch(normalise(next))
   const openRow = (row: SubmissionSummary) =>
     void navigate({
       to: '/forms/$formId/submissions/$ref',
@@ -196,7 +209,11 @@ export function FormSubmissionsPage() {
   const moreActions = useRef<HTMLButtonElement>(null)
   const live = useQuery(versionQuery(form.id, form.currentVersion))
   const versions = useQuery({ ...versionsQuery(form.id), enabled: form.currentVersion !== null })
-  const { list, rows, total } = useSubmissionList(form.id, filters, form.currentVersion !== null && pickedTab)
+  const { list, rows, total } = useSubmissionList(
+    form.id,
+    filters,
+    form.currentVersion !== null && pickedTab && tab !== 'deleted',
+  )
   const showSkeleton = useDelayed(list.isPending)
   const schema = live.data?.schema
   const language = schema ? formLanguage(schema) : 'en'
@@ -209,6 +226,11 @@ export function FormSubmissionsPage() {
   } = useColumns(me.data?.id, form.id, fields, form.accessMode !== 'public')
   const [view, setView] = useSubmissionsView(me.data?.id, form.id)
   const shownOnCards = useMemo(() => cardFields(fields, form.cardFields), [fields, form.cardFields])
+  // Cards sorted by an answer they don't show get that answer too, so the order makes sense.
+  const cardsShown = useMemo(() => {
+    const sorted = fields.find((f) => f.id === search.sort)
+    return sorted && !shownOnCards.includes(sorted) ? [...shownOnCards, sorted] : shownOnCards
+  }, [fields, shownOnCards, search.sort])
   const canEdit = form.role !== 'viewer'
   const canDelete = form.role === 'owner'
   const sensitive = fields.filter((f) => f.sensitive).map((f) => f.label)
@@ -298,7 +320,15 @@ export function FormSubmissionsPage() {
       </PageContainer>
     )
 
-  const none = stats.data?.all === 0
+  const deletedCount = stats.data?.deleted ?? 0
+  const none = stats.data?.all === 0 && !(canRestore && deletedCount > 0) && tab !== 'deleted'
+  const tabs: Tab[] = canRestore && (deletedCount > 0 || tab === 'deleted') ? [...TABS, 'deleted'] : TABS
+  const approvals = rows.some((r) => r.approval)
+  const sortHead = (key: string, kind: Parameters<typeof SortableHead>[0]['kind'], label: ReactNode, className?: string) => (
+    <SortableHead sortKey={key} state={sortState} onSort={setSort} kind={kind} className={className}>
+      {label}
+    </SortableHead>
+  )
   return (
     <PageContainer>
       <div className="flex items-center justify-between gap-3">
@@ -319,7 +349,7 @@ export function FormSubmissionsPage() {
             triggerClassName="max-sm:hidden"
             returnFocus={moreActions}
           />
-          {!none && (
+          {!none && tab !== 'deleted' && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm">
@@ -399,9 +429,9 @@ export function FormSubmissionsPage() {
               data-scroll-x
             >
               <TabsList className="w-max justify-start" ref={tabList}>
-                {TABS.map((t) => (
-                  <TabsTrigger key={t} value={t} className="flex-none gap-1.5">
-                    {t === 'all' ? 'All' : STATUS_LABELS[t]}
+                {tabs.map((t) => (
+                  <TabsTrigger key={t} value={t} className={cn('flex-none gap-1.5', t === 'deleted' && 'ms-2')}>
+                    {t === 'all' ? 'All' : t === 'deleted' ? 'Deleted' : STATUS_LABELS[t]}
                     {stats.data && (
                       <Badge variant="secondary" className="tabular-nums">
                         {stats.data[t]}
@@ -413,6 +443,10 @@ export function FormSubmissionsPage() {
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
           </Tabs>
+          {tab === 'deleted' ? (
+            <DeletedSubmissions form={form} schema={schema} fields={shownOnCards} meId={me.data?.id} />
+          ) : (
+          <>
           {selected.size > 0 && canEdit ? (
             <BulkBar
               formId={form.id}
@@ -455,6 +489,17 @@ export function FormSubmissionsPage() {
                   versions={(versions.data ?? []).map((v) => v.version).sort((a, b) => b - a)}
                   value={search.version}
                   onChange={(version) => setSearch({ version })}
+                />
+                {/* Cards (and phones, which always show cards) sort from a menu; the table
+                    sorts from its headers. */}
+                <SortMenu
+                  state={sortState}
+                  onSort={setSort}
+                  fields={fields}
+                  language={language}
+                  showRespondent={showRespondent}
+                  showApproval={approvals}
+                  className={cn(view === 'table' && 'md:hidden', 'max-sm:size-8 max-sm:px-0 max-sm:[&>span]:sr-only')}
                 />
                 <div className="ms-auto flex items-center gap-2 max-md:hidden">
                   {view === 'table' ? (
@@ -546,17 +591,26 @@ export function FormSubmissionsPage() {
                           />
                         </TableHead>
                       )}
-                      <TableHead className={canEdit ? 'w-20' : 'w-20 ps-4'}>#</TableHead>
-                      <TableHead>Submitted</TableHead>
-                      <TableHead>Status</TableHead>
-                      {showRespondent && <TableHead>Respondent email</TableHead>}
-                      {cols.map((c) => (
-                        <TableHead key={c.id}>
-                          <bdi dir="auto" lang={language}>
-                            {c.label}
-                          </bdi>
-                        </TableHead>
-                      ))}
+                      {sortHead('_seq', 'number', '#', canEdit ? 'w-20' : 'w-20 ps-4')}
+                      {sortHead('_submitted', 'date', 'Submitted')}
+                      {sortHead('_status', 'status', 'Status')}
+                      {approvals && sortHead('_approval', 'status', 'Approval')}
+                      {showRespondent && sortHead('_respondent', 'text', 'Respondent email')}
+                      {cols.map((c) =>
+                        isSortable(c) ? (
+                          <SortableHead key={c.id} sortKey={c.id} state={sortState} onSort={setSort} kind={fieldKind(c)}>
+                            <bdi dir="auto" lang={language}>
+                              {c.label}
+                            </bdi>
+                          </SortableHead>
+                        ) : (
+                          <TableHead key={c.id}>
+                            <bdi dir="auto" lang={language}>
+                              {c.label}
+                            </bdi>
+                          </TableHead>
+                        ),
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -587,11 +641,13 @@ export function FormSubmissionsPage() {
                         <TableCell className={canEdit ? 'tabular-nums' : 'ps-4 tabular-nums'}>{row.seq}</TableCell>
                         <TableCell className="tabular-nums text-muted-foreground">{formatDateTime(row.submittedAt)}</TableCell>
                         <TableCell>
-                          <span className="inline-flex items-center gap-2">
-                            <SubmissionStatusBadge status={row.status} />
-                            <ApprovalStep row={row} />
-                          </span>
+                          <SubmissionStatusBadge status={row.status} />
                         </TableCell>
+                        {approvals && (
+                          <TableCell>
+                            <ApprovalStep row={row} />
+                          </TableCell>
+                        )}
                         {showRespondent && (
                           <TableCell>
                             {row.respondentEmail ? (
@@ -610,7 +666,7 @@ export function FormSubmissionsPage() {
                     ))}
                     {!rows.length && (
                       <TableRow>
-                        <TableCell colSpan={(canEdit ? 4 : 3) + (showRespondent ? 1 : 0) + cols.length} className="py-8 text-center text-muted-foreground">
+                        <TableCell colSpan={(canEdit ? 4 : 3) + (approvals ? 1 : 0) + (showRespondent ? 1 : 0) + cols.length} className="py-8 text-center text-muted-foreground">
                           No submissions match these filters.{' '}
                           <Button variant="link" onClick={clearFilters}>
                             Clear filters
@@ -628,7 +684,7 @@ export function FormSubmissionsPage() {
                     rows={rows}
                     schema={schema}
                     fields={fields}
-                    shown={shownOnCards}
+                    shown={cardsShown}
                     canSelect={canEdit}
                     selected={selected}
                     onToggle={toggle}
@@ -659,6 +715,8 @@ export function FormSubmissionsPage() {
               )}
             </>
           )}
+          </>
+          )}
         </>
       )}
       {exporting && (
@@ -676,10 +734,12 @@ export function FormSubmissionsPage() {
   )
 }
 
-/** "Step 1 of 2" next to the status while an approval runs (APPROVALS-SCREENS 3.1). */
+/** "Step 1 of 2" while an approval runs (APPROVALS-SCREENS 3.1), else how it ended. */
 function ApprovalStep({ row }: { row: SubmissionSummary }) {
   const a = row.approval
-  if (a?.state !== 'pending' || !a.step) return null
+  if (!a) return <span className="text-muted-foreground">-</span>
+  if (a.state !== 'pending' || !a.step)
+    return <span className="text-xs whitespace-nowrap text-muted-foreground">{APPROVAL_WORDS[a.state] ?? '-'}</span>
   return (
     <span className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">
       Step {a.step} of {a.total}

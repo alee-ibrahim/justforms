@@ -286,10 +286,11 @@ async def purge_pending_uploads(ctx: dict[str, Any]) -> int:
 
 
 async def nightly_cleanup(ctx: dict[str, Any]) -> None:
-    """Nightly: erase deleted and expired submissions, drop expired export files."""
+    """Nightly: empty the trash (forms and submissions past JUSTFORMS_TRASH_DAYS), erase
+    submissions past their form's retention, drop expired export files."""
     storage = get_storage()
     async with get_sessionmaker()() as db:
-        erased = await retention.purge(db, storage)
+        erased = await retention.purge(db, storage, trash_days=get_settings().trash_days)
         exports = await purge_expired_exports(db, storage)
         deliveries = await webhooks.purge_old(db, datetime.now(UTC))
         ai_messages = await ai_service.purge_old(db)

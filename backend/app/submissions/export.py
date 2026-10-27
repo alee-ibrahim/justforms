@@ -51,6 +51,7 @@ from app.schemas.form import (
 )
 from app.services.users import audit
 from app.storage import Storage
+from app.submissions import sort as sorting
 from app.submissions import version_map
 from app.submissions.query import ListFilters, apply_filters
 
@@ -284,16 +285,34 @@ async def _build(db: AsyncSession, storage: Storage, settings: Settings, export:
     for rep, ws in rep_sheets:
         _header(ws, ["Submission #", "Row"] + [f"{c.label} ({c.id})" for c in rep.columns])
 
+    # Oldest first by reference number, or the table's order when the export asked for it
+    # ("Export in the current order"): then the ids are read in that order first and the rows
+    # fetched batch by batch.
+    ordered: list[uuid.UUID] | None = None
+    if filters.sort is not None:
+        try:
+            order = sorting.order_by(filters.sort, filters.dir, cat, icu=await sorting.has_icu(db))
+        except sorting.SortError:
+            order = []
+        if order:
+            ids_in_order = base.with_only_columns(Submission.id).order_by(*order)
+            ordered = list((await db.scalars(ids_in_order)).all())
     last_seq = 0
     done = 0
+    chunk: list[uuid.UUID] = []
     while True:
-        batch = (
-            await db.scalars(
-                base.where(Submission.seq > last_seq).order_by(Submission.seq).limit(BATCH)
-            )
-        ).all()
-        if not batch:
-            break
+        if ordered is not None:
+            chunk = ordered[done : done + BATCH]
+            if not chunk:
+                break
+            found = await db.scalars(select(Submission).where(Submission.id.in_(chunk)))
+            by_id = {s.id: s for s in found.all()}
+            batch = [by_id[i] for i in chunk if i in by_id]
+        else:
+            query = base.where(Submission.seq > last_seq).order_by(Submission.seq).limit(BATCH)
+            batch = list((await db.scalars(query)).all())
+            if not batch:
+                break
         ids = [s.id for s in batch]
         sigs: dict[uuid.UUID, dict[str, Signature]] = {}
         for sig in (
@@ -330,8 +349,9 @@ async def _build(db: AsyncSession, storage: Storage, settings: Settings, export:
                             *(cell_value(c, row.get(c.id), sub, ctx) for c in rep.columns),
                         ]
                     )
-        last_seq = batch[-1].seq
-        done += len(batch)
+        if batch:
+            last_seq = batch[-1].seq
+        done += len(chunk) if ordered is not None else len(batch)
         export.rows_done = done
         await db.commit()
 

@@ -51,6 +51,8 @@ function useShortcuts(store: BuilderStore, onPublish: () => void) {
         return
       }
       if (typing || inDialog) return // native text undo and typing win inside fields
+      // Undo and redo only on the builder: elsewhere the draft isn't on screen.
+      if (!editing) return
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault()
         void (e.shiftKey ? store.redo() : store.undo())

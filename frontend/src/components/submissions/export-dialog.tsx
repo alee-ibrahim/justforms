@@ -1,12 +1,14 @@
 /** "Export to Excel" (PHASE-3-SCREENS 7): starts a worker job and shows its progress. */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { DownloadIcon, TriangleAlertIcon } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Field, FieldLabel } from '@/components/ui/field'
 import { Progress } from '@/components/ui/progress'
 import { api, type ListFilters } from '@/lib/api'
 
@@ -26,7 +28,13 @@ export function ExportDialog({
   /** Labels of sensitive questions in the form. */
   sensitive: string[]
 }) {
-  const start = useMutation({ mutationFn: () => api.startExport(formId, filters) })
+  // Oldest first by reference number, unless asked to keep the table's order.
+  const [inOrder, setInOrder] = useState(false)
+  const orderId = useId()
+  const { sort, dir, ...rest } = filters
+  const start = useMutation({
+    mutationFn: () => api.startExport(formId, inOrder && sort ? { ...rest, sort, dir } : rest),
+  })
   const jobId = start.data?.id
   const job = useQuery({
     queryKey: ['export', jobId],
@@ -82,6 +90,14 @@ export function ExportDialog({
               <bdi dir="auto">{sensitive.join(', ')}</bdi>. Store the file somewhere safe.
             </AlertDescription>
           </Alert>
+        )}
+        {sort && !status && (
+          <Field orientation="horizontal">
+            <Checkbox id={orderId} checked={inOrder} onCheckedChange={(on) => setInOrder(on === true)} />
+            <FieldLabel htmlFor={orderId} className="font-normal">
+              Keep the order the table is sorted in (otherwise oldest first)
+            </FieldLabel>
+          </Field>
         )}
         {status && status !== 'failed' && (
           <div className="flex flex-col gap-2" aria-live="polite">

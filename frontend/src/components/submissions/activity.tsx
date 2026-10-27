@@ -1,5 +1,6 @@
 /** Activity log of a submission, newest first (PHASE-3-SCREENS 2). */
 import {
+  ArchiveRestoreIcon,
   ArrowRightLeftIcon,
   BanIcon,
   CheckIcon,
@@ -36,6 +37,7 @@ const ICONS = {
   exported: FileSpreadsheetIcon,
   viewed: EyeIcon,
   deleted: TrashIcon,
+  restored: ArchiveRestoreIcon,
   approval_requested: MailIcon,
   approval_decided: CheckIcon,
   approval_waiting: TriangleAlertIcon,
@@ -77,6 +79,8 @@ function title(ev: SubmissionEvent): React.ReactNode {
       return `${who} viewed sensitive answers`
     case 'deleted':
       return `${who} deleted this submission`
+    case 'restored':
+      return `${who} restored this submission`
     case 'approval_requested':
       if (ev.payload.approvers === 'editors') return <>Approval requested from people with edit access{stepOf(ev)}</>
       return (

@@ -8,7 +8,7 @@ import type { SubmissionsSearch, Tab } from './search'
 
 export function listFilters(search: SubmissionsSearch, tab: Tab): ListFilters {
   return {
-    status: tab === 'all' ? undefined : tab,
+    status: tab === 'all' || tab === 'deleted' ? undefined : tab,
     q: search.q,
     from: search.from,
     to: search.to,
@@ -16,6 +16,8 @@ export function listFilters(search: SubmissionsSearch, tab: Tab): ListFilters {
     fields: search.fields ?? [],
     where: search.where,
     whereAny: search.whereAny,
+    sort: search.sort,
+    dir: search.sort ? search.dir : undefined,
   }
 }
 

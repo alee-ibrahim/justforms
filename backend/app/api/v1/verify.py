@@ -36,6 +36,10 @@ async def _by_token(db: DbDep, token: str) -> Submission:
     sub = await db.scalar(select(Submission).where(Submission.verify_token == token))
     if sub is None or sub.deleted_at is not None or sub.pdf_sha256 is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
+    # A form in the trash takes its submissions with it (DESIGN 14.5).
+    form = await db.get(FormRecord, sub.form_id)
+    if form is None or form.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")
     return sub
 
 

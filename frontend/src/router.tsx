@@ -21,6 +21,7 @@ import { FormSettingsPage } from '@/routes/form-settings'
 import { FormSharePage } from '@/routes/form-share'
 import { FormSubmissionsPage } from '@/routes/form-submissions'
 import { FormsPage } from '@/routes/forms'
+import { FormsTrashPage } from '@/routes/forms-trash'
 import { JotformImportPage } from '@/routes/jotform-import'
 import { LoginPage } from '@/routes/login'
 import { InvitePage } from '@/routes/invite'
@@ -98,6 +99,12 @@ const formsRoute = createRoute({
   path: '/forms',
   validateSearch: validateFormsSearch,
   component: FormsPage,
+})
+
+const formsTrashRoute = createRoute({
+  getParentRoute: () => authedRoute,
+  path: '/forms/trash',
+  component: FormsTrashPage,
 })
 
 const jotformImportRoute = createRoute({
@@ -204,6 +211,7 @@ const routeTree = rootRoute.addChildren([
   authedRoute.addChildren([
     indexRoute,
     formsRoute,
+    formsTrashRoute,
     jotformImportRoute,
     orgSettingsRoute.addChildren([brandingSettingsRoute, formThemeSettingsRoute, peopleSettingsRoute]),
     formRoute.addChildren([

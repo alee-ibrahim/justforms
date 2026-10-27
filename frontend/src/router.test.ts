@@ -27,6 +27,7 @@ function meta(oidcAutoRedirect = true): Meta {
       captcha: 'none',
       captchaBusyThreshold: 1000,
     },
+    trashDays: 30,
     thaanaFontCssUrl: '',
   }
 }

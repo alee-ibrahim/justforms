@@ -52,6 +52,11 @@ timezone: UTC
 trustedProxies: []
 # JUSTFORMS_MAX_UPLOAD_MB: largest single upload (nginx accepts up to 50).
 maxUploadMb: 25
+# JUSTFORMS_TRASH_DAYS: deleted forms and submissions stay in the trash (restorable) this many
+# days, then the worker erases them with their files. A form's retention period still wins
+# when it is shorter.
+trash:
+  days: 30
 # JUSTFORMS_THAANA_FONT_CSS_URL: stylesheet that provides Faruma. Default: the public dvfonts CDN
 # (a third party that sees visitors' IP addresses). "/fonts/faruma.css" with
 # frontend.fontsConfigMap self-hosts it; "" relies on the bundled Noto Sans Thaana only.
