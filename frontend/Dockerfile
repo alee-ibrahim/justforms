@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1
-FROM node:24-alpine AS build
+# The build stage runs on the build host (the SPA is the same on every platform), so only the
+# small nginx stage runs under emulation when building other architectures.
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 # pnpm is provisioned by corepack from the "packageManager" field in package.json.
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable

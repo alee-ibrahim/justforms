@@ -1,0 +1,20 @@
+# Use the published release images instead of building from source.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.release.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.release.yml up -d
+#
+# JUSTFORMS_VERSION in .env picks the release (e.g. 0.4.0, or 0.4 for the newest patch of 0.4).
+# Pin a full version on a real install and change it on purpose to upgrade: the migrate job
+# applies the new release's database migrations on `up`. Releases and how to verify their
+# signatures: docs/deployment.md#install-from-releases
+services:
+  migrate:
+    build: !reset null
+    image: ghcr.io/alee-ibrahim/justforms-backend:${JUSTFORMS_VERSION:-latest}
+  backend:
+    image: ghcr.io/alee-ibrahim/justforms-backend:${JUSTFORMS_VERSION:-latest}
+  worker:
+    image: ghcr.io/alee-ibrahim/justforms-backend:${JUSTFORMS_VERSION:-latest}
+  frontend:
+    build: !reset null
+    image: ghcr.io/alee-ibrahim/justforms-frontend:${JUSTFORMS_VERSION:-latest}

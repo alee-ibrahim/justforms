@@ -61,11 +61,16 @@ docker compose run --rm migrate python -m app.cli create-admin --email you@examp
 Open http://localhost:8080 and sign in with that email; the one-time code arrives in Mailpit at
 http://localhost:8025.
 
+To run a published release instead of building, add `-f docker-compose.release.yml` and set
+`JUSTFORMS_VERSION` in `.env`. On Kubernetes:
+`helm install justforms oci://ghcr.io/alee-ibrahim/charts/justforms --version <version>`.
+Releases are signed; see [Install from releases](docs/deployment.md#install-from-releases).
+
 ## Documentation
 
 - [Features](docs/features.md): a full tour, with screenshots
 - [Configuration](docs/configuration.md): every `JUSTFORMS_*` setting
-- [Deployment](docs/deployment.md): Docker Compose, tunnels, Helm, upgrades and backups
+- [Deployment](docs/deployment.md): releases, Docker Compose, tunnels, Helm, upgrades and backups
 - [Development](docs/development.md): local setup, tests, project structure, contributing
 - [Security](docs/security.md): security model and verifying signed PDFs
 - [Contributing](CONTRIBUTING.md): how to report issues and send pull requests

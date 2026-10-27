@@ -18,10 +18,10 @@ clusterDomain: cluster.local
 
 image:
   backend:
-    repository: ghcr.io/example/justforms-backend
+    repository: ghcr.io/alee-ibrahim/justforms-backend
     tag: ""  # defaults to .Chart.AppVersion
   frontend:
-    repository: ghcr.io/example/justforms-frontend
+    repository: ghcr.io/alee-ibrahim/justforms-frontend
     tag: ""
   pullPolicy: IfNotPresent
 

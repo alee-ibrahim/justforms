@@ -19,7 +19,7 @@ kubectl -n justforms create secret generic justforms \
   --from-literal=JUSTFORMS_DATABASE_URL='postgresql+asyncpg://justforms:change-me@postgres:5432/justforms' \
   --from-literal=JUSTFORMS_REDIS_URL='redis://redis:6379/0'
 
-helm install justforms deploy/helm/justforms -n justforms \
+helm install justforms oci://ghcr.io/alee-ibrahim/charts/justforms --version <version> -n justforms \
   --set publicUrl=https://forms.example.org \
   --set ingress.enabled=true
 
@@ -27,6 +27,11 @@ helm install justforms deploy/helm/justforms -n justforms \
 # first admin.
 kubectl -n justforms exec deploy/justforms-backend -- python -m app.cli create-admin --email you@example.org
 ```
+
+Released charts are published to `oci://ghcr.io/alee-ibrahim/charts/justforms` with the chart
+version equal to the app version; the image tags default to it. From a checkout use
+`deploy/helm/justforms` and set `image.*.tag`. Verifying signatures:
+[docs/deployment.md](../../../docs/deployment.md#install-from-releases).
 
 `ci/local-values.yaml` and `ci/s3-values.yaml` are complete examples (placeholders only) that
 exercise every mode; `just helm-lint` lints and renders both.
@@ -236,8 +241,8 @@ unless noted.
 | `nameOverride`, `fullnameOverride` | `""` | Resource naming |
 | `commonLabels` | `{}` | Added to every resource |
 | `clusterDomain` | `cluster.local` | Used in the frontend's `BACKEND_URL` |
-| `image.backend.repository` / `.tag` | `ghcr.io/example/justforms-backend` / appVersion | Backend, worker, migrate |
-| `image.frontend.repository` / `.tag` | `ghcr.io/example/justforms-frontend` / appVersion | Frontend |
+| `image.backend.repository` / `.tag` | `ghcr.io/alee-ibrahim/justforms-backend` / appVersion | Backend, worker, migrate |
+| `image.frontend.repository` / `.tag` | `ghcr.io/alee-ibrahim/justforms-frontend` / appVersion | Frontend |
 | `image.pullPolicy` | `IfNotPresent` | |
 | `imagePullSecrets` | `[]` | |
 | `serviceAccount.create` / `.name` / `.annotations` / `.automountServiceAccountToken` | `true` / `""` / `{}` / `false` | |
