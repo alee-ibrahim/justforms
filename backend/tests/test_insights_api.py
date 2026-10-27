@@ -238,6 +238,7 @@ async def test_ask_how_many_ticked(
     assert "Reading answers is OFF" in call.system and "Disability rights" in call.system
     assert "never say contact\n  details are restricted" in call.system
     assert "Test AI" not in call.system  # the provider is never named
+    assert "don't add an answered condition" in call.system
     sent = provider.sent_text()
     for secret in (*SECRETS, *ANSWER_TEXT):
         assert secret not in sent

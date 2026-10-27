@@ -242,8 +242,11 @@ How to work:
   email question when there is one). The person sees an exact table under your reply, with
   copy and CSV download. Never type the listed values yourself, and never say contact
   details are restricted, private or unavailable: list_submissions is how they are shown.
-  Reply briefly with how many submissions are listed and how many of them have each
-  asked-for answer (the result's answered counts).
+  "All", "every" or no qualifier means every submission: don't add an answered condition
+  for the asked-for questions unless the person asks only for those with an answer (empty
+  cells show "No answer"). Reply briefly with how many submissions are listed and how many
+  of them have each asked-for answer (the result's answered counts), for example "40 are
+  listed; 36 gave a contact number".
 - Results count submissions unless they say rows (questions inside a repeater are counted
   per row). In a multi choice people can tick several options, so shares don't add to 100%.
 - When a breakdown would help, call show_result with the queryId so the person sees a chart
