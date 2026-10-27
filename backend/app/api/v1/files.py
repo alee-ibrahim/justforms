@@ -16,8 +16,8 @@ from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import RedirectResponse, Response, StreamingResponse
 
 from app.auth.deps import CurrentUser, DbDep, StorageDep
-from app.models import FileRecord, FileState, FormRecord
-from app.permissions import effective_form_role
+from app.models import FileRecord, FileState, FormRecord, FormRole, Submission
+from app.permissions import effective_form_role, has_form_role
 
 router = APIRouter(tags=["files"])
 
@@ -34,6 +34,10 @@ async def load_file(db: DbDep, user: CurrentUser, file_id: uuid.UUID) -> FileRec
     form = await db.get(FormRecord, rec.form_id) if rec else None
     role = await effective_form_role(db, user, form) if form and form.deleted_at is None else None
     if rec is None or role is None or rec.state != FileState.ATTACHED:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "file_not_found")
+    # Files of a submission in the trash follow the trash: owners only (DESIGN 14.5).
+    sub = await db.get(Submission, rec.submission_id) if rec.submission_id else None
+    if sub is not None and sub.deleted_at is not None and not has_form_role(role, FormRole.OWNER):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "file_not_found")
     return rec
 
