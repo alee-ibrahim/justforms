@@ -76,6 +76,8 @@ external secrets operator").
 - Answer validation also has twins (`backend/app/validation/answers.py`, `frontend/src/renderer/validation.ts`)
   returning the same problem codes; change both and add a case to `spec/validation/answers.json`
   (run by pytest and vitest).
+- ID-number presets are data in `backend/app/schemas/id_presets.json` (exported to `spec/id-presets.v1.json`
+  and the frontend by `just spec`); a preset's pattern and normalising run in both validation twins.
 - Form text is plain strings in the form's language (`settings.language`), never `{en, dv}` objects;
   field/page keys are snake_case and unique per form.
 - Backend config comes from env vars with the `JUSTFORMS_` prefix (`app/config.py`). No secrets in the repo.

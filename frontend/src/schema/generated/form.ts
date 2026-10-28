@@ -91,6 +91,7 @@ export interface Page {
 export interface ShortTextField {
   description?: string | null
   id: string
+  idPreset?: string | null
   inputScript?: InputScript
   kind: 'field'
   label: string

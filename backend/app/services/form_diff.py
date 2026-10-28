@@ -70,6 +70,7 @@ PROPS: dict[str, tuple[str, str]] = {
     "maxLength": ("Max length", "value"),
     "pattern": ("Pattern", "code"),
     "patternMessage": ("Message when it doesn't match", "text"),
+    "idPreset": ("ID format", "value"),
     "rows": ("Rows", "value"),
     "inputScript": ("Typing", "script"),
     "min": ("Min", "value"),

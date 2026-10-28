@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from typing import Literal
 
+from app.schemas.id_presets import presets
+
 Mode = Literal["create", "edit", "import"]
 
 FIELD_CATALOGUE = """\
 Question types (kind "field"; every question has id, type, label, and optional description,
 placeholder, required, width "full"|"half", sensitive, prefillParam):
 - short_text: maxLength, pattern (regex), patternMessage, inputScript auto|latin|thaana
+- ID number (a short_text with idPreset): use it for identity card or national ID numbers.
+  idPreset is a preset id (ID_PRESETS) whose pattern, message and length apply, or "custom"
+  with your own pattern and patternMessage. Mark it "sensitive": true.
 - long_text: maxLength, rows (2-30), inputScript
 - email; phone (defaultCountry, two letters); time
 - number: min, max, step, integer (true for whole numbers)
@@ -29,6 +34,9 @@ Other elements:
 Every element may have visibleIf; questions may have requiredIf. Page visibleIf and page
 navigation may only read questions on earlier pages, navigation only jumps forward, and
 logic must never form a cycle (a question that depends on itself through other rules)."""
+
+ID_PRESETS = "; ".join(f'"{p.id}" ({p.label}, e.g. {p.example})' for p in presets().values())
+FIELD_CATALOGUE = FIELD_CATALOGUE.replace("(ID_PRESETS)", f"({ID_PRESETS})")
 
 RULES = """\
 How to work:

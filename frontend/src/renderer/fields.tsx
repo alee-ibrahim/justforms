@@ -19,6 +19,7 @@ import type {
 } from '@/schema'
 
 import { type AnswerPath, controlId, useRenderer } from './context'
+import { idPresetOf, normalizeWith } from './id-presets'
 import { leaveGroup } from './util'
 import { ltrRun, MSG } from './messages'
 import { En, Msg } from './msg'
@@ -80,20 +81,25 @@ function TextControl({
   describedBy,
 }: ControlProps & { field: ShortTextField | LongTextField }) {
   const { ctx, value, set, blur } = useAnswer(path)
-  const script = field.inputScript ?? 'auto'
+  // An ID number: Latin typing (never the Thaana keyboard), normalised as it is typed.
+  const preset = idPresetOf(field)
+  const script = preset ? 'latin' : (field.inputScript ?? 'auto')
   const text = typeof value === 'string' ? value : ''
   const dir = script === 'latin' ? 'ltr' : script === 'thaana' ? 'rtl' : undefined
   const common = {
     id: controlId(path),
     dir,
     value: text,
-    placeholder: field.placeholder ?? undefined,
+    placeholder: field.placeholder || preset?.placeholder || undefined,
     'aria-invalid': invalid || undefined,
     'aria-describedby': describedBy,
-    onChange: (e: { target: { value: string } }) => set(e.target.value === '' ? undefined : e.target.value),
+    onChange: (e: { target: { value: string } }) => {
+      const next = normalizeWith(preset, e.target.value) as string
+      set(next === '' ? undefined : next)
+    },
     onBlur: blur,
   }
-  const max = field.maxLength
+  const max = preset ? preset.maxLength : field.maxLength
   const counter =
     max && text.length >= max * 0.8 ? (
       <p className="text-sm text-muted-foreground tabular-nums" aria-live="polite">
@@ -107,7 +113,13 @@ function TextControl({
         {field.type === 'long_text' ? (
           <Textarea {...common} rows={field.rows ?? 4} className="min-h-28 text-base md:text-base" />
         ) : (
-          <Input {...common} autoComplete={autoComplete(field.id)} className={CONTROL} />
+          <Input
+            {...common}
+            {...(preset
+              ? { autoComplete: 'off', autoCapitalize: 'characters', autoCorrect: 'off', spellCheck: false }
+              : { autoComplete: autoComplete(field.id) })}
+            className={cn(CONTROL, preset && 'tabular-nums tracking-wide')}
+          />
         )}
         {counter}
       </>

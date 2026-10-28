@@ -2,6 +2,7 @@
 // (itself exported from backend/app/schemas/form.py):
 //   src/schema/generated/form-schema.v1.json  verbatim copy, used for zod validation
 //   src/schema/generated/form.ts              TypeScript types (json-schema-to-typescript)
+//   src/schema/generated/id-presets.v1.json   verbatim copy of spec/id-presets.v1.json
 // Usage: pnpm gen:schema            write files
 //        pnpm gen:schema --check    exit 1 if any file is stale (CI)
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
@@ -56,9 +57,12 @@ const types = await compile(stripTitles(spec, true), 'JustFormsForm', {
   style: { semi: false, singleQuote: true, printWidth: 100 },
 })
 
+const presetsText = (await readFile(path.resolve(here, '../../spec/id-presets.v1.json'), 'utf8')).replaceAll('\r\n', '\n')
+
 const outputs = {
   'form-schema.v1.json': specText,
   'form.ts': types,
+  'id-presets.v1.json': presetsText,
 }
 
 const check = process.argv.includes('--check')

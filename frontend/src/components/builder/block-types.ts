@@ -6,6 +6,7 @@ import {
   EyeOffIcon,
   HashIcon,
   HeadingIcon,
+  IdCardIcon,
   type LucideIcon,
   MinusIcon,
   PenLineIcon,
@@ -39,6 +40,7 @@ export const BLOCK_TYPES: BlockTypeInfo[] = [
   { type: 'short_text', label: 'Short answer', icon: RectangleHorizontalIcon, group: 'Text', keywords: 'text name line input' },
   { type: 'long_text', label: 'Long answer', icon: TextIcon, group: 'Text', keywords: 'paragraph textarea comment multi line' },
   { type: 'email', label: 'Email', icon: AtSignIcon, group: 'Text', keywords: 'mail address' },
+  { type: 'id_number', label: 'ID number', icon: IdCardIcon, group: 'Text', keywords: 'id card identity national passport nid' },
   { type: 'phone', label: 'Phone', icon: PhoneIcon, group: 'Text', keywords: 'tel telephone mobile number' },
   { type: 'number', label: 'Number', icon: HashIcon, group: 'Text', keywords: 'amount age integer digits' },
   { type: 'single_choice', label: 'Single choice', icon: CircleDotIcon, group: 'Choice', keywords: 'radio dropdown select option one' },
@@ -60,7 +62,7 @@ export const BLOCK_TYPES: BlockTypeInfo[] = [
 export const BLOCK_GROUPS = ['Text', 'Choice', 'Date and time', 'Files', 'Layout', 'Other'] as const
 
 export function blockType(el: Element): BlockType {
-  if (el.kind === 'field') return el.type
+  if (el.kind === 'field') return el.type === 'short_text' && el.idPreset ? 'id_number' : el.type
   if (el.kind === 'content') return el.contentType === 'image' ? 'paragraph' : el.contentType
   return el.kind
 }

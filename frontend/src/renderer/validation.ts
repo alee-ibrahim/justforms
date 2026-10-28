@@ -7,6 +7,7 @@
 import { isMissing } from '@/logic/engine'
 import type { FieldElement } from '@/schema'
 
+import { idPresetOf, normalizeWith } from './id-presets'
 import { fmt, MSG as msgs } from './messages'
 
 export interface FileRef {
@@ -85,11 +86,17 @@ export function checkAnswer(
     case 'short_text':
     case 'long_text': {
       if (typeof value !== 'string') return problem('invalid')
-      const cap = field.maxLength ?? (field.type === 'short_text' ? SHORT_TEXT_CAP : LONG_TEXT_CAP)
-      if (value.length > cap) return problem('too_long', { max: cap })
-      if (field.type === 'short_text' && field.pattern) {
+      const preset = idPresetOf(field)
+      const text = normalizeWith(preset, value) as string
+      if (preset && text === '') return required ? { code: 'required' } : null
+      const cap =
+        (preset ? preset.maxLength : field.maxLength) ??
+        (field.type === 'short_text' ? SHORT_TEXT_CAP : LONG_TEXT_CAP)
+      if (text.length > cap) return problem('too_long', { max: cap })
+      const pattern = preset ? preset.pattern : field.type === 'short_text' ? field.pattern : null
+      if (pattern) {
         try {
-          if (!new RegExp(field.pattern, 'u').test(value)) return problem('pattern')
+          if (!new RegExp(pattern, 'u').test(text)) return problem('pattern')
         } catch {
           return null // an invalid pattern is a builder problem, not the respondent's
         }
@@ -210,7 +217,11 @@ export function problemMessage(field: FieldElement, p: Problem): string {
     case 'too_long':
       return fmt(msgs.tooLong, v)
     case 'pattern':
-      return (field.type === 'short_text' && field.patternMessage?.trim()) || msgs.checkFormat
+      return (
+        idPresetOf(field)?.message ||
+        (field.type === 'short_text' && field.patternMessage?.trim()) ||
+        msgs.checkFormat
+      )
     case 'email':
     case 'number':
     case 'integer':

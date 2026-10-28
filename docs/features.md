@@ -42,6 +42,13 @@ Thaana (SIL OFL) is bundled; Faruma loads from a font service by default and can
 - Question types: short and long answers, email, phone, number, single and multi choice,
   yes/no, rating, date, time, file upload and drawn signature; plus sections, repeating groups,
   headings and text blocks.
+- **ID number**: a short answer with an identity-number format chosen in the inspector. Presets
+  (for example *Maldives national ID card*, `A123456`) bring the pattern, placeholder, error
+  message and length, remove spaces and use capital letters while the respondent types (and
+  again on the server), always type Latin, and start out marked sensitive. **Custom** uses your
+  own pattern, placeholder and message. Presets are data
+  (`backend/app/schemas/id_presets.json`), so more countries are one entry each. Exports,
+  Insights and Ask treat the answers as text.
 - The canvas looks exactly like what respondents will see.
 - Autosave, undo and redo, live preview, and published versions: respondents always fill the
   version you published, while you keep editing the draft.

@@ -1,5 +1,5 @@
 {
-  "description": "Per-answer validation shared by the renderer (frontend/src/renderer/validation.ts) and the server (backend/app/validation/answers.py). Each case checks one answer of one visible field (kind, id and label are filled in); `required` defaults to false; a missing `value` means unanswered. `today` resolves relative date limits. `expect` is null or {code, params?}.",
+  "description": "Per-answer validation shared by the renderer (frontend/src/renderer/validation.ts) and the server (backend/app/validation/answers.py). Each case checks one answer of one visible field (kind, id and label are filled in); `required` defaults to false; a missing `value` means unanswered. `today` resolves relative date limits. `expect` is null or {code, params?}. An optional `normalized` is the answer as stored after normalising (ID-number presets strip spaces and upper-case); both sides check it with their normalize function.",
   "today": "2026-10-23",
   "cases": [
     {
@@ -1009,6 +1009,144 @@
       "expect": {
         "code": "invalid"
       }
+    },
+    {
+      "name": "ID card number ok",
+      "field": {
+        "type": "short_text",
+        "idPreset": "mv_national_id"
+      },
+      "value": "A123456",
+      "expect": null,
+      "normalized": "A123456"
+    },
+    {
+      "name": "ID card number lower case and spaces are normalised",
+      "field": {
+        "type": "short_text",
+        "idPreset": "mv_national_id"
+      },
+      "value": " a123 456 ",
+      "expect": null,
+      "normalized": "A123456"
+    },
+    {
+      "name": "ID card number with a tab inside",
+      "field": {
+        "type": "short_text",
+        "idPreset": "mv_national_id"
+      },
+      "value": "A12\t3456",
+      "expect": null,
+      "normalized": "A123456"
+    },
+    {
+      "name": "ID card number wrong letter",
+      "field": {
+        "type": "short_text",
+        "idPreset": "mv_national_id"
+      },
+      "value": "B123456",
+      "expect": {
+        "code": "pattern"
+      },
+      "normalized": "B123456"
+    },
+    {
+      "name": "ID card number too few digits",
+      "field": {
+        "type": "short_text",
+        "idPreset": "mv_national_id"
+      },
+      "value": "A12345",
+      "expect": {
+        "code": "pattern"
+      },
+      "normalized": "A12345"
+    },
+    {
+      "name": "ID card number too long",
+      "field": {
+        "type": "short_text",
+        "idPreset": "mv_national_id"
+      },
+      "value": "A1234567",
+      "expect": {
+        "code": "too_long",
+        "params": {
+          "max": 7
+        }
+      },
+      "normalized": "A1234567"
+    },
+    {
+      "name": "ID card number ignores the question's own pattern",
+      "field": {
+        "type": "short_text",
+        "idPreset": "mv_national_id",
+        "pattern": "^x$",
+        "maxLength": 2
+      },
+      "value": "A123456",
+      "expect": null,
+      "normalized": "A123456"
+    },
+    {
+      "name": "ID card number of spaces only is missing",
+      "field": {
+        "type": "short_text",
+        "idPreset": "mv_national_id"
+      },
+      "value": "   ",
+      "required": true,
+      "expect": {
+        "code": "required"
+      },
+      "normalized": ""
+    },
+    {
+      "name": "ID card number Thaana digits rejected",
+      "field": {
+        "type": "short_text",
+        "idPreset": "mv_national_id"
+      },
+      "value": "A١٢٣٤٥٦",
+      "expect": {
+        "code": "pattern"
+      },
+      "normalized": "A١٢٣٤٥٦"
+    },
+    {
+      "name": "custom ID uses the question's pattern",
+      "field": {
+        "type": "short_text",
+        "idPreset": "custom",
+        "pattern": "^[0-9]{4}$"
+      },
+      "value": "12a4",
+      "expect": {
+        "code": "pattern"
+      },
+      "normalized": "12a4"
+    },
+    {
+      "name": "custom ID is not normalised",
+      "field": {
+        "type": "short_text",
+        "idPreset": "custom"
+      },
+      "value": "ab 1",
+      "expect": null,
+      "normalized": "ab 1"
+    },
+    {
+      "name": "plain short text is not normalised",
+      "field": {
+        "type": "short_text"
+      },
+      "value": " ab ",
+      "expect": null,
+      "normalized": " ab "
     }
   ]
 }

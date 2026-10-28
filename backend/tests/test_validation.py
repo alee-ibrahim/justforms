@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.schemas.form import FieldElement, Form
-from app.validation.answers import Problem, check_answer, validate_submission
+from app.validation.answers import Problem, check_answer, normalize_answer, validate_submission
 from tests.conftest import RecordingQueue
 from tests.helpers import admin_client, field, publish
 
@@ -33,6 +33,8 @@ def test_shared_answer_cases(case: dict[str, Any]) -> None:
         assert got is None
     else:
         assert got == Problem(want["code"], want.get("params", {}))
+    if "normalized" in case:
+        assert normalize_answer(f, case.get("value")) == case["normalized"]
 
 
 def test_relative_dates_allow_a_day_of_time_zone_slack() -> None:
@@ -157,3 +159,53 @@ async def test_public_submit_rejects_tampered_answers(
         url, json=pub.submit_body({"email": "a@example.org", "track": "tech", "when": "2026-02-01"})
     )
     assert res.status_code == 201, res.text
+
+
+def test_id_numbers_are_stored_normalised_even_in_repeater_rows() -> None:
+    form = Form.model_validate(
+        {
+            "settings": {"title": "IDs"},
+            "pages": [
+                {
+                    "id": "p1",
+                    "elements": [
+                        {
+                            "kind": "field",
+                            "id": "nid",
+                            "type": "short_text",
+                            "label": "ID card number",
+                            "idPreset": "mv_national_id",
+                            "required": True,
+                        },
+                        {
+                            "kind": "repeater",
+                            "id": "people",
+                            "label": "People",
+                            "elements": [
+                                {
+                                    "kind": "field",
+                                    "id": "pid",
+                                    "type": "short_text",
+                                    "label": "ID",
+                                    "idPreset": "mv_national_id",
+                                }
+                            ],
+                        },
+                    ],
+                }
+            ],
+        }
+    )
+    out = validate_submission(
+        form, {"nid": "a 123 456", "people": [{"pid": "a654321 "}, {}]}, TODAY
+    )
+    assert out.errors == []
+    assert out.data["nid"] == "A123456"
+    assert out.data["people"][0]["pid"] == "A654321"
+
+
+def test_unknown_id_preset_is_rejected() -> None:
+    with pytest.raises(ValueError, match="unknown idPreset"):
+        FIELD.validate_python(
+            {"kind": "field", "id": "q", "label": "Q", "type": "short_text", "idPreset": "zz_id"}
+        )

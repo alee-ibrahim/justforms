@@ -40,6 +40,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useMenuTooltip } from '@/components/layout/use-menu-tooltip'
 import { toggleGroupOn } from '@/lib/toggle'
 import { cn } from '@/lib/utils'
+import { CUSTOM_ID, ID_PRESETS, idPresetOf } from '@/renderer/id-presets'
 import { ltrRun, MSG } from '@/renderer/messages'
 import type { Element, FieldElement, Form, Option } from '@/schema'
 import { contentProps, formLanguage, isFormLanguage } from '@/schema/language'
@@ -500,25 +501,10 @@ function TypeSettings({ field, update }: { field: FieldElement; update: (patch: 
         </Field>
       )
     case 'short_text':
+      if (field.idPreset) return <IdPresetSettings field={field} set={set} />
+      return <TypingSettings field={field} set={set} />
     case 'long_text':
-      return (
-        <Field>
-          <FieldLabel>Typing</FieldLabel>
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            value={field.inputScript ?? 'auto'}
-            onValueChange={(v) => v && set({ inputScript: v === 'auto' ? undefined : v })}
-            aria-label="Typing"
-            className={toggleGroupOn}
-          >
-            <ToggleGroupItem value="auto">Auto</ToggleGroupItem>
-            <ToggleGroupItem value="latin">Latin</ToggleGroupItem>
-            <ToggleGroupItem value="thaana">Thaana</ToggleGroupItem>
-          </ToggleGroup>
-          <FieldDescription>Thaana turns on the phonetic keyboard for this question.</FieldDescription>
-        </Field>
-      )
+      return <TypingSettings field={field} set={set} />
     case 'file': {
       const accept = field.accept ?? []
       const on = FILE_KINDS.filter((k) => k.accept.some((a) => accept.includes(a))).map((k) => k.key)
@@ -571,6 +557,89 @@ function TypeSettings({ field, update }: { field: FieldElement; update: (patch: 
           onChange={(v) => set({ prefillParam: v.replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 64) || undefined })}
           description={field.prefillParam ? <span className="font-mono">?{field.prefillParam}=value</span> : 'The value comes from the form link, for example ?source=poster'}
         />
+      )
+    default:
+      return null
+  }
+}
+
+
+type TextQuestion = Extract<FieldElement, { type: 'short_text' | 'long_text' }>
+
+/** ID number: the format comes from a preset (renderer/id-presets.ts) or the Validation group. */
+function IdPresetSettings({
+  field,
+  set,
+}: {
+  field: Extract<FieldElement, { type: 'short_text' }>
+  set: (patch: object) => void
+}) {
+  const preset = idPresetOf(field)
+  return (
+    <Field>
+      <FieldLabel htmlFor="id-preset">ID format</FieldLabel>
+      <NativeSelect
+        id="id-preset"
+        className="w-full"
+        value={field.idPreset ?? CUSTOM_ID}
+        onChange={(e) =>
+          // Custom starts from the preset it replaces, so the owner edits rather than retypes.
+          set(
+            e.target.value === CUSTOM_ID && preset
+              ? {
+                  idPreset: CUSTOM_ID,
+                  pattern: field.pattern ?? preset.pattern,
+                  patternMessage: field.patternMessage ?? preset.message,
+                  maxLength: field.maxLength ?? preset.maxLength,
+                  placeholder: field.placeholder || preset.placeholder,
+                  inputScript: 'latin',
+                }
+              : { idPreset: e.target.value },
+          )
+        }
+      >
+        {ID_PRESETS.map((p) => (
+          <NativeSelectOption key={p.id} value={p.id}>
+            {p.label} ({p.example})
+          </NativeSelectOption>
+        ))}
+        <NativeSelectOption value={CUSTOM_ID}>Custom</NativeSelectOption>
+      </NativeSelect>
+      <FieldDescription>
+        {preset ? (
+          <>
+            Checks the format <span className="font-mono">{preset.example}</span>, removes spaces and uses capital
+            letters. Typing is always Latin.
+          </>
+        ) : (
+          'Set the pattern, placeholder and message under Validation.'
+        )}
+      </FieldDescription>
+    </Field>
+  )
+}
+
+function TypingSettings({ field, set }: { field: TextQuestion; set: (patch: object) => void }) {
+  switch (field.type) {
+    case 'short_text':
+    case 'long_text':
+      return (
+        <Field>
+          <FieldLabel>Typing</FieldLabel>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            value={field.inputScript ?? 'auto'}
+            onValueChange={(v) => v && set({ inputScript: v === 'auto' ? undefined : v })}
+            aria-label="Typing"
+            className={toggleGroupOn}
+          >
+            <ToggleGroupItem value="auto">Auto</ToggleGroupItem>
+            <ToggleGroupItem value="latin">Latin</ToggleGroupItem>
+            <ToggleGroupItem value="thaana">Thaana</ToggleGroupItem>
+          </ToggleGroup>
+          <FieldDescription>Thaana turns on the phonetic keyboard for this question.</FieldDescription>
+        </Field>
       )
     default:
       return null
@@ -689,7 +758,14 @@ function FieldPanel({ field, form }: { field: FieldElement; form: Form }) {
               onChange={(description) => update({ description })}
             />
             {!noPlaceholder && (
-              <TextField id="el-placeholder" label="Placeholder" content value={field.placeholder ?? ''} onChange={(placeholder) => update({ placeholder })} />
+              <TextField
+                id="el-placeholder"
+                label="Placeholder"
+                content
+                value={field.placeholder ?? ''}
+                placeholder={idPresetOf(field)?.placeholder}
+                onChange={(placeholder) => update({ placeholder })}
+              />
             )}
             {field.type !== 'hidden' && (
               <SwitchField
@@ -704,7 +780,7 @@ function FieldPanel({ field, form }: { field: FieldElement; form: Form }) {
           </FieldGroup>
         </AccordionContent>
       </AccordionItem>
-      {field.type === 'short_text' && (
+      {field.type === 'short_text' && !idPresetOf(field) && (
         <AccordionItem value="validation">
           <AccordionTrigger>Validation</AccordionTrigger>
           <AccordionContent>

@@ -2220,6 +2220,19 @@
           "title": "Id",
           "type": "string"
         },
+        "idPreset": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,62}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Idpreset"
+        },
         "inputScript": {
           "$ref": "#/$defs/InputScript",
           "default": "auto"

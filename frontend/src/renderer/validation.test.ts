@@ -4,6 +4,7 @@ import type { FieldElement } from '@/schema'
 
 import { loadSpecFile } from '@/logic/spec-files'
 
+import { normalizeAnswer } from './id-presets'
 import { MSG as en } from './messages'
 import { checkAnswer, problemMessage, resolveDateBound, validateAnswer, type Problem } from './validation'
 
@@ -97,6 +98,7 @@ interface SharedCase {
   value?: unknown
   required?: boolean
   expect: Problem | null
+  normalized?: unknown
 }
 
 const shared = loadSpecFile<{ today: string; cases: SharedCase[] }>('validation/answers.json')
@@ -108,5 +110,6 @@ describe('shared answer cases (spec/validation/answers.json, also run by pytest)
     const got = checkAnswer(field, c.value, c.required ?? false, new Date(ty, tm - 1, td))
     if (c.expect === null) expect(got).toBeNull()
     else expect({ code: got?.code, params: got?.params ?? {} }).toEqual({ code: c.expect.code, params: c.expect.params ?? {} })
+    if ('normalized' in c) expect(normalizeAnswer(field, c.value)).toEqual(c.normalized)
   })
 })

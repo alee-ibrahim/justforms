@@ -175,6 +175,17 @@ class ShortTextField(FieldBase):
     max_length: Annotated[int, Field(ge=1, le=10_000)] | None = None
     pattern: Annotated[str, StringConstraints(max_length=500)] | None = None
     pattern_message: Text | None = None
+    # "ID number" question: a preset from app/schemas/id_presets.json (its pattern, message,
+    # length and normalising replace the fields above), or "custom" (the fields above apply).
+    id_preset: Annotated[str, StringConstraints(pattern=ID_PATTERN)] | None = None
+
+    @model_validator(mode="after")
+    def _known_preset(self) -> Self:
+        from app.schemas.id_presets import known
+
+        if self.id_preset is not None and not known(self.id_preset):
+            raise ValueError(f"question '{self.id}': unknown idPreset '{self.id_preset}'")
+        return self
 
 
 class LongTextField(FieldBase):

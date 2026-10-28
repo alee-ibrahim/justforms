@@ -1,4 +1,5 @@
-"""Export the canonical form schema to ``spec/form-schema.v1.json``.
+"""Export the canonical form schema to ``spec/form-schema.v1.json`` and the ID-number presets
+to ``spec/id-presets.v1.json``.
 
     uv run python -m app.schemas.export           # write the file
     uv run python -m app.schemas.export --check   # exit 1 if the file is stale (CI)
@@ -15,8 +16,10 @@ from pathlib import Path
 from typing import Any
 
 from app.schemas.form import Form
+from app.schemas.id_presets import presets_document
 
 SPEC_PATH = Path(__file__).resolve().parents[3] / "spec" / "form-schema.v1.json"
+PRESETS_SPEC_PATH = SPEC_PATH.with_name("id-presets.v1.json")
 SCHEMA_ID = "https://github.com/alee-ibrahim/justforms/blob/main/spec/form-schema.v1.json"
 
 
@@ -38,22 +41,28 @@ def render() -> str:
     return json.dumps(build_json_schema(), indent=2, ensure_ascii=False, sort_keys=True) + "\n"
 
 
+def render_presets() -> str:
+    return json.dumps(presets_document(), indent=2, ensure_ascii=False) + "\n"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="fail if the file is stale")
     args = parser.parse_args(argv)
-    content = render()
+    outputs = {SPEC_PATH: render(), PRESETS_SPEC_PATH: render_presets()}
     if args.check:
-        current = SPEC_PATH.read_text(encoding="utf-8") if SPEC_PATH.exists() else ""
-        if current != content:
-            print(
-                f"{SPEC_PATH} is stale; run: uv run python -m app.schemas.export", file=sys.stderr
-            )
-            return 1
-        return 0
-    SPEC_PATH.parent.mkdir(parents=True, exist_ok=True)
-    SPEC_PATH.write_text(content, encoding="utf-8", newline="\n")
-    print(f"wrote {SPEC_PATH}")
+        stale = [
+            path
+            for path, content in outputs.items()
+            if (path.read_text(encoding="utf-8") if path.exists() else "") != content
+        ]
+        for path in stale:
+            print(f"{path} is stale; run: uv run python -m app.schemas.export", file=sys.stderr)
+        return 1 if stale else 0
+    for path, content in outputs.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8", newline="\n")
+        print(f"wrote {path}")
     return 0
 
 

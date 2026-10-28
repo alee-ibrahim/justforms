@@ -9,6 +9,7 @@ import {
   duplicatePage,
   findElement,
   insertElement,
+  isAutoKey,
   keyFromLabel,
   moveElement,
   movePage,
@@ -21,6 +22,7 @@ import {
   uniqueId,
   wrapInSection,
 } from './tree'
+import { blockInfo } from './block-types'
 
 const field = (id: string, extra: object = {}): Element =>
   ({ kind: 'field', id, type: 'short_text', label: id, ...extra }) as Element
@@ -80,6 +82,15 @@ describe('tree edits', () => {
     expect(uniqueId(base, 'full_name')).toBe('full_name')
     expect(uniqueId(base, 'short_text')).toBe('short_text_1')
     expect(newElement(base, 'single_choice')).toMatchObject({ options: [{ value: 'option_1' }, { value: 'option_2' }] })
+  })
+
+  it('adds an ID number as a sensitive short answer with the first preset', () => {
+    const el = newElement(base, 'id_number')
+    expect(el).toMatchObject({ id: 'id_number_1', type: 'short_text', idPreset: 'mv_national_id', sensitive: true })
+    expect(blockInfo(el).label).toBe('ID number')
+    expect(isAutoKey(el)).toBe(true)
+    const withIt = { ...base, pages: [{ ...base.pages[0], elements: [...base.pages[0].elements!, el] }, ...base.pages.slice(1)] }
+    expect(parseForm(withIt).ok).toBe(true)
   })
 
   it('duplicates with fresh ids and renames references', () => {

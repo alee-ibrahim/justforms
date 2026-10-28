@@ -40,6 +40,7 @@ from app.schemas.form import (
     TimeField,
     YesNoField,
 )
+from app.schemas.id_presets import IdPreset, get_preset, normalize
 
 EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$")
 TIME = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
@@ -93,6 +94,39 @@ def _fmt_number(value: float) -> int | float:
     return int(value) if float(value).is_integer() else value
 
 
+def id_preset(field: FieldElement) -> IdPreset | None:
+    """The ID-number preset whose rules apply to this question, if any."""
+    return get_preset(field.id_preset) if isinstance(field, ShortTextField) else None
+
+
+def normalize_answer(field: FieldElement, value: Any) -> Any:
+    """The answer as stored: ID numbers without spaces and upper-cased, as the preset says.
+    The renderer does the same while the respondent types."""
+    return normalize(id_preset(field), value)
+
+
+def normalize_answers(form: Form, answers: dict[str, Any]) -> dict[str, Any]:
+    """A copy of ``answers`` with every ID-number answer normalised (repeater rows too)."""
+    out = dict(answers)
+    for info in FormIndex.build(form).elements.values():
+        el = info.element
+        if info.kind != "field" or id_preset(el) is None:  # type: ignore[arg-type]
+            continue
+        if info.repeater_id is None:
+            if el.id in out:
+                out[el.id] = normalize_answer(el, out[el.id])  # type: ignore[arg-type]
+            continue
+        rows = out.get(info.repeater_id)
+        if isinstance(rows, list):
+            out[info.repeater_id] = [
+                {**row, el.id: normalize_answer(el, row[el.id])}  # type: ignore[arg-type]
+                if isinstance(row, dict) and el.id in row
+                else row
+                for row in rows
+            ]
+    return out
+
+
 def _required_problem(field: FieldElement) -> Problem:
     if isinstance(field, MultiChoiceField):
         return Problem("required", {"n": max(1, field.min_selected or 1)})
@@ -115,14 +149,19 @@ def check_answer(
     if isinstance(field, ShortTextField | LongTextField):
         if not isinstance(value, str):
             return Problem("invalid")
-        cap = field.max_length or (
+        preset = id_preset(field)
+        value = normalize(preset, value)
+        if preset is not None and value == "":
+            return _required_problem(field) if required else None
+        cap = (preset.max_length if preset else field.max_length) or (
             SHORT_TEXT_CAP if isinstance(field, ShortTextField) else LONG_TEXT_CAP
         )
         if len(value) > cap:
             return Problem("too_long", {"max": cap})
-        if isinstance(field, ShortTextField) and field.pattern:
+        pattern = preset.pattern if preset else getattr(field, "pattern", None)
+        if pattern:
             try:
-                ok = regex.search(field.pattern, value, regex.ASCII, timeout=PATTERN_TIMEOUT_S)
+                ok = regex.search(pattern, value, regex.ASCII, timeout=PATTERN_TIMEOUT_S)
             except regex.error:
                 return None  # a broken pattern is a builder problem, not the respondent's
             except TimeoutError:
@@ -290,6 +329,7 @@ def validate_submission(
     for key in [k for k, v in answers.items() if _has_nul(k) or _has_nul(v)]:
         errors.append({"field": key, "code": "invalid"})
         del answers[key]
+    answers = normalize_answers(form, answers)
     errors += pad_repeaters(form, answers)
     ev = evaluate(form, answers)
     data = ev.stripped_answers

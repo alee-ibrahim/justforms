@@ -3,6 +3,7 @@
  * logic references. Every function returns a new form and never mutates its input.
  */
 import { buildIndex, iterLeaves } from '@/logic/form-index'
+import { CUSTOM_ID, ID_PRESETS } from '@/renderer/id-presets'
 import type {
   Condition,
   Element,
@@ -200,7 +201,7 @@ export function takenIds(form: Form): Set<string> {
 const TYPE_BASES = new Set([
   'short_text', 'long_text', 'email', 'phone', 'number', 'date', 'time', 'single_choice',
   'multi_choice', 'yes_no', 'rating', 'file', 'signature', 'hidden', 'section', 'repeater',
-  'heading', 'paragraph', 'divider', 'image', 'page',
+  'heading', 'paragraph', 'divider', 'image', 'page', 'id_number',
 ])
 
 /** A free key from `base`: the base itself when it reads like a word, else `base_n`. */
@@ -229,7 +230,14 @@ export function keyFromLabel(label: string): string | null {
 
 /** True when the key is still the automatic one (type + number), so a label may rename it. */
 export function isAutoKey(el: Element): boolean {
-  const base = el.kind === 'field' ? el.type : el.kind === 'content' ? el.contentType : el.kind
+  const base =
+    el.kind === 'field'
+      ? el.type === 'short_text' && el.idPreset
+        ? 'id_number'
+        : el.type
+      : el.kind === 'content'
+        ? el.contentType
+        : el.kind
   return new RegExp(`^${base}_\\d+$`).test(el.id)
 }
 
@@ -237,6 +245,8 @@ export function isAutoKey(el: Element): boolean {
 
 export type BlockType =
   | FieldType
+  /** A short_text with an ID-number preset (renderer/id-presets.ts). */
+  | 'id_number'
   | 'section'
   | 'repeater'
   | 'heading'
@@ -267,6 +277,17 @@ export function newElement(form: Form, type: BlockType, extra?: Set<string>): El
       return { kind: 'field', id, type, label: '', maxFiles: 1, maxSizeMb: 10 } as FieldElement
     case 'rating':
       return { kind: 'field', id, type, label: '', max: 5 } as FieldElement
+    case 'id_number': {
+      const preset = ID_PRESETS[0]
+      return {
+        kind: 'field',
+        id,
+        type: 'short_text',
+        label: '',
+        idPreset: preset?.id ?? CUSTOM_ID,
+        ...(preset?.sensitive ? { sensitive: true } : {}),
+      } as FieldElement
+    }
     default:
       return { kind: 'field', id, type, label: '' } as FieldElement
   }

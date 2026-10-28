@@ -1,0 +1,17 @@
+{
+  "description": "Identity-number presets for the \"ID number\" question (a short_text with idPreset). Canonical copy: backend/app/schemas/id_presets.json; exported to spec/id-presets.v1.json and frontend/src/schema/generated/. Add a country by adding an entry: id (snake_case, stable, stored in forms), label and example (shown in the builder), pattern (anchored, ASCII, matched after normalising), placeholder and message (English, shown to respondents), maxLength, uppercase and stripSpaces (normalising applied while typing and again on the server), sensitive (the default for new questions). Typing is always Latin.",
+  "presets": [
+    {
+      "id": "mv_national_id",
+      "label": "Maldives national ID card",
+      "example": "A123456",
+      "pattern": "^A[0-9]{6}$",
+      "placeholder": "A123456",
+      "message": "Enter the ID card number, e.g. A123456",
+      "maxLength": 7,
+      "uppercase": true,
+      "stripSpaces": true,
+      "sensitive": true
+    }
+  ]
+}
