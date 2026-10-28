@@ -213,7 +213,7 @@ env:
   - name: JUSTFORMS_SENTRY_DSN
     value: {{ .dsn | quote }}
   {{- else if .existingSecret }}
-  {{- include "justforms.secretEnv" (dict "name" "JUSTFORMS_SENTRY_DSN" "secret" .existingSecret "key" .existingSecretKey) | nindent 2 }}
+  {{- include "justforms.secretEnv" (dict "name" "JUSTFORMS_SENTRY_DSN" "secret" .existingSecret "key" .existingSecretKey "optional" true) | nindent 2 }}
   {{- end }}
   {{- with .browserDsn }}
   - name: JUSTFORMS_SENTRY_BROWSER_DSN
