@@ -267,6 +267,21 @@ webhooks:
   allowedCidrs: []
 
 # ------------------------------------------------------------------------------------------
+# Error tracking (optional): any Sentry-protocol server, e.g. Sentry or GlitchTip. Events are
+# scrubbed of answers and personal data (docs/security.md). Browsers report through the API's
+# same-origin tunnel, so the DSN may point at an internal address the API can reach (allow it
+# in networkPolicy.egress.to when egress is enforced).
+# ------------------------------------------------------------------------------------------
+errorTracking:
+  dsn: ""                 # JUSTFORMS_SENTRY_DSN (API and worker); empty = off
+  # Or read the DSN from a Secret key (e.g. synced by an external secrets operator):
+  existingSecret: ""
+  existingSecretKey: JUSTFORMS_SENTRY_DSN
+  browserDsn: ""          # JUSTFORMS_SENTRY_BROWSER_DSN: empty = same as dsn; "off" = no browser reports
+  environment: ""         # JUSTFORMS_SENTRY_ENVIRONMENT (empty = environment)
+  tracesSampleRate: ""    # JUSTFORMS_SENTRY_TRACES_SAMPLE_RATE, 0 to 1 (empty = 0: errors only)
+
+# ------------------------------------------------------------------------------------------
 # Escape hatches
 # ------------------------------------------------------------------------------------------
 # Free-form non-secret JUSTFORMS_* settings without a dedicated value above, rendered as env on

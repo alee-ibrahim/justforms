@@ -193,6 +193,7 @@ Create these before installing. Key names are the defaults; each is configurable
 | `pdf.signingP12.existingSecret` | `signing.p12` (`pdf.signingP12.fileKey`) | with a P12 | PKCS#12 file, mounted read-only at `<pdf.signingP12.mountPath>/signing.p12` |
 | `pdf.signingP12.existingSecret` | `JUSTFORMS_PDF_SIGNING_P12_PASSWORD` (`pdf.signingP12.passwordKey`) | with a P12 | Its password |
 | `captcha.existingSecret` | `JUSTFORMS_CAPTCHA_SECRET_KEY` (`captcha.existingSecretKey`) | turnstile, hcaptcha | Server-side verification key. Not used by `altcha`, which signs challenges with `JUSTFORMS_SECRET_KEY`. |
+| `errorTracking.existingSecret` | `JUSTFORMS_SENTRY_DSN` (`errorTracking.existingSecretKey`) | no | Error-tracking DSN, when it is kept in a Secret rather than `errorTracking.dsn` |
 | `ai.existingSecret` | `JUSTFORMS_AI_API_KEY` (`ai.existingSecretKey`) | gemini, anthropic (optional for openai_compat) | AI provider key. Use a key issued for JustForms only. |
 
 Several of these may be the same Secret. For the signing certificate:
@@ -313,6 +314,10 @@ unless noted.
 | `ai.dailyTokensPerUser` / `ai.dailyTokensPerOrg` | `""` | `JUSTFORMS_AI_DAILY_TOKENS_PER_USER` / `_PER_ORG` (empty: app defaults 300k / 3M) |
 | `ai.existingSecret` / `.existingSecretKey` | `""` / `JUSTFORMS_AI_API_KEY` | `JUSTFORMS_AI_API_KEY` |
 | `webhooks.allowedCidrs` | `[]` | `JUSTFORMS_WEBHOOK_ALLOWED_CIDRS` (comma-joined) |
+| `errorTracking.dsn` | `""` | `JUSTFORMS_SENTRY_DSN`: Sentry-protocol DSN (Sentry, GlitchTip) for the API and worker; empty: off |
+| `errorTracking.existingSecret` / `.existingSecretKey` | `""` / `JUSTFORMS_SENTRY_DSN` | Read the DSN from a Secret instead (used when `dsn` is empty) |
+| `errorTracking.browserDsn` | `""` | `JUSTFORMS_SENTRY_BROWSER_DSN`: empty = same as the DSN; `off` = no browser reports. Browsers send through the API's same-origin tunnel |
+| `errorTracking.environment` / `.tracesSampleRate` | `""` | `JUSTFORMS_SENTRY_ENVIRONMENT` (default: `environment`), `JUSTFORMS_SENTRY_TRACES_SAMPLE_RATE` (default 0) |
 | `config` | `{}` | Free-form non-secret `JUSTFORMS_*` env; don't repeat settings that have a value above |
 | `extraEnv` / `extraEnvFrom` | `[]` | Extra `env` / `envFrom` entries |
 | `extraVolumes` / `extraVolumeMounts` | `[]` | Extra volumes and mounts |

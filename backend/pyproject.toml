@@ -29,6 +29,7 @@ dependencies = [
     "regex>=2026.9.29",
     "rfc8785>=0.1.4",
     "segno>=1.6.6",
+    "sentry-sdk>=2.40",
     "sqlalchemy[asyncio]>=2",
     "uharfbuzz>=0.56.4",
     "uvicorn[standard]>=0.54.0",

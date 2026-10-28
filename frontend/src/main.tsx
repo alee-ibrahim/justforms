@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 
 import './index.css'
 import { applyAppearance, storedAppearance } from './lib/color-scheme'
+import { startTelemetry } from './lib/telemetry'
 import { createAppRouter } from './router'
 
 applyAppearance(storedAppearance())
@@ -21,3 +22,5 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>,
 )
+
+startTelemetry('studio')

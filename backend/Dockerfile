@@ -20,6 +20,11 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY . .
 
+# The release (X.Y.Z) this image was built for: shown by /api/health and /api/v1/meta and sent as
+# the error-tracking release. Release builds set it; local builds say 0.0.0-dev.
+ARG JUSTFORMS_RELEASE=0.0.0-dev
+ENV JUSTFORMS_RELEASE=${JUSTFORMS_RELEASE}
+
 # Local file storage (JUSTFORMS_STORAGE_BACKEND=local, the default). Mount a volume here;
 # a fresh named volume inherits this directory's ownership.
 ENV JUSTFORMS_STORAGE_LOCAL_PATH=/data/storage

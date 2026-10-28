@@ -34,6 +34,7 @@ from app.signing.keys import ensure_key
 from app.storage import get_storage
 from app.submissions import retention
 from app.submissions.export import build_export, purge_expired_exports
+from app.telemetry import init_sentry
 from app.uploads.service import purge_pending
 
 log = logging.getLogger(__name__)
@@ -340,6 +341,10 @@ async def startup(ctx: dict[str, Any]) -> None:
 
 async def shutdown(ctx: dict[str, Any]) -> None:
     pass
+
+
+# Before arq builds the Worker, so the integration wraps every job (no-op without a DSN).
+init_sentry(get_settings(), "worker")
 
 
 class WorkerSettings:

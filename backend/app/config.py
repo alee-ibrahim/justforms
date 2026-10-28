@@ -1,10 +1,12 @@
 """Application settings, loaded from environment variables (prefix ``JUSTFORMS_``)."""
 
 import logging
+from dataclasses import dataclass
 from functools import lru_cache
 from itertools import pairwise
 from pathlib import Path
 from typing import Annotated, Literal, Self
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, SecretStr, field_validator, model_validator
@@ -45,6 +47,43 @@ DEFAULT_THAANA_FONTS = (
     "Gurafiku",
     "Haluvidhaa",
 )
+
+
+@dataclass(frozen=True)
+class Dsn:
+    """A Sentry DSN: ``scheme://public_key@host[:port][/prefix]/project_id``."""
+
+    scheme: str
+    public_key: str
+    netloc: str  # host[:port], no credentials
+    prefix: str  # path before the project id, "" or "/something"
+    project_id: str
+
+    @property
+    def envelope_url(self) -> str:
+        return f"{self.scheme}://{self.netloc}{self.prefix}/api/{self.project_id}/envelope/"
+
+
+def parse_dsn(value: str) -> Dsn | None:
+    try:
+        parts = urlsplit(value.strip())
+        port = parts.port
+    except ValueError:
+        return None
+    path = parts.path.rstrip("/")
+    prefix, _, project = path.rpartition("/")
+    if (
+        parts.scheme not in ("http", "https")
+        or not parts.hostname
+        or not parts.username
+        or not project.isdigit()
+        or parts.query
+        or parts.fragment
+    ):
+        return None
+    host = f"[{parts.hostname}]" if ":" in parts.hostname else parts.hostname
+    netloc = f"{host}:{port}" if port else host
+    return Dsn(parts.scheme, parts.username, netloc, prefix, project)
 
 
 def weak_code(code: str) -> bool:
@@ -329,6 +368,18 @@ class Settings(BaseSettings):
     # "optional": organisations may hide "Powered by JustForms"; "always": it always shows.
     brand_powered_by: Literal["optional", "always"] = "optional"
 
+    # Error tracking (Sentry protocol, e.g. GlitchTip). Unset: off. The API and the worker
+    # report to this DSN; personal data is scrubbed before sending (docs/security.md).
+    sentry_dsn: str | None = None
+    # DSN for browser errors (studio, public form, document pages). Browsers send through the
+    # same-origin tunnel /api/v1/telemetry/envelope, which forwards only to this DSN's host, so
+    # it may be an internal address. Unset: the same as sentry_dsn; "off": no browser reporting.
+    sentry_browser_dsn: str | None = None
+    # Environment tag. Unset: JUSTFORMS_ENVIRONMENT.
+    sentry_environment: str | None = None
+    # Share of requests traced (0 to 1). Default 0: errors only.
+    sentry_traces_sample_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+
     # Origins allowed to call the API from a browser (the SPA is normally same-origin).
     cors_origins: CsvList = Field(default_factory=lambda: ["http://localhost:5173"])
 
@@ -356,6 +407,9 @@ class Settings(BaseSettings):
         "brand_icon_file",
         "demo_login_code",
         "api_docs",
+        "sentry_dsn",
+        "sentry_browser_dsn",
+        "sentry_environment",
         mode="before",
     )
     @classmethod
@@ -389,6 +443,23 @@ class Settings(BaseSettings):
             if "@" not in email:
                 raise ValueError(f"JUSTFORMS_DEMO_LOGIN_EMAILS: {email!r} is not an email address")
         return emails
+
+    @field_validator("sentry_dsn", "sentry_browser_dsn")
+    @classmethod
+    def _dsn(cls, value: str | None) -> str | None:
+        if value is None or value.strip().lower() == "off":
+            return value and "off"
+        if parse_dsn(value) is None:
+            raise ValueError("not a Sentry DSN; expected https://<public key>@<host>/<project id>")
+        return value.strip()
+
+    @property
+    def sentry_browser(self) -> str | None:
+        """The DSN browsers report to, or ``None`` when browser reporting is off."""
+        if self.sentry_browser_dsn == "off":
+            return None
+        dsn = self.sentry_browser_dsn or self.sentry_dsn
+        return None if dsn == "off" else dsn
 
     @model_validator(mode="after")
     def _production_requirements(self) -> Self:

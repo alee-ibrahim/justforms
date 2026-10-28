@@ -1,0 +1,249 @@
+{
+  "description": "Error-tracking scrubbing shared by the server (backend/app/telemetry/scrub.py) and the browser (frontend/src/lib/telemetry-scrub.ts). text: scrubText(input) == output; url: scrubUrl(input) == output; events: scrubEvent(input) deep-equals output.",
+  "text": [
+    {
+      "name": "email",
+      "input": "could not send to aminath.ali@example.org: timeout",
+      "output": "could not send to [email]: timeout"
+    },
+    {
+      "name": "phone with country code",
+      "input": "number +960 777 1234 rejected",
+      "output": "number [number] rejected"
+    },
+    {
+      "name": "phone digits",
+      "input": "phone 7771234 is not valid",
+      "output": "phone [number] is not valid"
+    },
+    {
+      "name": "ID card number",
+      "input": "duplicate A123456 found",
+      "output": "duplicate [id] found"
+    },
+    {
+      "name": "pydantic input value",
+      "input": "1 validation error for Q\n  Value error, bad [type=value_error, input_value='Aminath, Male', input_type=str]",
+      "output": "1 validation error for Q\n  Value error, bad [type=value_error, input_value=[Filtered], input_type=str]"
+    },
+    {
+      "name": "sqlalchemy parameters",
+      "input": "(psycopg.errors.UniqueViolation) duplicate key\n[SQL: INSERT INTO t VALUES (%s)]\n[parameters: ('a@b.mv', 'secret answer')]\n(Background on this error at: https://sqlalche.me/e/20/gkpj)",
+      "output": "(psycopg.errors.UniqueViolation) duplicate key\n[SQL: INSERT INTO t VALUES (%s)]\n[parameters: [Filtered]]\n(Background on this error at: https://sqlalche.me/e/20/gkpj)"
+    },
+    {
+      "name": "postgres detail",
+      "input": "DETAIL:  Key (email)=(someone@example.org) already exists.",
+      "output": "DETAIL:  Key (email)=([Filtered]) already exists."
+    },
+    {
+      "name": "bearer token",
+      "input": "Authorization: Bearer abc123def456",
+      "output": "Authorization: Bearer [Filtered]"
+    },
+    {
+      "name": "query parameter token",
+      "input": "GET /x?token=9f8e7d6c5b4a",
+      "output": "GET /x?token=[Filtered]"
+    },
+    {
+      "name": "long opaque token",
+      "input": "link /v/Zx9_kQ2mP4rT8vW1yB3nD5fH7jL0 failed",
+      "output": "link /v/[token] failed"
+    },
+    {
+      "name": "uuid kept",
+      "input": "form 0192f3a4-5b6c-7d8e-9f01-23456789abcd not found",
+      "output": "form 0192f3a4-5b6c-7d8e-9f01-23456789abcd not found"
+    },
+    {
+      "name": "long identifier kept",
+      "input": "in validate_submission_answers_for_page",
+      "output": "in validate_submission_answers_for_page"
+    },
+    {
+      "name": "plain words kept",
+      "input": "TypeError: Cannot read properties of undefined (reading 'map')",
+      "output": "TypeError: Cannot read properties of undefined (reading 'map')"
+    },
+    {
+      "name": "session word kept",
+      "input": "session expired",
+      "output": "session expired"
+    },
+    {
+      "name": "short numbers kept",
+      "input": "retry 3 of 5 after 120 ms on port 8000",
+      "output": "retry 3 of 5 after 120 ms on port 8000"
+    }
+  ],
+  "url": [
+    {
+      "name": "query and fragment dropped",
+      "input": "https://forms.example.org/apply?name=Aminath&id=A123456#page2",
+      "output": "https://forms.example.org/apply"
+    },
+    {
+      "name": "verify token segment",
+      "input": "https://forms.example.org/v/Zx9kQ2mP4rT8vW1yB3nD",
+      "output": "https://forms.example.org/v/:token"
+    },
+    {
+      "name": "uuid segment kept",
+      "input": "https://forms.example.org/api/v1/forms/0192f3a4-5b6c-7d8e-9f01-23456789abcd/insights",
+      "output": "https://forms.example.org/api/v1/forms/0192f3a4-5b6c-7d8e-9f01-23456789abcd/insights"
+    },
+    {
+      "name": "slug kept",
+      "input": "https://forms.example.org/scholarship-application",
+      "output": "https://forms.example.org/scholarship-application"
+    },
+    {
+      "name": "relative route",
+      "input": "/api/v1/public/forms/{form_slug}/submissions",
+      "output": "/api/v1/public/forms/{form_slug}/submissions"
+    }
+  ],
+  "events": [
+    {
+      "name": "an event with answers, a user, request data and breadcrumbs",
+      "input": {
+        "event_id": "0123456789abcdef0123456789abcdef",
+        "level": "error",
+        "platform": "javascript",
+        "release": "0.5.0",
+        "environment": "production",
+        "message": "failed for aminath@example.org",
+        "user": {
+          "email": "aminath@example.org",
+          "ip_address": "10.0.0.1"
+        },
+        "extra": {
+          "answers": {
+            "full_name": "Aminath Ali"
+          }
+        },
+        "breadcrumbs": {
+          "values": [
+            {
+              "category": "ui.input",
+              "message": "input[name=full_name] Aminath"
+            }
+          ]
+        },
+        "request": {
+          "url": "https://forms.example.org/apply?name=Aminath",
+          "method": "POST",
+          "headers": {
+            "Cookie": "s=1",
+            "User-Agent": "x"
+          },
+          "cookies": {
+            "s": "1"
+          },
+          "data": {
+            "full_name": "Aminath"
+          },
+          "query_string": "name=Aminath"
+        },
+        "tags": {
+          "page": "contact",
+          "visit": "token=abc123"
+        },
+        "contexts": {
+          "browser": {
+            "name": "Chrome",
+            "version": "130"
+          },
+          "state": {
+            "answers": {
+              "x": "y"
+            }
+          }
+        },
+        "exception": {
+          "values": [
+            {
+              "type": "Error",
+              "value": "bad answer A123456 from +9607771234",
+              "mechanism": {
+                "type": "onerror",
+                "handled": false,
+                "data": {
+                  "x": 1
+                }
+              },
+              "stacktrace": {
+                "frames": [
+                  {
+                    "filename": "https://forms.example.org/assets/form-abc.js?v=1",
+                    "function": "submit",
+                    "lineno": 10,
+                    "colno": 5,
+                    "in_app": true,
+                    "vars": {
+                      "answer": "Aminath"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "spans": [
+          {
+            "op": "x"
+          }
+        ],
+        "modules": {
+          "react": "19"
+        }
+      },
+      "output": {
+        "event_id": "0123456789abcdef0123456789abcdef",
+        "level": "error",
+        "platform": "javascript",
+        "release": "0.5.0",
+        "environment": "production",
+        "message": "failed for [email]",
+        "request": {
+          "url": "https://forms.example.org/apply",
+          "method": "POST"
+        },
+        "tags": {
+          "page": "contact",
+          "visit": "token=[Filtered]"
+        },
+        "contexts": {
+          "browser": {
+            "name": "Chrome",
+            "version": "130"
+          }
+        },
+        "exception": {
+          "values": [
+            {
+              "type": "Error",
+              "mechanism": {
+                "type": "onerror",
+                "handled": false
+              },
+              "value": "bad answer [id] from [number]",
+              "stacktrace": {
+                "frames": [
+                  {
+                    "filename": "https://forms.example.org/assets/form-abc.js",
+                    "function": "submit",
+                    "lineno": 10,
+                    "colno": 5,
+                    "in_app": true
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

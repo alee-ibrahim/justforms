@@ -8,6 +8,7 @@ from app import __version__
 from app.api import api_router
 from app.config import get_settings
 from app.security import SecurityHeadersMiddleware
+from app.telemetry import init_sentry
 
 log = logging.getLogger(__name__)
 
@@ -61,6 +62,7 @@ def create_app() -> FastAPI:
             "JUSTFORMS_OIDC_MEMBER_GROUPS now maps to the member role, which can't create "
             "forms. Put groups whose people create forms in JUSTFORMS_OIDC_CREATOR_GROUPS."
         )
+    init_sentry(settings, "api")
     app = FastAPI(
         title="JustForms API",
         version=__version__,

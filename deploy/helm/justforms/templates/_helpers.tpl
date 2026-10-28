@@ -207,6 +207,27 @@ env:
     value: {{ $v.rateLimits.enabled | quote }}
   - name: JUSTFORMS_WEBHOOK_ALLOWED_CIDRS
     value: {{ join "," $v.webhooks.allowedCidrs | quote }}
+  # Error tracking
+  {{- with $v.errorTracking }}
+  {{- if .dsn }}
+  - name: JUSTFORMS_SENTRY_DSN
+    value: {{ .dsn | quote }}
+  {{- else if .existingSecret }}
+  {{- include "justforms.secretEnv" (dict "name" "JUSTFORMS_SENTRY_DSN" "secret" .existingSecret "key" .existingSecretKey) | nindent 2 }}
+  {{- end }}
+  {{- with .browserDsn }}
+  - name: JUSTFORMS_SENTRY_BROWSER_DSN
+    value: {{ . | quote }}
+  {{- end }}
+  {{- with .environment }}
+  - name: JUSTFORMS_SENTRY_ENVIRONMENT
+    value: {{ . | quote }}
+  {{- end }}
+  {{- if ne (toString .tracesSampleRate) "" }}
+  - name: JUSTFORMS_SENTRY_TRACES_SAMPLE_RATE
+    value: {{ .tracesSampleRate | toString | quote }}
+  {{- end }}
+  {{- end }}
   # main Secret
   {{- include "justforms.secretEnv" (dict "name" "JUSTFORMS_SECRET_KEY" "secret" $v.existingSecret "key" $keys.secretKey) | nindent 2 }}
   {{- include "justforms.secretEnv" (dict "name" "JUSTFORMS_DATABASE_URL" "secret" $v.existingSecret "key" $keys.databaseUrl) | nindent 2 }}

@@ -17,6 +17,7 @@ from app.api.v1 import (
     public,
     sharing,
     submissions,
+    telemetry,
     themes,
     verify,
 )
@@ -46,3 +47,4 @@ router.include_router(themes.router)
 router.include_router(themes.public)
 router.include_router(sharing.router)
 router.include_router(sharing.public)
+router.include_router(telemetry.router)

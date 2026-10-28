@@ -8,6 +8,8 @@ import { createRoot } from 'react-dom/client'
 
 import '../index.css'
 
+import { startTelemetry } from '@/lib/telemetry'
+
 import { DocApp } from './app'
 
 
@@ -16,3 +18,5 @@ createRoot(document.getElementById('root')!).render(
     <DocApp />
   </StrictMode>,
 )
+
+startTelemetry('doc')

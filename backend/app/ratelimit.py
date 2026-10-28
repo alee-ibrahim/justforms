@@ -45,6 +45,8 @@ DEFAULTS: dict[str, Limit] = {
     "approval_code": Limit(3, 600),  # approver codes, per step
     "approval_decision": Limit(10, 600),  # approve/reject attempts, per step
     "branding": Limit(300, 60),  # logos, theme and manifest, per IP
+    "telemetry_envelope": Limit(30, 60),  # browser error reports through the tunnel, per IP
+    "friction": Limit(120, 60),  # anonymous validation/page counters from public forms, per IP
     # Staff sign-in.
     "auth": Limit(30, 60),  # per IP
     # Invitations to join an organisation.

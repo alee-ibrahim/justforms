@@ -9,6 +9,7 @@ import '../index.css'
 
 import { preloadFormTheme, rememberedFormScheme } from '@/lib/branding'
 import { applyFormScheme } from '@/lib/color-scheme'
+import { startTelemetry } from '@/lib/telemetry'
 
 import { App } from './app'
 import { formSlug } from './helpers'
@@ -24,3 +25,5 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+startTelemetry('form')

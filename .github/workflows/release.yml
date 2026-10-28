@@ -147,6 +147,9 @@ jobs:
           provenance: false
           sbom: false
           tags: ${{ env.IMAGE }}:sha-${{ needs.check.outputs.sha12 }}
+          # The backend reports it (health, /meta, error-tracking release); ignored by the frontend.
+          build-args: |
+            JUSTFORMS_RELEASE=${{ env.VERSION }}
           labels: |
             org.opencontainers.image.title=justforms-${{ matrix.component }}
             org.opencontainers.image.description=JustForms ${{ matrix.component }}

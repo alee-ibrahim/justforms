@@ -5,6 +5,7 @@ uv run python -m app.cli create-admin --email you@example.org [--name "Your Name
 uv run python -m app.cli revoke-sessions --email someone@example.org
 uv run python -m app.cli init-signing-key [--rotate]
 uv run python -m app.cli verify-pdf submission-0042.pdf
+uv run python -m app.cli telemetry-test   (a synthetic error to JUSTFORMS_SENTRY_DSN)
 JUSTFORMS_JOTFORM_API_KEY=... uv run python -m app.cli fetch-imported-files --form <id|slug>
 JUSTFORMS_JOTFORM_API_KEY=... uv run python -m app.cli rebuild-jotform-import --form <id|slug>
 """
@@ -14,6 +15,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import sys
 import uuid
 from typing import Any
 
@@ -197,6 +199,28 @@ def _write_report(path: str | None, data: dict[str, Any] | None) -> None:
             json.dump(data, f, indent=1)
 
 
+def _telemetry_test() -> int:
+    """Send one synthetic error to the configured error tracker (JUSTFORMS_SENTRY_DSN)."""
+    import sentry_sdk
+
+    from app.telemetry import init_sentry
+
+    if not init_sentry(get_settings(), "cli"):
+        print("error tracking is off: set JUSTFORMS_SENTRY_DSN", file=sys.stderr)
+        return 1
+    try:
+        # Fake personal data on purpose: it must arrive scrubbed.
+        raise RuntimeError(
+            "JustForms test error (synthetic): respondent test@example.org, "
+            "phone +960 7771234, ID A123456"
+        )
+    except RuntimeError as exc:
+        event_id = sentry_sdk.capture_exception(exc)
+    sentry_sdk.flush(timeout=10)
+    print(f"sent test event {event_id}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="justforms")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -235,7 +259,13 @@ def main(argv: list[str] | None = None) -> int:
     rebuild.add_argument("--dry-run", action="store_true", help="show the changes only")
     rebuild.add_argument("--actor", help="email of the user recorded in the audit log")
     rebuild.add_argument("--report", help="write the report (JSON) here")
+    sub.add_parser(
+        "telemetry-test",
+        help="send a synthetic test error to the error tracker (JUSTFORMS_SENTRY_DSN)",
+    )
     args = parser.parse_args(argv)
+    if args.command == "telemetry-test":
+        return _telemetry_test()
     if args.command == "create-admin":
         return asyncio.run(_create_admin(args.email, args.name, args.oidc_subject))
     elif args.command == "revoke-sessions":

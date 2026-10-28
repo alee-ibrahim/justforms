@@ -275,6 +275,23 @@ are made again when it changes. Restart the API and worker after replacing the f
 
 Signing keys and checking PDFs: [Security](security.md#signed-pdfs-and-the-verify-page).
 
+## Error tracking
+
+Optional. Any server that speaks the Sentry protocol (Sentry, GlitchTip). Off while
+`JUSTFORMS_SENTRY_DSN` is unset. What is sent and what is scrubbed:
+[Security](security.md#error-tracking).
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `JUSTFORMS_SENTRY_DSN` | unset | DSN the API and the worker report to (`https://<key>@<host>/<project>`) |
+| `JUSTFORMS_SENTRY_BROWSER_DSN` | the same DSN | Browsers (studio, public form, verify and approver pages) report through the API's same-origin tunnel `/api/v1/telemetry/envelope`, which forwards only to this DSN's host, so it may be an internal address. `off`: no browser reports |
+| `JUSTFORMS_SENTRY_ENVIRONMENT` | `JUSTFORMS_ENVIRONMENT` | Environment tag |
+| `JUSTFORMS_SENTRY_TRACES_SAMPLE_RATE` | `0` | Share of requests traced (0 to 1); 0 sends errors only |
+
+Events carry the release (`X.Y.Z`, set when the image is built). Send a synthetic test error
+with `python -m app.cli telemetry-test` in the API container. In the Helm chart these are
+`errorTracking.*` values.
+
 ## Branding
 
 Instance defaults, used by organisations that set no branding of their own. See

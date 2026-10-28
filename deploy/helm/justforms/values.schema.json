@@ -432,6 +432,18 @@
         }
       }
     },
+    "errorTracking": {
+      "type": "object",
+      "properties": {
+        "dsn": { "type": "string" },
+        "existingSecret": { "type": "string" },
+        "existingSecretKey": { "type": "string", "minLength": 1 },
+        "browserDsn": { "type": "string" },
+        "environment": { "type": "string" },
+        "tracesSampleRate": { "type": ["string", "number"] }
+      },
+      "additionalProperties": false
+    },
     "config": {
       "type": "object",
       "additionalProperties": {
