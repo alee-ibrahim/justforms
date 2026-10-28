@@ -110,17 +110,18 @@ def normalize_answers(form: Form, answers: dict[str, Any]) -> dict[str, Any]:
     out = dict(answers)
     for info in FormIndex.build(form).elements.values():
         el = info.element
-        if info.kind != "field" or id_preset(el) is None:  # type: ignore[arg-type]
+        if not isinstance(el, ShortTextField) or id_preset(el) is None:
             continue
+        fid = el.id
         if info.repeater_id is None:
-            if el.id in out:
-                out[el.id] = normalize_answer(el, out[el.id])  # type: ignore[arg-type]
+            if fid in out:
+                out[fid] = normalize_answer(el, out[fid])
             continue
         rows = out.get(info.repeater_id)
         if isinstance(rows, list):
             out[info.repeater_id] = [
-                {**row, el.id: normalize_answer(el, row[el.id])}  # type: ignore[arg-type]
-                if isinstance(row, dict) and el.id in row
+                {**row, fid: normalize_answer(el, row[fid])}
+                if isinstance(row, dict) and fid in row
                 else row
                 for row in rows
             ]

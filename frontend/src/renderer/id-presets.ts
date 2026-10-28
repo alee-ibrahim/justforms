@@ -5,7 +5,7 @@
  * normalising. `idPreset: "custom"` keeps the question's own pattern, placeholder and message.
  */
 import type { FieldElement } from '@/schema'
-import data from '@/schema/generated/id-presets.v1.json'
+import { presets } from '@/schema/generated/id-presets.v1.json'
 
 export interface IdPreset {
   id: string
@@ -21,7 +21,7 @@ export interface IdPreset {
 }
 
 export const CUSTOM_ID = 'custom'
-export const ID_PRESETS: readonly IdPreset[] = (data as { presets: IdPreset[] }).presets
+export const ID_PRESETS: readonly IdPreset[] = presets as IdPreset[]
 
 /** The preset whose rules apply to this question, or null (no preset, custom or unknown). */
 export function idPresetOf(field: FieldElement): IdPreset | null {

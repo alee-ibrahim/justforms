@@ -19,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils'
 import { useRenderer } from '@/renderer/context'
 import { FieldControl } from '@/renderer/fields'
+import { idPresetOf } from '@/renderer/id-presets'
 import { ltrRun, MSG } from '@/renderer/messages'
 import type { FieldElement, Form, Option } from '@/schema'
 import type { FormLanguage } from '@/schema/language'
@@ -47,8 +48,13 @@ export function PlaceholderControl({ field, active }: { field: FieldElement; act
   const { language } = useRenderer()
   const activate = useActivate({ type: 'element', id: field.id })
   const value = ('placeholder' in field ? field.placeholder : undefined) ?? ''
-  const shown = { ...field, placeholder: value || (active ? ltrRun('Add placeholder text…') : undefined) } as FieldElement
-  const latin = field.type === 'email' || field.type === 'phone' || field.type === 'number'
+  // An ID number shows its preset's placeholder (A123456) until the owner writes their own.
+  const preset = idPresetOf(field)
+  const shown = {
+    ...field,
+    placeholder: value || preset?.placeholder || (active ? ltrRun('Add placeholder text…') : undefined),
+  } as FieldElement
+  const latin = field.type === 'email' || field.type === 'phone' || field.type === 'number' || !!preset
   return (
     <InlineText
       editKey={textKey.element(field.id, 'placeholder')}
