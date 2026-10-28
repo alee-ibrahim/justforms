@@ -219,6 +219,8 @@ env:
   - name: JUSTFORMS_SENTRY_BROWSER_DSN
     value: {{ . | quote }}
   {{- end }}
+  - name: JUSTFORMS_SENTRY_BROWSER_TUNNEL
+    value: {{ ternary "true" "false" (ne (toString .browserTunnel) "false") | quote }}
   {{- with .environment }}
   - name: JUSTFORMS_SENTRY_ENVIRONMENT
     value: {{ . | quote }}
@@ -532,6 +534,11 @@ Frontend CSP helpers
 {{- end -}}
 {{- range .Values.frontend.csp.extraConnectSrc -}}
 {{- $all = append $all . -}}
+{{- end -}}
+{{- $et := .Values.errorTracking -}}
+{{- if and $et.browserDsn (ne $et.browserDsn "off") (eq (toString $et.browserTunnel) "false") -}}
+{{- $u := urlParse $et.browserDsn -}}
+{{- $all = append $all (printf "%s://%s" $u.scheme $u.host) -}}
 {{- end -}}
 {{- join " " $all -}}
 {{- end -}}

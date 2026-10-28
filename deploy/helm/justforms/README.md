@@ -317,6 +317,7 @@ unless noted.
 | `errorTracking.dsn` | `""` | `JUSTFORMS_SENTRY_DSN`: Sentry-protocol DSN (Sentry, GlitchTip) for the API and worker; empty: off |
 | `errorTracking.existingSecret` / `.existingSecretKey` | `""` / `JUSTFORMS_SENTRY_DSN` | Read the DSN from a Secret instead (used when `dsn` is empty) |
 | `errorTracking.browserDsn` | `""` | `JUSTFORMS_SENTRY_BROWSER_DSN`: empty = same as the DSN; `off` = no browser reports. Browsers send through the API's same-origin tunnel |
+| `errorTracking.browserTunnel` | `true` | `JUSTFORMS_SENTRY_BROWSER_TUNNEL`: `false` sends browser reports straight to `browserDsn` (public host) and adds its origin to the CSP `connect-src` |
 | `errorTracking.environment` / `.tracesSampleRate` | `""` | `JUSTFORMS_SENTRY_ENVIRONMENT` (default: `environment`), `JUSTFORMS_SENTRY_TRACES_SAMPLE_RATE` (default 0) |
 | `config` | `{}` | Free-form non-secret `JUSTFORMS_*` env; don't repeat settings that have a value above |
 | `extraEnv` / `extraEnvFrom` | `[]` | Extra `env` / `envFrom` entries |

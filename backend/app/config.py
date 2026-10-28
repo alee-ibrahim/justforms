@@ -375,6 +375,10 @@ class Settings(BaseSettings):
     # same-origin tunnel /api/v1/telemetry/envelope, which forwards only to this DSN's host, so
     # it may be an internal address. Unset: the same as sentry_dsn; "off": no browser reporting.
     sentry_browser_dsn: str | None = None
+    # Browsers report through the same-origin tunnel (default). False: browsers send straight
+    # to the browser DSN, which must then be publicly reachable and allowed in the CSP
+    # (JUSTFORMS_CSP_EXTRA_CONNECT_SRC).
+    sentry_browser_tunnel: bool = True
     # Environment tag. Unset: JUSTFORMS_ENVIRONMENT.
     sentry_environment: str | None = None
     # Share of requests traced (0 to 1). Default 0: errors only.

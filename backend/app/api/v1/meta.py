@@ -31,11 +31,12 @@ class Features(ApiModel):
 
 
 class Telemetry(ApiModel):
-    """Browser error reporting. Reports go through the same-origin tunnel, so the DSN's host
-    is this install's own (the real error tracker's address is never sent to browsers)."""
+    """Browser error reporting. With the tunnel (default) reports go through the API and the
+    DSN's host is this install's own (the tracker's address is never sent to browsers);
+    without it, browsers send straight to the configured browser DSN."""
 
     dsn: str
-    tunnel: str = "/api/v1/telemetry/envelope"
+    tunnel: str | None = "/api/v1/telemetry/envelope"
     environment: str
     release: str
     traces_sample_rate: float = 0.0
@@ -45,6 +46,14 @@ def browser_telemetry(settings: Settings) -> Telemetry | None:
     dsn = parse_dsn(settings.sentry_browser) if settings.sentry_browser else None
     if dsn is None:
         return None
+    if not settings.sentry_browser_tunnel:
+        return Telemetry(
+            dsn=settings.sentry_browser or "",
+            tunnel=None,
+            environment=settings.sentry_environment or settings.environment,
+            release=__version__,
+            traces_sample_rate=settings.sentry_traces_sample_rate,
+        )
     public = urlsplit(settings.public_url)
     scheme, host = public.scheme or "https", public.netloc or "localhost"
     return Telemetry(

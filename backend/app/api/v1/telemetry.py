@@ -1,7 +1,7 @@
 """``POST /api/v1/telemetry/envelope``: the browser error-report tunnel (app.telemetry.tunnel).
 
 No cookies or session are read, and nothing is stored: the cleaned envelope goes to the
-configured error tracker or nowhere. 404 when browser error reporting is off.
+configured error tracker or nowhere. 404 when browser error reporting or the tunnel is off.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ async def _body(request: Request) -> bytes:
 
 @router.post("/envelope")
 async def envelope(request: Request, redis: RedisDep, settings: SettingsDep) -> Response:
-    target = settings.sentry_browser
+    target = settings.sentry_browser if settings.sentry_browser_tunnel else None
     dsn = parse_dsn(target) if target else None
     if dsn is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not_found")

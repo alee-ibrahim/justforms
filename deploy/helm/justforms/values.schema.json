@@ -439,6 +439,7 @@
         "existingSecret": { "type": "string" },
         "existingSecretKey": { "type": "string", "minLength": 1 },
         "browserDsn": { "type": "string" },
+        "browserTunnel": { "type": "boolean" },
         "environment": { "type": "string" },
         "tracesSampleRate": { "type": ["string", "number"] }
       },

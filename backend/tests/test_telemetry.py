@@ -272,6 +272,20 @@ async def test_tunnel_is_off_without_a_browser_dsn(tunnel_client: Any) -> None:
     assert res.status_code == 404
 
 
+async def test_without_the_tunnel_browsers_get_the_real_dsn(tunnel_client: Any) -> None:
+    application, _, _ = tunnel_client
+    public = "https://pubkey123@errors.example.org/7"
+    application.dependency_overrides[get_settings] = lambda: Settings(
+        environment="test", sentry_dsn=DSN, sentry_browser_dsn=public, sentry_browser_tunnel=False
+    )
+    async with AsyncClient(transport=ASGITransport(app=application), base_url="http://t") as c:
+        meta = (await c.get("/api/v1/meta")).json()
+        res = await c.post("/api/v1/telemetry/envelope", content=envelope(public))
+    assert meta["telemetry"]["dsn"] == public
+    assert meta["telemetry"]["tunnel"] is None
+    assert res.status_code == 404
+
+
 async def test_meta_gives_browsers_a_dsn_on_this_host(tunnel_client: Any) -> None:
     application, _, _ = tunnel_client
     async with AsyncClient(transport=ASGITransport(app=application), base_url="http://t") as c:

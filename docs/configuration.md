@@ -285,6 +285,7 @@ Optional. Any server that speaks the Sentry protocol (Sentry, GlitchTip). Off wh
 |---|---|---|
 | `JUSTFORMS_SENTRY_DSN` | unset | DSN the API and the worker report to (`https://<key>@<host>/<project>`) |
 | `JUSTFORMS_SENTRY_BROWSER_DSN` | the same DSN | Browsers (studio, public form, verify and approver pages) report through the API's same-origin tunnel `/api/v1/telemetry/envelope`, which forwards only to this DSN's host, so it may be an internal address. `off`: no browser reports |
+| `JUSTFORMS_SENTRY_BROWSER_TUNNEL` | `true` | `false`: browsers send straight to the browser DSN (a public host) instead of the tunnel; allow its origin in `JUSTFORMS_CSP_EXTRA_CONNECT_SRC` |
 | `JUSTFORMS_SENTRY_ENVIRONMENT` | `JUSTFORMS_ENVIRONMENT` | Environment tag |
 | `JUSTFORMS_SENTRY_TRACES_SAMPLE_RATE` | `0` | Share of requests traced (0 to 1); 0 sends errors only |
 

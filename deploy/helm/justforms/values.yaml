@@ -278,6 +278,10 @@ errorTracking:
   existingSecret: ""
   existingSecretKey: JUSTFORMS_SENTRY_DSN
   browserDsn: ""          # JUSTFORMS_SENTRY_BROWSER_DSN: empty = same as dsn; "off" = no browser reports
+  # JUSTFORMS_SENTRY_BROWSER_TUNNEL: true = browsers post to the API's same-origin tunnel, which
+  # forwards to the DSN; false = browsers send straight to browserDsn (must be public; its
+  # origin is added to the CSP connect-src).
+  browserTunnel: true
   environment: ""         # JUSTFORMS_SENTRY_ENVIRONMENT (empty = environment)
   tracesSampleRate: ""    # JUSTFORMS_SENTRY_TRACES_SAMPLE_RATE, 0 to 1 (empty = 0: errors only)
 

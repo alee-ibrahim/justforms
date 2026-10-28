@@ -14,7 +14,8 @@ import { scrubEvent } from './telemetry-scrub'
 
 interface TelemetryConfig {
   dsn: string
-  tunnel: string
+  /** Same-origin tunnel, or null when browsers send straight to the DSN. */
+  tunnel: string | null
   environment: string
   release: string
   tracesSampleRate?: number
@@ -27,7 +28,7 @@ export async function initTelemetry(app: TelemetryApp, early: unknown[], stopEar
   if (!config) return stopEarly()
   init({
     dsn: config.dsn,
-    tunnel: config.tunnel,
+    tunnel: config.tunnel ?? undefined,
     release: config.release,
     environment: config.environment,
     // Nothing about the person: no user, cookies, headers, bodies or query strings.

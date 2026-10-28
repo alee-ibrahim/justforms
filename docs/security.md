@@ -122,6 +122,10 @@ GlitchTip); nothing is sent otherwise.
   scrubs every event again, refuses bodies over 200 KB and compressed bodies, and is rate
   limited per IP. `/api/v1/meta` gives browsers a DSN with the install's own host, so the
   tracker's address is not disclosed. The SDK is loaded after the page is idle.
+- **Without the tunnel** (`JUSTFORMS_SENTRY_BROWSER_TUNNEL=false`), browsers send straight to
+  a public browser DSN, with the same SDK settings and browser-side scrubbing; the server-side
+  re-scrub then depends on the tracker's own scrubbing settings. Allow exactly that origin in
+  the CSP `connect-src`.
 
 ## Where people get stuck (respondent friction)
 
