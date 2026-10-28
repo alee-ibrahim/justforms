@@ -14,6 +14,7 @@ import { PageContainer } from '@/components/layout/page'
 import { FormAppearanceCard } from '@/components/theme/form-theme-cards'
 import { AiCard } from '@/components/settings/ai-card'
 import { ApprovalsCard } from '@/components/settings/approvals-card'
+import { FrictionSettingsCard } from '@/components/settings/friction-settings-card'
 import { NotificationsCard } from '@/components/settings/notifications-card'
 import { ProgressCard } from '@/components/settings/progress-card'
 import { RespondentsCard } from '@/components/settings/respondents-card'
@@ -43,6 +44,7 @@ const SECTIONS: Section[] = [
       <>
         <RespondentsCard form={form} canManage={canManage} />
         <ProgressCard form={form} canManage={canManage} />
+        <FrictionSettingsCard form={form} canManage={canManage} />
       </>
     ),
   },

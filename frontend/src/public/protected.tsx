@@ -17,6 +17,7 @@ import { AccessScreen, CaptchaStatus, CaptchaWidget, OtpGate, RespondingAs } fro
 import { freshChallenge, solveAltcha } from './access-lib'
 import { loadForm, submitAnswers, type Access, type CaptchaChallenge, type LiveForm, type LoadResult } from './api'
 import * as autosaveLib from './autosave'
+import { useFriction } from './use-friction'
 import { changedQuestions, embed, formSlug } from './helpers'
 import { useAutosave } from './use-autosave'
 
@@ -90,6 +91,7 @@ export function ProtectedApp({ first }: { first: LoadResult }) {
 
   const live = state?.ok ? state.form : null
   const autosave = useAutosave(autosaveLib, live)
+  const onFriction = useFriction(formSlug, live)
   const altcha = useAltcha(live?.schema && live.captcha?.provider === 'altcha' ? live.captcha.challenge : undefined)
 
   if (!state.ok) {
@@ -251,6 +253,7 @@ export function ProtectedApp({ first }: { first: LoadResult }) {
         }
         beforeSubmit={beforeSubmit}
         allowAnother={!current.otp?.oneResponse}
+        onFriction={onFriction}
       />
     </main>
   )

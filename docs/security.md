@@ -97,6 +97,43 @@ problem. Abuse-control settings are in [Configuration](configuration.md#abuse-co
   (`JUSTFORMS_API_DOCS`); SQL errors never include bound values; access logs carry no query
   strings or link tokens.
 
+## Error tracking
+
+Optional (`JUSTFORMS_SENTRY_DSN`, see [Configuration](configuration.md#error-tracking)). When
+it is on, the API, the worker and browsers report errors to a Sentry-protocol server (Sentry,
+GlitchTip); nothing is sent otherwise.
+
+- **What an event holds.** The exception type and message, stack frames (file, function,
+  line, the source line), the route or page path, release, environment and runtime/browser
+  versions. No user, no IP address (`send_default_pii` off), no cookies, headers, query
+  strings or request bodies, no local variables, no breadcrumbs (they would carry typed text
+  and clicked labels), no session replay, no profiling; tracing is off unless
+  `JUSTFORMS_SENTRY_TRACES_SAMPLE_RATE` is set.
+- **Scrubbing.** Every event passes a scrubber (`backend/app/telemetry/scrub.py` and its
+  browser twin, sharing `spec/telemetry/scrub.json`) that keeps only those parts and masks
+  emails, phone numbers, ID card numbers, long numbers, tokens (also in URL paths, e.g.
+  verify and approver links), Pydantic input values, SQL parameters and PostgreSQL key
+  details. Tests check that no answer value from a fixture survives.
+- **Browser tunnel.** Browsers post to `/api/v1/telemetry/envelope` on the install itself,
+  never to the tracker, so the tracker can stay internal and the CSP needs no extra origin.
+  The tunnel only forwards to the configured DSN's host (the envelope must name that DSN's key
+  and project; the request never chooses the destination), passes only `event` and
+  `client_report` items (no replays, attachments, sessions, transactions or user feedback),
+  scrubs every event again, refuses bodies over 200 KB and compressed bodies, and is rate
+  limited per IP. `/api/v1/meta` gives browsers a DSN with the install's own host, so the
+  tracker's address is not disclosed. The SDK is loaded after the page is idle.
+
+## Where people get stuck (respondent friction)
+
+The public form counts, per form, version and day: visits that reached each page, visits that
+started answering, visits shown a validation problem (question key and problem code, e.g.
+`pattern`) and submissions. It never sends answer values (the endpoint refuses unknown keys)
+and reads no cookies or tokens. A random visit id lives in the tab's `sessionStorage` (memory
+when storage is blocked) only so each thing counts once per visit; the server keeps a hash of
+it in Redis for a day and stores nothing but daily counters. Reports are rate limited per IP.
+Owners can turn it off per form (Settings › Access); it is on by default. Insights shows the
+last 30 days.
+
 ## Signed PDFs and the verify page
 
 Signatures are kept as raw strokes and re-rendered, with when, from which IP address and device

@@ -144,6 +144,17 @@ and ratings, answers per month for dates, the newest text answers, rows of repea
 versions' questions mapped onto a repeater count as rows). Click a bar to open the submissions
 behind it; any chart can be shown as a table or downloaded as a PNG. No AI is involved.
 
+**Where people get stuck** (on the Insights page) shows how far visits got in the last 30 days
+(opened, started answering, reached each page, submitted) and which questions showed people
+a problem, with the kind of problem (left empty, wrong format, out of range...). The public
+form sends only anonymous counts: page keys, question keys and problem codes, never answers,
+no cookies (see [Security](security.md#where-people-get-stuck-respondent-friction)). Owners
+can turn it off per form in Settings › Access.
+
+**Error tracking** (optional): the API, worker and browser pages can report errors to a
+Sentry-protocol server such as Sentry or GlitchTip, with answers and personal data scrubbed
+([Security](security.md#error-tracking)).
+
 ## Emails and webhooks
 
 - Email to the form's owners or up to 10 other addresses, and a receipt for the respondent

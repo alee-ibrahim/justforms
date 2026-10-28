@@ -16,6 +16,7 @@ from app.models.form import (
     FormStatus,
     FormVersion,
 )
+from app.models.friction import FormFriction
 from app.models.imports import Import, ImportKind, ImportStatus
 from app.models.notify import (
     DeliveryStatus,
@@ -71,6 +72,7 @@ __all__ = [
     "FileRecord",
     "FileState",
     "FormDraftHistory",
+    "FormFriction",
     "FormPermission",
     "FormRecord",
     "FormRole",

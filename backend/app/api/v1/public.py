@@ -18,12 +18,12 @@ import hmac
 import logging
 import uuid
 from datetime import UTC, datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from urllib.parse import unquote, urlsplit
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
-from pydantic import EmailStr, Field, StringConstraints
+from pydantic import ConfigDict, EmailStr, Field, StringConstraints
 from sqlalchemy import func, select
 
 from app import captcha, ratelimit
@@ -44,6 +44,7 @@ from app.auth.sessions import (
 from app.branding.service import resolve as resolve_brand
 from app.config import Settings
 from app.ids import uuid7
+from app.insights import friction
 from app.integrity import append_event, compute_content_hash
 from app.logic.engine import LogicCycleError
 from app.models import (
@@ -86,6 +87,22 @@ class SubmitIn(ApiModel):
     data: dict[str, Any]
     upload_nonce: Nonce | None = None
     captcha_token: Annotated[str, StringConstraints(max_length=4096)] | None = None
+
+
+class FrictionEventIn(ApiModel):
+    # Unknown keys (an answer value, say) are refused, not ignored.
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["start", "page", "error"]
+    page: Annotated[str, StringConstraints(max_length=63)] | None = None
+    field: Annotated[str, StringConstraints(max_length=63)] | None = None
+    code: Annotated[str, StringConstraints(max_length=32)] | None = None
+
+
+class FrictionIn(ApiModel):
+    version_id: uuid.UUID
+    visit: Annotated[str, StringConstraints(pattern=friction.VISIT_PATTERN)]
+    events: list[FrictionEventIn] = Field(max_length=friction.MAX_EVENTS)
 
 
 class OtpRequestIn(ApiModel):
@@ -266,6 +283,8 @@ async def get_public_form(
     }
     days = save_progress_days(form.settings)
     body["saveProgress"] = {"days": days} if days else None
+    # Anonymous "where people get stuck" counters (no values, no cookies).
+    body["friction"] = friction.enabled(form.settings)
     if form.access_mode == AccessMode.OTP:
         body["otp"] = {"allowedDomains": domains, "oneResponse": one_response}
     if not locked:
@@ -276,6 +295,38 @@ async def get_public_form(
         # Per-page-load upload session: files can only be attached by the page that sent them.
         body["uploadNonce"] = uploads.new_nonce()
     return JSONResponse(body, headers={"Cache-Control": "no-store"})
+
+
+@router.post("/forms/{form_slug}/friction", status_code=status.HTTP_204_NO_CONTENT)
+async def report_friction(
+    form_slug: str,
+    body: FrictionIn,
+    request: Request,
+    db: DbDep,
+    redis: RedisDep,
+    settings: SettingsDep,
+) -> Response:
+    """Anonymous counters for Insights > Where people get stuck (app.insights.friction).
+    Reads no cookies or tokens; answers 204 whether or not anything was counted."""
+    await ratelimit.enforce(redis, settings, "friction", client_ip(request, settings) or "-")
+    form = await form_by_slug(db, form_slug)
+    if form is None or form.status != FormStatus.LIVE or not friction.enabled(form.settings):
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    version = await db.get(FormVersion, body.version_id)
+    if version is None or version.form_id != form.id:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    await friction.record(
+        db,
+        redis,
+        form_id=form.id,
+        version=version.version,
+        form=Form.model_validate(version.schema),
+        visit=body.visit,
+        events=[e.model_dump(exclude_none=True) for e in body.events],
+        day=datetime.now(settings.tz).date(),
+    )
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/forms/{form_slug}/captcha")
@@ -584,6 +635,13 @@ async def submit(
     wants_pdf = bool(sig_rows)
     if wants_pdf:
         submission.pdf_status = PdfStatus.PENDING
+    if friction.enabled(form_record.settings):
+        await friction.record_submit(
+            db,
+            form_id=form_record.id,
+            version=version.version,
+            day=now.astimezone(settings.tz).date(),
+        )
     await db.commit()
     await ratelimit.record(redis, captcha.BUSY_COUNTER, str(form_record.id), 3600)
     if wants_pdf:

@@ -210,9 +210,25 @@ async function stream(path: string, body: unknown, onEvent: (e: AskEvent) => voi
   emit(parseSse(buffer + '\n\n').events)
 }
 
+/** Where people get stuck: anonymous counters for the last 30 days (all versions). */
+export interface Friction {
+  enabled: boolean
+  from: string
+  to: string
+  days: number
+  /** Visits that reached each page (page key). */
+  pages: { page: string; visits: number }[]
+  started: number
+  submitted: number
+  /** Questions by visits shown a problem, most first; `codes` counts each problem code. */
+  fields: { field: string; page: string; total: number; codes: Record<string, number> }[]
+  codes: { code: string; count: number }[]
+}
+
 export const insightsApi = {
   summary: (formId: string, filters: ListFilters) =>
     json<Insights>('GET', `/forms/${formId}/insights?${filterParams(filters).toString()}`),
+  friction: (formId: string) => json<Friction>('GET', `/forms/${formId}/insights/friction`),
   askState: (formId: string) => json<AskState>('GET', `/forms/${formId}/ask`),
   askOpen: (formId: string, fresh = false) => json<AskState>('POST', `/forms/${formId}/ask/sessions`, { fresh }),
   ask: (formId: string, sessionId: string, content: string, onEvent: (e: AskEvent) => void, signal: AbortSignal) =>

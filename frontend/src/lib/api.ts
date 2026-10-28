@@ -167,6 +167,8 @@ export interface FormSummary {
   /** Respondents' answers are kept in their browser while they fill in the form. */
   saveProgress: boolean
   saveProgressDays: number
+  /** Anonymous counts of problems and pages reached (Insights › Where people get stuck). */
+  frictionInsights?: boolean
   /** Questions shown on submission cards (null: chosen automatically). */
   cardFields?: string[] | null
   /** Older versions' fixed questions read as rows of a newer repeater in the export (DESIGN 15.2). */
@@ -772,6 +774,7 @@ export type FormPatch = Partial<{
   captcha: CaptchaMode
   saveProgress: boolean
   saveProgressDays: number
+  frictionInsights: boolean
   /** 0 turns retention off. */
   retentionDays: number
   /** Questions on submission cards; [] goes back to the automatic choice. */

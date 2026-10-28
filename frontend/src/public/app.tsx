@@ -18,6 +18,7 @@ import { themeAttrs } from '@/renderer/theme'
 import { loadForm, submitAnswers, type Access, type LiveForm, type LoadResult } from './api'
 import { changedQuestions, embed, formSlug, postHeight } from './helpers'
 import { useAutosave, type AutosaveLib } from './use-autosave'
+import { useFriction } from './use-friction'
 
 const ProtectedApp = lazy(() => import('./protected').then((m) => ({ default: m.ProtectedApp })))
 const PUBLIC: Access = { mode: 'public' }
@@ -78,6 +79,7 @@ export function App() {
   }, [])
 
   const autosave = useAutosave(lib, state && !needsAccess(state) && state.ok ? state.form : null)
+  const onFriction = useFriction(formSlug, state && !needsAccess(state) && state.ok ? state.form : null)
 
   if (!state) return <Loading />
   if (needsAccess(state))
@@ -152,6 +154,7 @@ export function App() {
         onProgress={autosave.onProgress}
         notice={autosave.notice}
         highlighted={highlighted}
+        onFriction={onFriction}
       />
     </main>
   )

@@ -11,6 +11,7 @@ import { useMemo } from 'react'
 import { useFormSummary } from '@/components/builder/form-context'
 import { insightsApi, type QuestionSummary } from '@/components/insights/api'
 import { AskEntry } from '@/components/insights/ask-entry'
+import { FrictionCard } from '@/components/insights/friction-card'
 import { ConditionChip, SubmissionsTabs } from '@/components/insights/nav'
 import { QuestionCard } from '@/components/insights/question-card'
 import { PageContainer } from '@/components/layout/page'
@@ -211,6 +212,8 @@ export function FormInsightsPage() {
       </div>
 
       <AskEntry schema={schema} language={language} />
+
+      <FrictionCard formId={form.id} schema={schema} language={language} />
 
       {summary.isError && (
         <Alert variant="destructive">

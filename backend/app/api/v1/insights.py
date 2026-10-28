@@ -34,7 +34,7 @@ from app.api.v1.common import ApiModel
 from app.api.v1.submissions import _list_filters
 from app.auth.deps import DbDep, RedisDep, SettingsDep
 from app.config import Settings
-from app.insights import catalogue
+from app.insights import catalogue, friction
 from app.insights.ask import AskOutcome, FormTooLarge, Tools, relist, run_ask, system_prompt, today
 from app.insights.dsl import PEOPLE, QueryError
 from app.insights.summary import summarise
@@ -111,6 +111,18 @@ async def insights(
         )
     except ValueError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_filter") from exc
+
+
+@router.get("/forms/{form_id}/insights/friction")
+async def friction_summary(
+    db: DbDep, redis: RedisDep, access: FormViewer, settings: SettingsDep
+) -> dict[str, Any]:
+    """Where people get stuck: validation problems per question and pages reached by visits
+    in the last 30 days (anonymous counters, app.insights.friction)."""
+    await enforce(redis, settings, "insights", str(access.user.id))
+    out = await friction.summary(db, access.form.id, datetime.now(settings.tz).date())
+    out["enabled"] = friction.enabled(access.form.settings)
+    return out
 
 
 # -- Ask your submissions ---------------------------------------------------------------

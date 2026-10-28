@@ -36,7 +36,8 @@ import { FillElements } from './elements'
 import { Markdown } from './markdown'
 import { fmt, MSG as msgs } from './messages'
 import { En, Msg } from './msg'
-import { problemMessage, validateAnswer, type Problem as AnswerProblem } from './validation'
+import { checkAnswer, problemMessage, validateAnswer, type Problem as AnswerProblem } from './validation'
+import type { FrictionEvent } from '@/public/friction'
 
 type Answers = Record<string, unknown>
 type Row = Record<string, unknown>
@@ -85,6 +86,8 @@ export interface FormRendererProps {
   allowAnother?: boolean
   /** The form theme's options (default: the brand's, i.e. what the public page got). */
   theme?: ThemeOptions | null
+  /** Anonymous friction events (pages reached, first answer, problems shown): live form only. */
+  onFriction?: (event: FrictionEvent) => void
 }
 
 interface Problem {
@@ -93,6 +96,8 @@ interface Problem {
   message: string
   /** The question's label, so summary links say which question each problem is about. */
   label: string
+  /** The problem code (validation.ts / the server), for friction reports. */
+  code?: string
 }
 
 /**
@@ -162,6 +167,7 @@ export function FormRenderer({
   beforeSubmit,
   allowAnother = true,
   theme: themeProp,
+  onFriction,
 }: FormRendererProps) {
   const theme = themeProp ?? brand?.theme ?? DEFAULT_THEME
   const language = formLanguage(form)
@@ -266,12 +272,22 @@ export function FormRenderer({
     return validateAnswer(field, value, isRequired(p.id, scope))
   })
 
+  /** Friction: which problem a shown error is (its code only, never the value). */
+  const reportProblem = (p: AnswerPath, value: unknown) => {
+    const field = fieldOf(p.id)
+    if (!onFriction || !field || field.kind !== 'field') return
+    const scope = p.repeater !== undefined ? { repeater: p.repeater, row: p.row! } : undefined
+    const problem = checkAnswer(field, value, isRequired(p.id, scope))
+    if (problem) onFriction({ type: 'error', field: p.id, code: problem.code })
+  }
+
   // Answers the respondent has changed: blur only checks those (or ones already showing an
   // error), so leaving an untouched empty question, e.g. the row "Add" just focused, adds no
   // error above the next control. Next and Submit still check everything.
   const edited = useRef(new Set<string>())
 
   const setValue = useStableCallback((p: AnswerPath, value: unknown) => {
+    if (!touched.current) onFriction?.({ type: 'start' })
     touched.current = true
     edited.current.add(pathKey(p))
     setAnswers((prev) => {
@@ -302,6 +318,7 @@ export function FormRenderer({
   const blur = useStableCallback((p: AnswerPath) => {
     const key = pathKey(p)
     const message = check(p, getValue(p))
+    if (message && (edited.current.has(key) || errors.has(key))) reportProblem(p, getValue(p))
     setErrors((prev) => {
       if (message && !edited.current.has(key) && !prev.has(key)) return prev
       const next = new Map(prev)
@@ -391,8 +408,9 @@ export function FormRenderer({
         }
         if (el.kind !== 'field' || el.type === 'hidden') continue
         const p: AnswerPath = s ? { id: el.id, ...s } : { id: el.id }
-        const message = validateAnswer(el, getValue(p), isRequired(el.id, s))
-        if (message) out.push({ key: pathKey(p), path: p, message, label: el.label })
+        const problem = checkAnswer(el, getValue(p), isRequired(el.id, s))
+        if (problem)
+          out.push({ key: pathKey(p), path: p, message: problemMessage(el, problem), label: el.label, code: problem.code })
       }
     }
     visit(pageEls)
@@ -400,6 +418,8 @@ export function FormRenderer({
   }
 
   const showProblems = (problems: Problem[]) => {
+    for (const pr of problems)
+      if (pr.code) onFriction?.({ type: 'error', field: pr.path.id, code: pr.code })
     setErrors(new Map(problems.map((pr) => [pr.key, pr.message])))
     setSummary(problems)
     window.setTimeout(() => {
@@ -426,6 +446,10 @@ export function FormRenderer({
       </>,
     )
   }
+
+  useEffect(() => {
+    if (phase === 'filling') onFriction?.({ type: 'page', page: pageId })
+  }, [pageId, phase, onFriction])
 
   useEffect(() => {
     if (!pageChanged.current) return
@@ -482,6 +506,7 @@ export function FormRenderer({
           path: p,
           message: field ? problemMessage(field, e) : msgs.answerThis,
           label: field?.label ?? '',
+          code: e.code,
         }
       })
       // Jump to the first page with a problem.

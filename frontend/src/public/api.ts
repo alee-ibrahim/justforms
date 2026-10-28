@@ -43,6 +43,8 @@ export interface LiveForm {
   otp?: { allowedDomains: string[]; oneResponse: boolean }
   /** Keep answers on this device while filling in (days until they expire); null when off. */
   saveProgress?: { days: number } | null
+  /** Anonymous "where people get stuck" counters are on for this form. */
+  friction?: boolean
 }
 
 /** How requests prove who the respondent is. */

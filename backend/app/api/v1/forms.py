@@ -20,6 +20,7 @@ from app.approvals.config import load_config as load_approvals
 from app.auth.deps import CurrentUser, DbDep, SettingsDep, StorageDep
 from app.captcha import CaptchaMode, form_mode
 from app.config import Settings
+from app.insights import friction
 from app.models import (
     AccessMode,
     ApprovalState,
@@ -82,6 +83,8 @@ class FormOut(ApiModel):
     # Respondents' answers are kept in their browser while they fill in the form.
     save_progress: bool = True
     save_progress_days: int = DEFAULT_SAVE_PROGRESS_DAYS
+    # Anonymous counts of validation errors and pages reached (Insights > Where people get stuck).
+    friction_insights: bool = True
     # Questions shown on submission cards (None: chosen automatically).
     card_fields: list[str] | None = None
     # Older versions' fixed questions shown as rows of a newer repeater (export).
@@ -177,6 +180,7 @@ class FormPatch(ApiModel):
     captcha: CaptchaMode | None = None
     save_progress: bool | None = None
     save_progress_days: Annotated[int, Field(ge=1, le=MAX_SAVE_PROGRESS_DAYS)] | None = None
+    friction_insights: bool | None = None
     # Questions shown on submission cards; an empty list goes back to the automatic choice.
     card_fields: list[FieldKey] | None = Field(default=None, max_length=MAX_CARD_FIELDS)
     # Older versions' fixed questions read as repeater rows; an empty list removes them.
@@ -281,6 +285,7 @@ async def form_out(
         otp_one_response=bool((form.settings or {}).get("otpOneResponse", False)),
         captcha=form_mode(form.settings),
         **progress_out(form.settings),
+        friction_insights=friction.enabled(form.settings),
         card_fields=(form.settings or {}).get("cardFields") or None,
         version_mappings=[
             m.as_json() for m in version_map.parse((form.settings or {}).get("versionMappings"))
@@ -448,6 +453,7 @@ async def list_forms(
                 otp_one_response=bool(extra.get("otpOneResponse", False)),
                 captcha=form_mode(extra),
                 **progress_out(extra),
+                friction_insights=friction.enabled(extra),
                 submission_count=r.total,
                 new_count=r.new,
                 created_at=r.created_at,
@@ -543,6 +549,7 @@ async def patch_form(
             body.save_progress,
             body.save_progress_days,
             body.ai_read_answers,
+            body.friction_insights,
         )
     )
     if owner_only and not has_form_role(access.role, FormRole.OWNER):
@@ -578,6 +585,8 @@ async def patch_form(
         extra["saveProgressDays"] = body.save_progress_days
     if body.ai_read_answers is not None:
         extra["aiReadAnswers"] = body.ai_read_answers
+    if body.friction_insights is not None:
+        extra["frictionInsights"] = body.friction_insights
     if extra:
         form.settings = {**(form.settings or {}), **extra}
     if body.card_fields is not None:
