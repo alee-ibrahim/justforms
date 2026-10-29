@@ -451,6 +451,7 @@ export function FormSubmissionsPage() {
             <BulkBar
               formId={form.id}
               ids={[...selected]}
+              seq={selected.size === 1 ? rows.find((r) => selected.has(r.id))?.seq : undefined}
               canDelete={canDelete}
               approvalItems={rows.flatMap((r) =>
                 selected.has(r.id) && r.approval?.state === 'pending' && r.approval.step

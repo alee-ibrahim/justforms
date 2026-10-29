@@ -17,6 +17,7 @@ import { toast } from 'sonner'
 import { FormStatusBadge } from '@/components/forms/form-status-badge'
 import { openPath, type FormsSort } from '@/components/forms/forms-view'
 import { restoreForm } from '@/components/forms/restore-form'
+import { ConfirmDialog } from '@/components/layout/confirm-dialog'
 import { useMenuTooltip } from '@/components/layout/use-menu-tooltip'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -204,6 +205,7 @@ export function RowMenu({ form, orgId, canCreate }: { form: FormListItem; orgId:
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const trashDays = useQuery(metaQuery).data?.trashDays ?? 30
+  const [confirming, setConfirming] = useState(false)
   // Undo puts it back at once (its address was free a moment ago; if not, the trash asks).
   const undo = async () => {
     try {
@@ -275,13 +277,30 @@ export function RowMenu({ form, orgId, canCreate }: { form: FormListItem; orgId:
           {form.role === 'owner' && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onSelect={() => remove.mutate()}>
-                Delete
+              <DropdownMenuItem variant="destructive" disabled={remove.isPending} onSelect={() => setConfirming(true)}>
+                Delete…
               </DropdownMenuItem>
             </>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      {/* Even though Trash can bring it back, a form takes its link and submissions with it. */}
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={
+          <>
+            Delete <bdi dir="auto">{form.title || 'Untitled form'}</bdi>?
+          </>
+        }
+        description={`It moves to Trash for ${trashDays} days${
+          form.submissionCount > 0
+            ? `, with its ${form.submissionCount} ${form.submissionCount === 1 ? 'submission' : 'submissions'}`
+            : ''
+        }. You can restore it from Trash.`}
+        action="Delete form"
+        onConfirm={() => remove.mutate()}
+      />
     </>
   )
 }

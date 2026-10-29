@@ -449,6 +449,12 @@ function scenarios(d) {
     ['user-menu', async (page) => void (await clickIf(page, page.getByRole('button', { name: 'Account' })))],
     ['help', async (page) => void (await clickIf(page, page.getByRole('button', { name: 'Keyboard shortcuts' })))],
     ['create-dialog', async (page) => void (await clickIf(page, page.getByRole('button', { name: /new form|create form/i })))],
+    // Deleting asks first (SUBMISSIONS-SORT-AND-TRASH 2): row menu › Delete… opens the confirmation.
+    ['delete-confirm', async (page) => {
+      await closeOverlays(page)
+      if (await clickIf(page, page.locator('[aria-label="Form actions"]:visible').first()))
+        await clickIf(page, page.getByRole('menuitem', { name: 'Delete…' }))
+    }],
   ])
   add('builder', `${formPath}/edit`, [
     ['', null],
@@ -606,6 +612,10 @@ function scenarios(d) {
       await closeOverlays(page)
       await clickIf(page, page.getByRole('checkbox', { name: /^Select #/ }))
       await clickIf(page, page.getByRole('checkbox', { name: /^Select #/ }).nth(1))
+    }],
+    ['bulk-delete-confirm', async (page) => {
+      await closeOverlays(page)
+      await clickIf(page, page.getByRole('button', { name: 'Delete…' }))
     }],
   ], { scroll: true })
   // Insights and "Ask your submissions" (INSIGHTS-SCREENS): summaries, a card as a table, the

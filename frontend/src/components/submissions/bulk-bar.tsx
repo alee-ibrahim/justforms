@@ -16,6 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { ConfirmDialog } from '@/components/layout/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -58,6 +59,7 @@ function reportDecisions(results: BulkDecideResult[], approve: boolean) {
 export function BulkBar({
   formId,
   ids,
+  seq,
   canDelete,
   approvalItems = [],
   onClear,
@@ -65,6 +67,8 @@ export function BulkBar({
 }: {
   formId: string
   ids: string[]
+  /** The reference number when one submission is selected, for "Delete #0012?". */
+  seq?: number
   canDelete: boolean
   /** The selected submissions that wait at an approval step (approve / reject them there). */
   approvalItems?: ApprovalItem[]
@@ -78,6 +82,7 @@ export function BulkBar({
   const [deciding, setDeciding] = useState<'approve' | 'reject' | null>(null)
   const [comment, setComment] = useState('')
   const [commentError, setCommentError] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const n = ids.length
   const waiting = approvalItems.length
   // Keep the wording of the last choice while the dialog animates closed.
@@ -172,12 +177,12 @@ export function BulkBar({
           </Button>
         </ButtonGroup>
       )}
-      {/* Apart from the group and styled as destructive, so it never reads like Export. No
-          confirmation: deleting goes to Deleted and the toast offers Undo (REVIEW-CHECKLIST E). */}
+      {/* Apart from the group and styled as destructive, so it never reads like Export. Asks
+          first, then the toast still offers Undo (SUBMISSIONS-SORT-AND-TRASH 2). */}
       {canDelete && (
-        <Button variant="destructive" size="sm" disabled={run.isPending} onClick={() => run.mutate({ action: 'delete' })}>
+        <Button variant="destructive" size="sm" disabled={run.isPending} onClick={() => setConfirmDelete(true)}>
           <TrashIcon />
-          Delete
+          Delete…
         </Button>
       )}
       <Button variant="ghost" size="sm" className="ms-auto" onClick={onClear}>
@@ -267,6 +272,14 @@ export function BulkBar({
         </AlertDialogContent>
       </AlertDialog>
 
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={n === 1 && seq !== undefined ? `Delete ${reference(seq)}?` : `Delete ${plural(n)}?`}
+        description={`${n === 1 ? 'It moves' : 'They move'} to Deleted for ${trashDays} days.`}
+        action={n === 1 ? 'Delete submission' : `Delete ${n}`}
+        onConfirm={() => run.mutate({ action: 'delete' })}
+      />
     </div>
   )
 }

@@ -55,14 +55,18 @@ Export dialog offers "Keep the order the table is sorted in (otherwise oldest fi
 
 ## 2. Deleting with Undo
 
-Deleting is reversible now, so it has **no confirmation dialog** (REVIEW-CHECKLIST E): the
-items leave the list at once and a toast offers Undo for 10 seconds.
+Deleting asks first with an `AlertDialog` (Cancel focused, Esc cancels, the confirm button
+destructive), then the items leave the list and a toast offers Undo for 10 seconds.
 
-- Submissions (selection bar › Delete): "Deleted 3 submissions" / "In Deleted for 30 days."
-  [Undo]. Undo restores the same submissions; then "Restored 3 submissions".
-- Forms (forms list › row menu › Delete): "Moved the form to Trash" / "Restorable for 30
-  days, with its submissions." [Undo]. When another form took its address in the meantime,
-  Undo says "Its address was taken meanwhile" [Open Trash].
+- Submissions (selection bar › Delete…): "Delete 5 submissions?" (one selected: "Delete
+  #0012?") / "They move to Deleted for 30 days." [Cancel] [Delete 5 | Delete submission].
+  Then "Deleted 5 submissions" / "In Deleted for 30 days." [Undo]. Undo restores the same
+  submissions; then "Restored 5 submissions".
+- Forms (forms list › row menu › Delete…): "Delete <title>?" / "It moves to Trash for 30
+  days, with its 12 submissions. You can restore it from Trash." [Cancel] [Delete form].
+  Then "Moved the form to Trash" / "Restorable for 30 days, with its submissions." [Undo].
+  When another form took its address in the meantime, Undo says "Its address was taken
+  meanwhile" [Open Trash].
 
 ## 3. Submissions › Deleted
 
@@ -143,8 +147,9 @@ save state, Review changes and Publish stay on every form page where they were.
 
 - First idea: a "Show deleted" switch on the list. A tab with a count is easier to find, keeps
   the trash out of filters and exports, and matches the status tabs.
-- First idea: a confirmation dialog before deleting plus a toast. The checklist asks for one
-  or the other; since deleting can be undone, the toast alone is faster and the dialog moved
-  to the one action that can't be undone (Delete permanently), with a typed word.
+- First version: the Undo toast alone, since deleting can be undone. In use a toast is easy
+  to miss (it times out, and on phones it sits over the thumb), and a form takes its link and
+  every submission with it, so deleting now asks first and keeps the Undo toast. Delete
+  permanently keeps its typed word.
 - The forms trash first showed each form's status badge: "Live" next to a deleted form
   confused; dropped.

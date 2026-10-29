@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { ConfirmDialog } from '@/components/layout/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
@@ -153,6 +154,7 @@ function Sharing({ form, data }: { form: FormSummary; data: SharingOut }) {
 
 function ImageRow({ form, data }: { form: FormSummary; data: SharingOut }) {
   const queryClient = useQueryClient()
+  const [confirming, setConfirming] = useState(false)
   const input = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   const done = (next: SharingOut, message: string) => {
@@ -209,11 +211,19 @@ function ImageRow({ form, data }: { form: FormSummary; data: SharingOut }) {
               {custom ? 'Replace' : 'Upload image'}
             </Button>
             {custom && (
-              <Button type="button" variant="ghost" disabled={busy} onClick={() => reset.mutate()}>
+              <Button type="button" variant="ghost" disabled={busy} onClick={() => setConfirming(true)}>
                 {reset.isPending ? <Spinner /> : <Undo2Icon />}
                 Use generated image
               </Button>
             )}
+            <ConfirmDialog
+              open={confirming}
+              onOpenChange={setConfirming}
+              title="Remove the uploaded image?"
+              description="It's deleted and link previews use the generated image. To use it again, upload it again."
+              action="Remove image"
+              onConfirm={() => reset.mutate()}
+            />
           </div>
         )}
       </div>

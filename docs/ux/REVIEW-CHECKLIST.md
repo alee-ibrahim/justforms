@@ -127,8 +127,9 @@ UI change. Source of truth: [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md) and
 - [ ] Inspector uses `Accordion` groups; logic editor is `Select`/`Command` combobox/`Input`/
       `Button` in a `Card`, not a custom widget.
 - [ ] Phones use `Drawer` for palette and inspector; desktop submission detail uses `Sheet`.
-- [ ] Destructive confirmations use `AlertDialog`; reversible deletes use an Undo toast
-      instead of a dialog.
+- [ ] Destructive confirmations use `AlertDialog` (Cancel focused, destructive confirm button);
+      deleting a form or submissions asks and then still offers an Undo toast; erasing for good
+      asks for a typed word. Builder edits (questions, pages, rules) stay instant with Undo.
 - [ ] Single choice uses `RadioGroup`, multi choice `Checkbox`, yes/no `RadioGroup` (not a
       Switch), rating `ToggleGroup`, dropdown `NativeSelect`, phone `InputGroup`.
 - [ ] Every question is wrapped in `Field` with `FieldLabel`, `FieldDescription`, `FieldError`;

@@ -1,14 +1,18 @@
 // @vitest-environment happy-dom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { TooltipProvider } from '@/components/ui/tooltip'
-import type { AccessList } from '@/lib/api'
+import { api, type AccessList } from '@/lib/api'
 import { FORM_ROLE_DESCRIPTIONS, FORM_ROLE_LABELS } from '@/lib/labels'
 
 import { AccessCard } from './access-card'
 import { notifyBody } from './share-notify-lib'
+
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 function render(list: AccessList) {
   const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } })
@@ -70,5 +74,77 @@ describe('notify by email', () => {
     expect(notifyBody({ notify: true, message: '   ' }, true)).toEqual({ notify: true })
     expect(notifyBody({ notify: false, message: 'Hi' }, true)).toEqual({ notify: false })
     expect(notifyBody({ notify: true, message: 'Hi' }, false)).toEqual({ notify: false })
+  })
+})
+
+describe('removing access', () => {
+  const owner = { userId: 'u1', email: 'owner@example.org', displayName: 'Aminath Ali', role: 'owner' as const, orgAdmin: false }
+  const viewer = { userId: 'u2', email: 'viewer@example.org', displayName: 'Ibrahim Naseer', role: 'viewer' as const, orgAdmin: false }
+  const list: AccessList = {
+    entries: [owner, viewer],
+    pending: [{ invitationId: 'i1', email: 'new@example.org', role: 'viewer', expired: false }],
+    canManage: true,
+    canInvite: false,
+    orgName: 'Example',
+    smtpEnabled: false,
+  }
+  let root: Root | undefined
+  let host: HTMLElement | undefined
+  afterEach(() => {
+    act(() => root?.unmount())
+    host?.remove()
+    vi.restoreAllMocks()
+  })
+  async function mount() {
+    vi.spyOn(api, 'getAccess').mockResolvedValue(list)
+    const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } })
+    client.setQueryData(['access', 'f1'], list)
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () =>
+      root!.render(
+        <QueryClientProvider client={client}>
+          <TooltipProvider>
+            <AccessCard formId="f1" myEmail="owner@example.org" />
+          </TooltipProvider>
+        </QueryClientProvider>,
+      ),
+    )
+  }
+  const byLabel = (label: string) => document.querySelector(`[aria-label="${label}"]`) as HTMLElement
+  const button = (text: string) =>
+    [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === text) as HTMLElement
+  const dialog = () => document.querySelector('[role=alertdialog]')
+
+  it('asks before removing someone, and Cancel keeps them', async () => {
+    const put = vi.spyOn(api, 'putAccess').mockResolvedValue({ ...list, entries: [owner] })
+    await mount()
+    await act(async () => byLabel('Remove Ibrahim Naseer').click())
+    expect(dialog()?.textContent).toContain('Remove Ibrahim Naseer?')
+    expect(document.activeElement?.textContent?.trim()).toBe('Cancel')
+    await act(async () => button('Cancel').click())
+    expect(dialog()).toBeNull()
+    expect(put).not.toHaveBeenCalled()
+  })
+
+  it('removes them on confirm', async () => {
+    const put = vi.spyOn(api, 'putAccess').mockResolvedValue({ ...list, entries: [owner] })
+    await mount()
+    await act(async () => byLabel('Remove Ibrahim Naseer').click())
+    await act(async () => button('Remove access').click())
+    expect(put).toHaveBeenCalledWith('f1', [{ email: 'owner@example.org', role: 'owner' }], {})
+  })
+
+  it('asks before removing an invitation', async () => {
+    const drop = vi.spyOn(api, 'removePendingAccess').mockResolvedValue({ ...list, pending: [] })
+    await mount()
+    await act(async () => byLabel('Remove the invited access for new@example.org').click())
+    expect(dialog()?.textContent).toContain('new@example.org')
+    await act(async () => button('Cancel').click())
+    expect(drop).not.toHaveBeenCalled()
+    await act(async () => byLabel('Remove the invited access for new@example.org').click())
+    await act(async () => button('Remove invited access').click())
+    expect(drop).toHaveBeenCalledWith('f1', 'i1')
   })
 })

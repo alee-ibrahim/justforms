@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { ConfirmDialog } from '@/components/layout/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -202,6 +203,7 @@ const LOGO_ERRORS: Record<string, string> = {
  * (docs/ux/INLINE-EDIT-AND-LOGO-SCREENS.md 2.2). */
 function FormLogoRow({ form, data, orgLogoUrl }: { form: FormSummary; data: ThemeOut; orgLogoUrl: string | null }) {
   const queryClient = useQueryClient()
+  const [confirming, setConfirming] = useState(false)
   const input = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   const own = data.logo ?? null
@@ -232,11 +234,19 @@ function FormLogoRow({ form, data, orgLogoUrl }: { form: FormSummary; data: Them
         <FieldLabel htmlFor="theme-logo">Logo</FieldLabel>
         {!own && <Badge variant="outline">Organisation</Badge>}
         {own && data.canEdit && (
-          <Button type="button" variant="ghost" size="sm" className="ms-auto" disabled={busy} onClick={() => remove.mutate()}>
+          <Button type="button" variant="ghost" size="sm" className="ms-auto" disabled={busy} onClick={() => setConfirming(true)}>
             {remove.isPending ? <Spinner /> : <Undo2Icon />}
             Use organisation logo
           </Button>
         )}
+        <ConfirmDialog
+          open={confirming}
+          onOpenChange={setConfirming}
+          title="Remove this form's logo?"
+          description="The uploaded logo is deleted and the form shows the organisation logo. To use it again, upload it again."
+          action="Remove logo"
+          onConfirm={() => remove.mutate()}
+        />
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex h-10 min-w-20 max-w-48 items-center justify-center overflow-hidden rounded-md border bg-muted px-2">

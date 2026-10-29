@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 
 import { BrandPreview } from '@/components/branding/brand-preview'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { ConfirmDialog } from '@/components/layout/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
@@ -73,6 +74,7 @@ function ImageRow({
 }) {
   const queryClient = useQueryClient()
   const input = useRef<HTMLInputElement>(null)
+  const [confirming, setConfirming] = useState(false)
   const image = branding.images[kind]
   const done = (next: Branding, message: string) => {
     queryClient.setQueryData(brandingQuery(orgId).queryKey, next)
@@ -129,10 +131,18 @@ function ImageRow({
           {image?.own ? 'Replace' : `Upload ${label.toLowerCase()}`}
         </Button>
         {image?.own && (
-          <Button variant="ghost" disabled={!branding.canEdit || remove.isPending} onClick={() => remove.mutate()}>
+          <Button variant="ghost" disabled={!branding.canEdit || remove.isPending} onClick={() => setConfirming(true)}>
             Remove
           </Button>
         )}
+        <ConfirmDialog
+          open={confirming}
+          onOpenChange={setConfirming}
+          title={`Remove the ${label.toLowerCase()}?`}
+          description="The uploaded file is deleted for the whole organisation. To use it again, upload it again."
+          action="Remove"
+          onConfirm={() => remove.mutate()}
+        />
       </div>
       <FieldDescription id={`${id}-hint`}>
         {hint}

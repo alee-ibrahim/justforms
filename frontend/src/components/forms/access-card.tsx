@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ConfirmDialog } from '@/components/layout/confirm-dialog'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -54,6 +55,9 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
   const [role, setRole] = useState<FormRole>('viewer')
   const [error, setError] = useState<string | null>(null)
   const [confirmSelf, setConfirmSelf] = useState<(() => void) | null>(null)
+  // Removing someone else, or an invitation, can't be undone: ask first.
+  const [removing, setRemoving] = useState<AccessEntry | null>(null)
+  const [dropping, setDropping] = useState<{ invitationId: string; email: string } | null>(null)
   // An address outside the organisation, offered "Invite and share" (admins only).
   const [outsider, setOutsider] = useState<{ email: string; role: FormRole } | null>(null)
   const [choice, setChoice] = useState<NotifyChoice>({ notify: true, message: '' })
@@ -135,6 +139,7 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
     }
     const run = () => save.mutate({ grants: withRole(target, next), done: 'Access updated' })
     if (isSelf(target) && target.role === 'owner' && next !== 'owner') setConfirmSelf(() => run)
+    else if (next === null && !isSelf(target)) setRemoving(target)
     else run()
   }
 
@@ -228,7 +233,7 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
                           size="icon-sm"
                           aria-label={`Remove the invited access for ${p.email}`}
                           disabled={dropPending.isPending}
-                          onClick={() => dropPending.mutate(p.invitationId)}
+                          onClick={() => setDropping({ invitationId: p.invitationId, email: p.email })}
                         >
                           <XIcon />
                         </Button>
@@ -372,6 +377,31 @@ export function AccessCard({ formId, myEmail }: { formId: string; myEmail?: stri
             done: emailing.notify ? `Changed the role of ${name(raising.target)} and emailed them` : 'Access updated',
           })
         }}
+      />
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(o) => !o && setRemoving(null)}
+        title={
+          <>
+            Remove <bdi dir="auto">{removing && name(removing)}</bdi>?
+          </>
+        }
+        description="They can no longer open this form or its submissions. To give it back, add them again."
+        action="Remove access"
+        onConfirm={() => removing && save.mutate({ grants: withRole(removing, null), done: `Removed ${name(removing)}` })}
+      />
+      <ConfirmDialog
+        open={dropping !== null}
+        onOpenChange={(o) => !o && setDropping(null)}
+        title="Remove the invited access?"
+        description={
+          <>
+            <bdi dir="ltr">{dropping?.email}</bdi> won't get access to this form when they accept. To give it back,
+            invite them again.
+          </>
+        }
+        action="Remove invited access"
+        onConfirm={() => dropping && dropPending.mutate(dropping.invitationId)}
       />
       <AlertDialog open={confirmSelf !== null} onOpenChange={(o) => !o && setConfirmSelf(null)}>
         <AlertDialogContent>
