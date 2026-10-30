@@ -24,7 +24,7 @@ from urllib.parse import unquote, urlsplit
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from pydantic import ConfigDict, EmailStr, Field, StringConstraints
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app import captcha, ratelimit
 from app.answers import search_text
@@ -70,6 +70,7 @@ from app.services.progress import save_progress_days
 from app.services.users import normalize_email
 from app.signatures import service as signatures
 from app.storage import FileTooLargeError
+from app.submissions import numbering
 from app.theme.resolve import form_email_brand, page_brand
 from app.uploads import service as uploads
 from app.validation.answers import validate_submission
@@ -593,16 +594,14 @@ async def submit(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     uploads.with_file_refs(form, stripped, checked.records)
-    # Serialise reference numbers per form. The lock also makes "one response per address"
-    # hold under concurrent submits: check again once no other submit can commit meanwhile.
+    # Serialise submits per form. The lock makes "one response per address" hold under
+    # concurrent submits: check again once no other submit can commit meanwhile. The reference
+    # number comes from the form's counter, so an erased submission's number is never reused.
     await db.execute(select(FormRecord.id).where(FormRecord.id == form_record.id).with_for_update())
     if await _already_responded(db, form_record, email):
         await db.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, "already_responded")
-    last = await db.scalar(
-        select(func.max(Submission.seq)).where(Submission.form_id == form_record.id)
-    )
-    seq = (last or 0) + 1
+    seq = await numbering.allocate(db, form_record.id)
     now = datetime.now(UTC)
     agent = user_agent(request)
     submission = Submission(

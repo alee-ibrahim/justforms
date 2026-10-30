@@ -88,6 +88,9 @@ class FormRecord(IdMixin, TimestampMixin, Base):
         )
     )
     settings: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}")
+    # The highest reference number this form has handed out (app.submissions.numbering). It
+    # never goes down, so the number of an erased submission is never given to another one.
+    last_seq: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
