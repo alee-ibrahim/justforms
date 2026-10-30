@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.answers import search_text
@@ -43,6 +43,7 @@ from app.services import forms as form_svc
 from app.services import slugs
 from app.services.users import audit
 from app.storage import Storage, StorageError
+from app.submissions import numbering
 from app.theme import logo as form_logos
 
 log = logging.getLogger(__name__)
@@ -191,12 +192,9 @@ async def _import_rows(
             exact_used += 1
     rows.sort(key=lambda r: (r[1].submitted_at or now, r[0]))
 
-    # Serialise reference numbers with live submissions on the same form.
-    await db.execute(select(FormRecord.id).where(FormRecord.id == form_rec.id).with_for_update())
-    last = await db.scalar(
-        select(func.max(Submission.seq)).where(Submission.form_id == form_rec.id)
-    )
-    seq = last or 0
+    # Reserve the numbers on the form's counter (serialised with live submissions): numbers of
+    # erased submissions are never handed out again.
+    seq = await numbering.allocate(db, form_rec.id, len(rows)) - 1 if rows else 0
     pending = 0
     for done, (number, res) in enumerate(rows, start=1):
         seq += 1
