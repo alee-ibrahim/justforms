@@ -87,8 +87,33 @@ link-preview images included, and no other form can take it until the form is er
 forms still at a generic address (`form`, `form-3`) are offered a readable one on the Share page
 in one click.
 
-Forms can be embedded in other websites with `?embed=1`; each form can limit which sites may
-embed it (any site when the list is empty).
+Forms can be embedded in other websites; each form can limit which sites may embed it (any
+site when the list is empty, otherwise the form page's `frame-ancestors` lists them). The Share
+page gives the code:
+
+```html
+<iframe src="https://<your-host>/<address>?embed=1" title="<form title>"
+        style="display:block;width:100%;height:800px;border:0" loading="lazy"></iframe>
+<script src="https://<your-host>/embed.js" async></script>
+```
+
+`?embed=1` drops the page background, card and footer but keeps the page's padding.
+`/embed.js` sizes every iframe of that JustForms site on the page to its form, so only the
+host page scrolls, and brings the form's top back into view when the respondent moves to
+another page of the form or submits it. Without the script the iframe still works: it keeps
+its 800px height and scrolls inside. The form posts `{type: 'justforms:resize', height}` and
+`{type: 'justforms:top'}` to its parent; the script acts only on messages from its own origin
+sent by one of those iframes. A host page that can't load the script can listen itself:
+
+```js
+window.addEventListener('message', (e) => {
+  const frame = document.querySelector('iframe[src^="https://<your-host>/"]')
+  if (e.origin !== 'https://<your-host>' || e.source !== frame.contentWindow) return
+  if (e.data?.type === 'justforms:resize') frame.style.height = `${e.data.height}px`
+})
+```
+
+"Full page" on the Share page frames the normal form page so it fills the window.
 
 ## Signatures, signed PDFs and the verify page
 

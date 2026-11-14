@@ -14,9 +14,10 @@ export type TelemetryApp = 'studio' | 'form' | 'doc'
 
 /** Call once per page entry, after the first render was scheduled. */
 export function startTelemetry(app: TelemetryApp): void {
-  const early: unknown[] = []
+  // Raw events: turning them into errors (telemetry-error.ts) waits for the lazy chunk.
+  const early: Event[] = []
   const keep = (e: Event) => {
-    if (early.length < 5) early.push((e as ErrorEvent).error ?? (e as PromiseRejectionEvent).reason)
+    if (early.length < 5) early.push(e)
   }
   const stop = () => {
     removeEventListener('error', keep)

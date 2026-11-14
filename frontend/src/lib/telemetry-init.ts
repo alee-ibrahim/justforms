@@ -3,6 +3,7 @@ import {
   browserApiErrorsIntegration,
   captureException,
   dedupeIntegration,
+  eventFiltersIntegration,
   globalHandlersIntegration,
   httpContextIntegration,
   init,
@@ -10,6 +11,7 @@ import {
 } from '@sentry/browser'
 
 import type { TelemetryApp } from './telemetry'
+import { errorOf } from './telemetry-error'
 import { scrubEvent } from './telemetry-scrub'
 
 interface TelemetryConfig {
@@ -22,7 +24,7 @@ interface TelemetryConfig {
 }
 
 /** Starts reporting when the install has a DSN; sends the errors caught before. */
-export async function initTelemetry(app: TelemetryApp, early: unknown[], stopEarly: () => void): Promise<void> {
+export async function initTelemetry(app: TelemetryApp, early: Event[], stopEarly: () => void): Promise<void> {
   const res = await fetch('/api/v1/meta', { credentials: 'omit', headers: { Accept: 'application/json' } })
   const config = res.ok ? ((await res.json()) as { telemetry?: TelemetryConfig | null }).telemetry : null
   if (!config) return stopEarly()
@@ -52,6 +54,9 @@ export async function initTelemetry(app: TelemetryApp, early: unknown[], stopEar
       browserApiErrorsIntegration(),
       linkedErrorsIntegration(),
       dedupeIntegration(),
+      // Browser notices, not bugs: a ResizeObserver that ran past one frame, and errors from
+      // cross-origin scripts the browser hides ("Script error.").
+      eventFiltersIntegration({ ignoreErrors: [/ResizeObserver loop/, /^Script error\.?$/] }),
       httpContextIntegration(),
     ],
     initialScope: { tags: { app } },
@@ -59,5 +64,5 @@ export async function initTelemetry(app: TelemetryApp, early: unknown[], stopEar
     beforeSend: (event) => scrubEvent(event),
   })
   stopEarly()
-  for (const error of early.splice(0)) captureException(error)
+  for (const e of early.splice(0)) captureException(errorOf(e))
 }
