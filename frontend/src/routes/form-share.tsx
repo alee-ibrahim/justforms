@@ -8,6 +8,7 @@ import { useFormSummary } from '@/components/builder/form-context'
 import { BuilderContext } from '@/components/builder/store'
 import { usePublish } from '@/components/builder/use-publish'
 import { AccessCard } from '@/components/forms/access-card'
+import { embedCode } from '@/components/forms/embed-code'
 import { ReadableAddress } from '@/components/forms/readable-address'
 import { hostPrefix, normalizeSlug, readableSlug, useSlugCheck } from '@/components/forms/slug'
 import { SlugStatus } from '@/components/forms/slug-field'
@@ -240,10 +241,7 @@ function EmbedCard({ form, url }: { form: FormSummary; url: string }) {
   const [mode, setMode] = useState<'inline' | 'full'>('inline')
   const [sites, setSites] = useState(form.embedOrigins.join(', '))
   const [sitesError, setSitesError] = useState<string | null>(null)
-  const code =
-    mode === 'inline'
-      ? `<iframe src="${url}?embed=1" title="${form.title.replace(/"/g, '&quot;')}" style="width:100%;border:0" height="800" loading="lazy"></iframe>\n<script>window.addEventListener('message',function(e){if(e.data&&e.data.type==='justforms:resize'){document.querySelectorAll('iframe[src^="${url}"]').forEach(function(f){f.style.height=e.data.height+'px'})}})</script>`
-      : `<iframe src="${url}?embed=1" title="${form.title.replace(/"/g, '&quot;')}" style="position:fixed;inset:0;width:100%;height:100%;border:0"></iframe>`
+  const code = embedCode(mode, url, form.title)
   return (
     <Card className="rounded-md shadow-none ring-0 border">
       <CardHeader>

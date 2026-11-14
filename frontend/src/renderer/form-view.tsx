@@ -88,6 +88,9 @@ export interface FormRendererProps {
   theme?: ThemeOptions | null
   /** Anonymous friction events (pages reached, first answer, problems shown): live form only. */
   onFriction?: (event: FrictionEvent) => void
+  /** Called when the respondent should see the top of the form (a new page, the outcome); an
+   *  embedded form asks the host page to scroll the frame into view. */
+  onTop?: () => void
 }
 
 interface Problem {
@@ -168,6 +171,7 @@ export function FormRenderer({
   allowAnother = true,
   theme: themeProp,
   onFriction,
+  onTop,
 }: FormRendererProps) {
   const theme = themeProp ?? brand?.theme ?? DEFAULT_THEME
   const language = formLanguage(form)
@@ -202,6 +206,8 @@ export function FormRenderer({
   const path = ev?.path.length ? ev.path : form.pages.map((p) => p.id)
   const pageIndexInPath = Math.max(0, path.indexOf(pageId))
   const page = form.pages.find((p) => p.id === pageId) ?? form.pages[0]
+  // The form as its own page: not the studio preview, not embedded in another website.
+  const fullPage = frame === 'page' && !embed
   const isLast = pageIndexInPath >= path.length - 1
 
   useEffect(() => {
@@ -437,6 +443,7 @@ export function FormRenderer({
     setPageId(id)
     setSummary([])
     pageChanged.current = true
+    onTop?.()
     const nextPage = form.pages.find((p) => p.id === id)
     const n = path.indexOf(id) + 1
     setAnnounce(
@@ -462,7 +469,7 @@ export function FormRenderer({
   // height feeds scroll-padding (index.css); a field focused under it is scrolled to the centre.
   useEffect(() => {
     const bar = barRef.current
-    if (frame !== 'page' || !bar) return
+    if (!fullPage || !bar) return
     const root = document.documentElement
     const measure = () => root.style.setProperty('--df-bar-h', `${bar.offsetHeight}px`)
     measure()
@@ -481,7 +488,7 @@ export function FormRenderer({
       ro?.disconnect()
       sheet?.removeEventListener('focusin', onFocus)
     }
-  }, [frame, phase])
+  }, [fullPage, phase])
 
   const submit = async () => {
     setPhase('submitting')
@@ -493,6 +500,7 @@ export function FormRenderer({
       setReference(outcome.reference)
       setPhase('done')
       window.scrollTo({ top: 0 })
+      onTop?.()
       return
     }
     setPhase('filling')
@@ -692,10 +700,12 @@ export function FormRenderer({
           ref={barRef}
           aria-label={msgs.next}
           lang="en"
-          data-df-sticky-bar={frame === 'page' || undefined}
+          data-df-sticky-bar={fullPage || undefined}
           className={cn(
             'flex items-center gap-3',
-            frame === 'page' &&
+            // Not when embedded: the host page sizes the frame to the form, so there is nothing
+            // to stick to, and the bar's negative margins would make the frame scroll sideways.
+            fullPage &&
               'max-md:sticky max-md:bottom-0 max-md:-mx-5 max-md:border-t max-md:bg-card max-md:px-5 max-md:py-3 max-md:pb-[max(0.75rem,env(safe-area-inset-bottom))]',
           )}
         >
@@ -741,12 +751,12 @@ export function FormRenderer({
         <div
           {...contentProps(language)}
           {...themeAttrs(theme)}
-          data-df-frame={frame === 'page' && !embed ? 'page' : undefined}
+          data-df-frame={fullPage ? 'page' : undefined}
           data-accent={accent ? '' : undefined}
           style={accent ? ({ '--form-accent': accent } as React.CSSProperties) : undefined}
           className={cn(
             'text-base text-foreground',
-            frame === 'page' && !embed && 'min-h-svh bg-background md:px-6 md:py-12',
+            fullPage && 'min-h-svh bg-background md:px-6 md:py-12',
             embed && 'bg-transparent',
           )}
         >
@@ -754,13 +764,14 @@ export function FormRenderer({
             ref={sheetRef}
             className={cn(
               '@container mx-auto flex w-full max-w-[var(--df-sheet,40rem)] flex-col gap-6 bg-card p-5 md:p-10',
-              frame === 'page' && !embed && 'md:rounded-md md:border',
-              embed && 'bg-transparent p-0 md:p-0',
+              fullPage && 'md:rounded-md md:border',
+              // Embedded: no card, but the page's padding, so nothing touches the host page's edges.
+              embed && 'bg-transparent',
             )}
           >
             {body}
           </div>
-          {frame === 'page' && !embed && <BrandFooter brand={brand} madeWith={msgs.madeWith} />}
+          {fullPage && <BrandFooter brand={brand} madeWith={msgs.madeWith} />}
           {/* start-0: in RTL an unanchored sr-only box sits past the right edge (1px scroll at 320px). */}
           <div className="sr-only start-0 top-0" aria-live="polite">
             {announce}

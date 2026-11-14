@@ -32,7 +32,6 @@ export function changedQuestions(before: Form, after: Form): Set<string> {
   return out
 }
 
-export function postHeight() {
-  if (window.parent === window) return
-  window.parent.postMessage({ type: 'justforms:resize', height: document.documentElement.scrollHeight }, '*')
-}
+/** Embedded (`?embed=1`): asks the host page (public/embed.js) to bring the top of the form into
+ *  view (a new page, the outcome). A page that is not framed posts to itself; nothing listens. */
+export const postTop = () => parent.postMessage({ type: 'justforms:top' }, '*')

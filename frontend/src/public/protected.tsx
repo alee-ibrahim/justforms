@@ -18,7 +18,7 @@ import { freshChallenge, solveAltcha } from './access-lib'
 import { loadForm, submitAnswers, type Access, type CaptchaChallenge, type LiveForm, type LoadResult } from './api'
 import * as autosaveLib from './autosave'
 import { useFriction } from './use-friction'
-import { changedQuestions, embed, formSlug } from './helpers'
+import { changedQuestions, embed, formSlug, postTop } from './helpers'
 import { useAutosave } from './use-autosave'
 
 /** The sheet on the desk, for screens shown before the form itself. */
@@ -239,6 +239,7 @@ export function ProtectedApp({ first }: { first: LoadResult }) {
         brand={current.brand}
         mode="live"
         embed={embed}
+        onTop={postTop}
         onSubmit={onSubmit}
         uploader={uploader}
         initialAnswers={autosave.initialAnswers}

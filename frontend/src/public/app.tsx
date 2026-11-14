@@ -16,7 +16,7 @@ import { MSG } from '@/renderer/messages'
 import { themeAttrs } from '@/renderer/theme'
 
 import { loadForm, submitAnswers, type Access, type LiveForm, type LoadResult } from './api'
-import { changedQuestions, embed, formSlug, postHeight } from './helpers'
+import { changedQuestions, embed, formSlug, postTop } from './helpers'
 import { useAutosave, type AutosaveLib } from './use-autosave'
 import { useFriction } from './use-friction'
 
@@ -71,11 +71,7 @@ export function App() {
   }, [state])
 
   useEffect(() => {
-    if (!embed) return
-    document.documentElement.style.background = 'transparent'
-    const ro = new ResizeObserver(postHeight)
-    ro.observe(document.body)
-    return () => ro.disconnect()
+    if (embed) void import('./embed').then((m) => m.startEmbed())
   }, [])
 
   const autosave = useAutosave(lib, state && !needsAccess(state) && state.ok ? state.form : null)
@@ -147,6 +143,7 @@ export function App() {
         brand={current.brand}
         mode="live"
         embed={embed}
+        onTop={postTop}
         onSubmit={onSubmit}
         uploader={uploader}
         initialAnswers={autosave.initialAnswers}
