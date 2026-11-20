@@ -14,7 +14,7 @@ RUN pnpm build
 # Unprivileged nginx (uid 101, no root master, pid and temp files under /tmp). nginx.conf still
 # listens on port 80: Docker lets non-root processes bind it, and the Helm chart sets the
 # net.ipv4.ip_unprivileged_port_start sysctl to 0 for the pod.
-FROM nginxinc/nginx-unprivileged:1.29-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 # The upstream image lags behind Alpine security updates; take them at build time.
 USER root
 RUN apk upgrade --no-cache
