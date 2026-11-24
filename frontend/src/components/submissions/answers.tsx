@@ -128,7 +128,8 @@ function Heading({
       {...textProps(text)}
       className={cn(className, textLang(text) === 'dv' ? thaana : latin, alignClass(align, formAlign, textDirection(text)))}
     >
-      <FormText text={text} />
+      {/* Auto alignment: a bilingual text is one row, English left and Dhivehi right. */}
+      <FormText text={text} split={explicitAlign(align, formAlign) === null} />
     </Tag>
   )
 }
@@ -185,7 +186,7 @@ export function AnswerValue({ field, value, row }: { field: FieldElement; value:
           {chosen.map((o) => (
             <Chip key={o.value}>
               <bdi {...textProps(o.label)}>
-                <FormText text={o.label} />
+                <FormText text={o.label} split={explicitAlign(field.align, formAlign) === null && 'inline'} />
               </bdi>
             </Chip>
           ))}

@@ -11,7 +11,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { FormText } from '@/thaana/form-text'
-import { boxLang, PER_LINE, textDirection, textLang } from '@/schema/direction'
+import { boxLang, PER_LINE, textDirection, textLang, type TextAlign } from '@/schema/direction'
+import { bilingualParts } from '@/thaana/runs'
 import type {
   FieldElement,
   LongTextField,
@@ -21,7 +22,7 @@ import type {
 
 import { type AnswerPath, controlId, useRenderer } from './context'
 import { idPresetOf, normalizeWith } from './id-presets'
-import { leaveGroup } from './util'
+import { leaveGroup, placement } from './util'
 import { ltrRun, MSG } from './messages'
 import { En, Msg } from './msg'
 
@@ -229,10 +230,25 @@ export function ChoiceCard({
       >
         {control}
         <FieldContent>
-          <FieldTitle className="text-base font-normal">{children}</FieldTitle>
+          <FieldTitle className="w-full text-base font-normal">{children}</FieldTitle>
         </FieldContent>
       </UiField>
     </FieldLabel>
+  )
+}
+
+/**
+ * A choice's text in its own direction. A bilingual option ("ޕްރޮގްރާމް (Program)") with the
+ * question's alignment `auto` is split: English at the left, Dhivehi at the right.
+ */
+export function OptionText({ field, label }: { field: { label: string; align?: TextAlign | null }; label: string }) {
+  const { form } = useRenderer()
+  if (placement(field.label, field.align, form.settings.align).align === 'auto' && bilingualParts(label))
+    return <FormText text={label} split />
+  return (
+    <bdi dir={textDirection(label)} lang={textLang(label)}>
+      <FormText text={label} />
+    </bdi>
   )
 }
 
@@ -295,9 +311,7 @@ function SingleChoiceControl({
             id={i === 0 ? base : `${base}-${i}`}
             control={<RadioGroupItem value={o.value} id={i === 0 ? base : `${base}-${i}`} />}
           >
-            <bdi dir={textDirection(o.label)} lang={textLang(o.label)}>
-              <FormText text={o.label} />
-            </bdi>
+            <OptionText field={field} label={o.label} />
           </ChoiceCard>
         ))}
         {field.allowOther && (

@@ -34,7 +34,7 @@ import { cn } from '@/lib/utils'
 import { formatSize } from '@/renderer/util'
 import { En, Msg } from '@/renderer/msg'
 import type { Element, FieldElement, Form } from '@/schema'
-import { formDirection, hasThaana, textDirection, textLang, type TextAlign } from '@/schema/direction'
+import { explicitAlign, formDirection, hasThaana, textDirection, textLang, type TextAlign } from '@/schema/direction'
 import { alignClass, textProps } from '@/schema/align'
 import { FormLines, FormText } from '@/thaana/form-text'
 
@@ -115,7 +115,7 @@ const LABEL = 'text-base font-semibold [&:lang(dv)]:text-lg [&:lang(dv)]:font-no
 function Label({ text, align, formAlign }: { text: string; align: TextAlign | null | undefined; formAlign: TextAlign | null | undefined }) {
   return (
     <dt {...textProps(text)} className={cn(LABEL, alignClass(align, formAlign, textDirection(text)))}>
-      <FormText text={text} />
+      <FormText text={text} split={explicitAlign(align, formAlign) === null} />
     </dt>
   )
 }
@@ -712,7 +712,7 @@ function Review({
                     alignClass(page.align, ctx.align, textDirection(page.title)),
                   )}
                 >
-                  <FormText text={page.title} />
+                  <FormText text={page.title} split={explicitAlign(page.align, ctx.align) === null} />
                 </h2>
               )}
               <dl className="flex flex-col gap-4">{rows}</dl>

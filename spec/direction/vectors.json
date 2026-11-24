@@ -1,5 +1,5 @@
 {
-  "description": "Text direction of form content: the dominant script (more words, i.e. runs of strong letters with their marks, of Thaana or of Latin; a tie goes to the first strong character, Unicode bidi P2). Thaana is rtl, Latin ltr; text with no strong character takes the fallback. lang is dv when the direction is rtl and the text holds Thaana. Run by backend (app/schemas/direction.py) and frontend (src/schema/direction.ts). lines: multi-line text split at every line break (\n, \r\n, \r); each line takes its own direction, and a line with no strong character the whole text's (its first strong character, else the fallback). explicit: the left/center/right an align resolves to, or null for auto (each paragraph then aligns to its own direction). isolate: the text split into runs, the runs of the minority script (the one opposite the text's direction) carrying the direction they are isolated in (<bdi>, or LRI/RLI…PDI in the PDF), so brackets and punctuation around them stay put. justify: explicit is \"justify\"; the physical side (single lines, the last line of a justified paragraph) is the text's start edge.",
+  "description": "Text direction of form content: the dominant script (more words, i.e. runs of strong letters with their marks, of Thaana or of Latin; a tie goes to the first strong character, Unicode bidi P2). Thaana is rtl, Latin ltr; text with no strong character takes the fallback. lang is dv when the direction is rtl and the text holds Thaana. Run by backend (app/schemas/direction.py) and frontend (src/schema/direction.ts). lines: multi-line text split at every line break (\n, \r\n, \r); each line takes its own direction, and a line with no strong character the whole text's (its first strong character, else the fallback). explicit: the left/center/right an align resolves to, or null for auto (each paragraph then aligns to its own direction). isolate: the text split into runs, the runs of the minority script (the one opposite the text's direction) carrying the direction they are isolated in (<bdi>, or LRI/RLI…PDI in the PDF), so brackets and punctuation around them stay put. justify: explicit is \"justify\"; the physical side (single lines, the last line of a justified paragraph) is the text's start edge. Brackets: a bracket pair belongs to the run it encloses (closers right after an isolated run that it opened move into it; an opener just before it whose closer follows it wraps it). bilingual: a one-line text that is one English block and one Dhivehi block (either order) split into its ltr (English) and rtl (Dhivehi) parts, first = the script it starts with; each part keeps the punctuation that ends it and the brackets that enclose it, the divider (spaces, '/', '|', dashes) is dropped; null when there is no clear two-block split (one script, three or more script blocks, only spaces between the blocks, and without '/' or '|' a lone capitalised acronym or a part shorter than two words and half the other). Rendered with align auto only: English at the left, Dhivehi at the right. Brackets: a bracket pair belongs to the run it encloses (closers right after an isolated run that it opened move into it; an opener just before it whose closer follows it wraps it). bilingual: a one-line text that is one English block and one Dhivehi block (either order) split into its ltr (English) and rtl (Dhivehi) parts, first = the script it starts with; each part keeps the punctuation that ends it and the brackets that enclose it, the divider (spaces, '/', '|', dashes) is dropped; null when there is no clear two-block split (one script, three or more script blocks, only spaces between the blocks, and without '/' or '|' a lone capitalised acronym or a part shorter than two words and half the other). Rendered with align auto only: English at the left, Dhivehi at the right. Brackets: a bracket pair belongs to the run it encloses (closers right after an isolated run that it opened move into it; an opener just before it whose closer follows it wraps it). bilingual: a one-line text that is one English block and one Dhivehi block (either order) split into its ltr (English) and rtl (Dhivehi) parts, first = the script it starts with; each part keeps the punctuation that ends it and the brackets that enclose it, the divider (spaces, '/', '|', dashes) is dropped; null when there is no clear two-block split (one script, three or more script blocks, only spaces between the blocks, and without '/' or '|' a lone capitalised acronym or a part shorter than two words and half the other). Rendered with align auto only: English at the left, Dhivehi at the right.",
   "direction": [
     {
       "text": "Full name",
@@ -359,15 +359,15 @@
       "text": "ބައިވެރިވުމަށް (PPY) ފޯމު ފުރުއްވާ.",
       "runs": [
         [
-          "ބައިވެރިވުމަށް (",
+          "ބައިވެރިވުމަށް ",
           null
         ],
         [
-          "PPY",
+          "(PPY)",
           "ltr"
         ],
         [
-          ") ފޯމު ފުރުއްވާ.",
+          " ފޯމު ފުރުއްވާ.",
           null
         ]
       ]
@@ -428,6 +428,250 @@
           null
         ]
       ]
+    },
+    {
+      "text": "ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި) (Practice Parliament for Youth (PPY))",
+      "runs": [
+        [
+          "ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި) ",
+          null
+        ],
+        [
+          "(Practice Parliament for Youth (PPY))",
+          "ltr"
+        ]
+      ]
+    },
+    {
+      "text": "ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި) (Practice Parliament for Youth (PPY))",
+      "dir": "ltr",
+      "runs": [
+        [
+          "ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި)",
+          "rtl"
+        ],
+        [
+          " (Practice Parliament for Youth (PPY))",
+          null
+        ]
+      ]
+    },
+    {
+      "text": "Practice Parliament for Youth (PPY) (ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި))",
+      "runs": [
+        [
+          "Practice Parliament for Youth (PPY)",
+          "ltr"
+        ],
+        [
+          " (ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި))",
+          null
+        ]
+      ]
+    },
+    {
+      "text": "Practice Parliament for Youth (PPY) (ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި))",
+      "dir": "rtl",
+      "runs": [
+        [
+          "Practice Parliament for Youth (PPY)",
+          "ltr"
+        ],
+        [
+          " (ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި))",
+          null
+        ]
+      ]
+    }
+  ],
+  "bilingual": [
+    {
+      "text": "Which program did you participate in? ބައިވެރިވި ޕްރޮގްރާމަކީ:",
+      "parts": {
+        "ltr": "Which program did you participate in?",
+        "rtl": "ބައިވެރިވި ޕްރޮގްރާމަކީ:",
+        "first": "ltr"
+      }
+    },
+    {
+      "text": "Full name: ފުރިހަމަ ނަން",
+      "parts": {
+        "ltr": "Full name:",
+        "rtl": "ފުރިހަމަ ނަން",
+        "first": "ltr"
+      }
+    },
+    {
+      "text": "Year of participation: ބައިވެރިވި އަހަރު",
+      "parts": {
+        "ltr": "Year of participation:",
+        "rtl": "ބައިވެރިވި އަހަރު",
+        "first": "ltr"
+      }
+    },
+    {
+      "text": "ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި) (Practice Parliament for Youth (PPY))",
+      "parts": {
+        "ltr": "(Practice Parliament for Youth (PPY))",
+        "rtl": "ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި)",
+        "first": "rtl"
+      }
+    },
+    {
+      "text": "Practice Parliament for Youth (PPY) (ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި))",
+      "parts": {
+        "ltr": "Practice Parliament for Youth (PPY)",
+        "rtl": "(ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި))",
+        "first": "ltr"
+      }
+    },
+    {
+      "text": "Practice Parliament for Youth (PPY) ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި)",
+      "parts": {
+        "ltr": "Practice Parliament for Youth (PPY)",
+        "rtl": "ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި)",
+        "first": "ltr"
+      }
+    },
+    {
+      "text": "ބައިވެރިވި ޕްރޮގްރާމަކީ: Which program did you participate in?",
+      "parts": {
+        "ltr": "Which program did you participate in?",
+        "rtl": "ބައިވެރިވި ޕްރޮގްރާމަކީ:",
+        "first": "rtl"
+      }
+    },
+    {
+      "text": "Name / ނަން",
+      "parts": {
+        "ltr": "Name",
+        "rtl": "ނަން",
+        "first": "ltr"
+      }
+    },
+    {
+      "text": "ނަން / Name",
+      "parts": {
+        "ltr": "Name",
+        "rtl": "ނަން",
+        "first": "rtl"
+      }
+    },
+    {
+      "text": "Applicant name / ހުށަހަޅާ ފަރާތުގެ ނަން",
+      "parts": {
+        "ltr": "Applicant name",
+        "rtl": "ހުށަހަޅާ ފަރާތުގެ ނަން",
+        "first": "ltr"
+      }
+    },
+    {
+      "text": "ID | އައިޑީ",
+      "parts": {
+        "ltr": "ID",
+        "rtl": "އައިޑީ",
+        "first": "ltr"
+      }
+    },
+    {
+      "text": "Submit / ފޮނުވާ",
+      "parts": {
+        "ltr": "Submit",
+        "rtl": "ފޮނުވާ",
+        "first": "ltr"
+      }
+    },
+    {
+      "text": "Full name : ފުރިހަމަ ނަން",
+      "parts": {
+        "ltr": "Full name :",
+        "rtl": "ފުރިހަމަ ނަން",
+        "first": "ltr"
+      }
+    },
+    {
+      "text": "Email - އީމެއިލް",
+      "parts": {
+        "ltr": "Email",
+        "rtl": "އީމެއިލް",
+        "first": "ltr"
+      }
+    },
+    {
+      "text": "For example 2024 / މިސާލަކަށް 2024",
+      "parts": {
+        "ltr": "For example 2024",
+        "rtl": "މިސާލަކަށް 2024",
+        "first": "ltr"
+      }
+    },
+    {
+      "text": "Year / 2024 ވަނަ އަހަރު",
+      "parts": {
+        "ltr": "Year",
+        "rtl": "2024 ވަނަ އަހަރު",
+        "first": "ltr"
+      }
+    },
+    {
+      "text": "Full name:ފުރިހަމަ ނަން",
+      "parts": {
+        "ltr": "Full name:",
+        "rtl": "ފުރިހަމަ ނަން",
+        "first": "ltr"
+      }
+    },
+    {
+      "text": "Full name (ފުރިހަމަ ނަން)",
+      "parts": {
+        "ltr": "Full name",
+        "rtl": "(ފުރިހަމަ ނަން)",
+        "first": "ltr"
+      }
+    },
+    {
+      "text": "PPY ގެ ބައިވެރިން ކޮބާ؟",
+      "parts": null
+    },
+    {
+      "text": "ބައިވެރިވުމަށް (PPY) ފޯމު ފުރުއްވާ.",
+      "parts": null
+    },
+    {
+      "text": "ބައިވެރިވުމަށް (PPY)",
+      "parts": null
+    },
+    {
+      "text": "Is PPY ready? ތައްޔާރު",
+      "parts": null
+    },
+    {
+      "text": "Microsoft Teams އިން ބައްދަލުވުން ބާއްވާނެ",
+      "parts": null
+    },
+    {
+      "text": "ރާއްޖެ is a country in the Indian Ocean.",
+      "parts": null
+    },
+    {
+      "text": "Submit ފޮނުވާ",
+      "parts": null
+    },
+    {
+      "text": "Full name",
+      "parts": null
+    },
+    {
+      "text": "ފުރިހަމަ ނަން",
+      "parts": null
+    },
+    {
+      "text": "Name / ނަން\nނަން / Name",
+      "parts": null
+    },
+    {
+      "text": "",
+      "parts": null
     }
   ]
 }

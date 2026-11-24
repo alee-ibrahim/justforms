@@ -25,7 +25,8 @@ import type {
 import { type AnswerPath, controlId, pathKey, useRenderer } from './context'
 import { FieldControl } from './fields'
 import { Markdown } from './markdown'
-import { FormText } from '@/thaana/form-text'
+import { Bilingual, FormText } from '@/thaana/form-text'
+import { bilingualParts } from '@/thaana/runs'
 
 import { MSG } from './messages'
 import { En } from './msg'
@@ -98,15 +99,25 @@ export function QuestionView({
   // The label is isolated in its own direction, so a mixed label ("Island / ރަށް") is one unit
   // for bidi and the marker that follows always sits at the block's end edge, right after it,
   // instead of joining the label's last run.
-  const heading = (
+  // A bilingual label ("Full name: ފުރިހަމަ ނަން") with auto alignment: English at the left,
+  // Dhivehi at the right, the marker after the English part.
+  const parts = label === undefined && place.align === 'auto' ? bilingualParts(field.label) : null
+  const after = (
+    <>
+      <RequirementMark required={required} />
+      {extra}
+    </>
+  )
+  const heading = parts ? (
+    <Bilingual parts={parts} end={after} />
+  ) : (
     <>
       {labelText !== null && (
         <bdi dir={place.dir} data-slot="question-label">
           {labelText}
         </bdi>
       )}
-      <RequirementMark required={required} />
-      {extra}
+      {after}
     </>
   )
   const control = (
@@ -190,7 +201,7 @@ export function ContentView({ el, placeholder }: { el: ContentElement; placehold
           style={place.text}
           className={cn('text-xl', place.lang === 'dv' ? 'font-normal' : 'font-semibold tracking-tight')}
         >
-          {el.text ? <FormText text={el.text} /> : placeholder}
+          {el.text ? <FormText text={el.text} split={place.align === 'auto'} /> : placeholder}
         </h3>
       )
     case 'paragraph':
@@ -237,7 +248,7 @@ export function SectionFrame({
             place.lang === 'dv' ? 'font-normal' : 'font-semibold',
           )}
         >
-          {title ?? <FormText text={el.title ?? ''} />}
+          {title ?? <FormText text={el.title ?? ''} split={place.align === 'auto'} />}
         </FieldLegend>
       )}
       {description !== undefined ? (
