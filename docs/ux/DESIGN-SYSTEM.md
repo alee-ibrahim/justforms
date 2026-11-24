@@ -299,7 +299,7 @@ Base unit 4px (Tailwind default). Two densities:
 | Control height | 32px (`h-8`, shadcn default) | 48px on phones, 44px ≥ sm (`h-12 sm:h-11`), 48px ≥ 1024px |
 | Touch target | 32px with 8px gap with a mouse; ≥ 44×44px on touch screens (`pointer: coarse` rules in `index.css`) | ≥ 44×44px always |
 | Field-to-field gap | 16px in inspector | 32px between questions (`gap-(--df-space)`, theme density), 36px ≥ 1024px |
-| Label to input | 8px | 8px; description sits between label and input, 4px |
+| Label to input | 8px | 12px (`gap-3`); help text sits between label and input, 6px under the label (`-mt-1.5`). Always well under the question gap (24px compact) |
 | Panel padding | 12–16px | sheet padding 20px phone, 40px tablet, 44px ≥ 1024px |
 | Table row | 40px | n/a |
 

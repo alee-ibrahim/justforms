@@ -128,13 +128,18 @@ export function QuestionView({
       labelledBy={labelId}
     />
   )
+  // Help text belongs to its label (6px under it); the control sits 12px below (the frame's
+  // gap-3; a fieldset's legend sits outside the flex gap, hence its mb-3), and questions are
+  // --df-space apart (24px or more), so each label reads with its field.
+  const help =
+    description !== undefined
+      ? description
+      : field.description && (
+          <Markdown id={descId} text={field.description} className={DESCRIPTION} align={place.align} measure rtl={place.dir === 'rtl'} />
+        )
   const body = (
     <>
-      {description !== undefined
-        ? description
-        : field.description && (
-            <Markdown id={descId} text={field.description} className={DESCRIPTION} align={place.align} measure rtl={place.dir === 'rtl'} />
-          )}
+      {help && <div className="-mt-1.5">{help}</div>}
       {invalid && (
         <FieldError id={errId} className="text-base">
           {/* System messages are English runs; a builder's own pattern message is content. */}
@@ -159,7 +164,7 @@ export function QuestionView({
   // and nothing moves when errors appear. Only the label and the message turn red: help text and
   // a signing statement must not read as part of the error.
   const frame = cn(
-    'relative gap-2 rounded-sm transition-colors motion-reduce:transition-none data-[invalid=true]:text-foreground',
+    'relative gap-3 rounded-sm transition-colors motion-reduce:transition-none data-[invalid=true]:text-foreground',
     half && 'h-full',
     invalid &&
       'before:absolute before:inset-y-0 before:-start-[15px] before:w-[3px] before:rounded-full before:bg-destructive',
@@ -169,7 +174,7 @@ export function QuestionView({
     return (
       <DirectionProvider dir={place.dir}>
         <FieldSet className={frame} data-invalid={invalid || undefined} dir={place.dir} lang={place.lang} style={place.text}>
-          <FieldLegend id={labelId} className={cn(labelClass, 'mb-0 w-full data-[variant=legend]:text-lg')}>
+          <FieldLegend id={labelId} className={cn(labelClass, 'mb-3 w-full data-[variant=legend]:text-lg')}>
             {heading}
           </FieldLegend>
           {body}
@@ -243,7 +248,7 @@ export function SectionFrame({
           lang={place.lang}
           style={place.text}
           className={cn(
-            'df-label mb-0 w-full text-lg data-[variant=legend]:text-lg',
+            'df-label mb-4 w-full text-lg data-[variant=legend]:text-lg',
           )}
         >
           {title ?? <FormText text={el.title ?? ''} split={place.align === 'auto'} />}
