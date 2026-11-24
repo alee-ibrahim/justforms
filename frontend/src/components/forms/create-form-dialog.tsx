@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { PlusIcon } from 'lucide-react'
-import { useThaanaKeyboard } from '@/thaana/keyboard'
 import { useState } from 'react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -18,11 +17,9 @@ import {
 } from '@/components/ui/dialog'
 import { hostPrefix, useSlugCheck } from '@/components/forms/slug'
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
+import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
-import { Toggle } from '@/components/ui/toggle'
 import { api } from '@/lib/api'
-import { toggleOn } from '@/lib/toggle'
 import { textProps } from '@/schema/align'
 import { titleSlug } from '@/thaana/latin'
 
@@ -31,10 +28,8 @@ export function CreateFormDialog({ orgId }: { orgId: string }) {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
-  // A form has no language: the title may be English, Dhivehi or both. The toggle turns on the
-  // phonetic Thaana keyboard; the field's direction follows what is typed.
-  const [thaana, setThaana] = useState(false)
-  const keyboard = useThaanaKeyboard<HTMLInputElement>({ enabled: thaana })
+  // A form has no language: the title may be English, Dhivehi or both. The field's direction
+  // follows what is typed.
   const auto = titleSlug(title)
   const check = useSlugCheck(auto, undefined, open && title.trim().length > 0)
   const address = check.result ? (check.result.available ? auto : check.result.suggestion) : null
@@ -55,7 +50,6 @@ export function CreateFormDialog({ orgId }: { orgId: string }) {
         setOpen(next)
         if (next) {
           setTitle('')
-          setThaana(false)
           create.reset()
         }
       }}
@@ -90,30 +84,15 @@ export function CreateFormDialog({ orgId }: { orgId: string }) {
             )}
             <Field>
               <FieldLabel htmlFor="form-title">Title</FieldLabel>
-              <InputGroup>
-                <InputGroupInput
-                  ref={keyboard}
-                  id="form-title"
-                  required
-                  maxLength={500}
-                  {...textProps(title, thaana ? 'rtl' : 'ltr')}
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  autoFocus
-                />
-                <InputGroupAddon align="inline-end">
-                  <Toggle
-                    size="sm"
-                    pressed={thaana}
-                    onPressedChange={setThaana}
-                    aria-label="Thaana keyboard"
-                    title="Thaana keyboard"
-                    className={toggleOn}
-                  >
-                    <bdi dir="ltr">ތ / A</bdi>
-                  </Toggle>
-                </InputGroupAddon>
-              </InputGroup>
+              <Input
+                id="form-title"
+                required
+                maxLength={500}
+                {...textProps(title)}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                autoFocus
+              />
               {/* Until there is a title this line says what Create form needs (REVIEW P3-5); then it
                   shows the address the title gives. */}
               <FieldDescription id="form-title-hint" aria-live="polite" className="min-h-5 truncate">

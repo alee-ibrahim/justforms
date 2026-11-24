@@ -193,20 +193,19 @@ describe('InlineText', () => {
     expect(input().value).toBe('Full name')
   })
 
-  it('types a Dhivehi label right to left with the Thaana keyboard on', () => {
+  it('edits a Dhivehi label right to left, with no keyboard toggle', () => {
     mount(() => <Label />, makeForm('ފުރިހަމަ ނަން'))
     act(() => idle(textKey.element('full_name', 'label')).click())
     expect(input().getAttribute('dir')).toBe('rtl')
     expect(input().getAttribute('lang')).toBe('dv')
-    expect(host.querySelector('[aria-label="Thaana keyboard"]')?.getAttribute('aria-pressed')).toBe('true')
+    expect(host.querySelector('[aria-label="Thaana keyboard"]')).toBeNull()
   })
 
-  it('types an English label left to right, keyboard offered but off, in a bilingual form', () => {
+  it('edits an English label left to right in a bilingual form', () => {
     mount(() => <Label />, makeForm('Name / ނަން'))
     act(() => idle(textKey.element('full_name', 'label')).click())
     expect(input().getAttribute('dir')).toBe('ltr')
     expect(input().getAttribute('lang')).toBe('en')
-    expect(host.querySelector('[aria-label="Thaana keyboard"]')?.getAttribute('aria-pressed')).toBe('false')
     key(input(), 'Escape')
   })
 

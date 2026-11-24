@@ -21,7 +21,7 @@ import type {
 
 import { type AnswerPath, controlId, useRenderer } from './context'
 import { idPresetOf, normalizeWith } from './id-presets'
-import { leaveGroup, thaanaKeyboard } from './util'
+import { leaveGroup } from './util'
 import { ltrRun, MSG } from './messages'
 import { En, Msg } from './msg'
 
@@ -32,7 +32,6 @@ const FileUpload = lazy(() => import('./file-upload'))
 const RatingControl = lazy(() => import('./rating'))
 const MultiChoiceControl = lazy(() => import('./multi-choice'))
 const PhoneControl = lazy(() => import('./phone'))
-const ThaanaInput = lazy(() => import('./thaana-input'))
 
 /** Comfortable public sizing, applied at the call site (components/ui stays untouched). */
 export const CONTROL = 'h-12 text-base md:text-base sm:h-11'
@@ -83,19 +82,18 @@ function TextControl({
   describedBy,
 }: ControlProps & { field: ShortTextField | LongTextField }) {
   const { ctx, value, set, blur } = useAnswer(path)
-  // An ID number: Latin typing (never the Thaana keyboard), normalised as it is typed.
+  // An ID number: left to right, normalised as it is typed.
   const preset = idPresetOf(field)
-  const script = preset ? 'latin' : (field.inputScript ?? 'auto')
   const text = typeof value === 'string' ? value : ''
-  const keyboard = thaanaKeyboard(field, script)
-  // Answers switch direction as they are typed (first strong character); an empty box starts
-  // on the side of what it expects (the keyboard's, else the placeholder's or label's).
-  const emptyDir = script === 'latin' ? 'ltr' : textDirection(field.placeholder || field.label, ctx.dir)
-  const dir = script === 'latin' ? 'ltr' : text ? textDirection(text, emptyDir) : emptyDir
+  // Answers switch direction as they are typed (first strong character): Dhivehi typed with
+  // the device's keyboard goes right to left in the Thaana face, English left to right. An
+  // empty box starts on the side of its placeholder or label.
+  const emptyDir = preset ? 'ltr' : textDirection(field.placeholder || field.label, ctx.dir)
+  const dir = preset ? 'ltr' : text ? textDirection(text, emptyDir) : emptyDir
   const common = {
     id: controlId(path),
     dir,
-    lang: script === 'latin' ? 'en' : textLang(text || field.placeholder || field.label),
+    lang: preset ? 'en' : textLang(text || field.placeholder || field.label),
     value: text,
     placeholder: field.placeholder || preset?.placeholder || undefined,
     'aria-invalid': invalid || undefined,
@@ -114,41 +112,19 @@ function TextControl({
       </p>
     ) : null
 
-  if (keyboard === 'none') {
-    return (
-      <>
-        {field.type === 'long_text' ? (
-          <Textarea {...common} rows={field.rows ?? 4} className="min-h-28 text-base md:text-base" />
-        ) : (
-          <Input
-            {...common}
-            {...(preset
-              ? { autoComplete: 'off', autoCapitalize: 'characters', autoCorrect: 'off', spellCheck: false }
-              : { autoComplete: autoComplete(field.id) })}
-            className={cn(CONTROL, preset && 'tabular-nums tracking-wide')}
-          />
-        )}
-        {counter}
-      </>
-    )
-  }
-  // Thaana input with the phonetic keyboard toggle (lazy chunk): only questions that expect
-  // Dhivehi answers load it.
-  const long = field.type === 'long_text'
-  const rows = field.type === 'long_text' ? (field.rows ?? 4) : 4
   return (
     <>
-      <Suspense
-        fallback={
-          long ? (
-            <Textarea {...common} rows={rows} className="min-h-28 text-base md:text-base" />
-          ) : (
-            <Input {...common} className={CONTROL} />
-          )
-        }
-      >
-        <ThaanaInput common={common} long={long} rows={rows} canvas={ctx.mode === 'canvas'} initial={keyboard === 'on'} />
-      </Suspense>
+      {field.type === 'long_text' ? (
+        <Textarea {...common} rows={field.rows ?? 4} className="min-h-28 text-base md:text-base" />
+      ) : (
+        <Input
+          {...common}
+          {...(preset
+            ? { autoComplete: 'off', autoCapitalize: 'characters', autoCorrect: 'off', spellCheck: false }
+            : { autoComplete: autoComplete(field.id) })}
+          className={cn(CONTROL, preset && 'tabular-nums tracking-wide')}
+        />
+      )}
       {counter}
     </>
   )

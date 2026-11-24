@@ -20,7 +20,6 @@ import {
   TriangleAlertIcon,
   Undo2Icon,
 } from 'lucide-react'
-import { useThaanaKeyboard } from '@/thaana/keyboard'
 import { type RefObject, useRef, useState } from 'react'
 
 import { useAi, useAiController } from '@/components/ai/controller'
@@ -238,12 +237,9 @@ function TitleCrumb({ store }: { store: BuilderStore }) {
   const schema = useBuilder((s) => s.schema)
   const [editing, setEditing] = useState<string | null>(null)
   const title = schema.settings.title
-  // The rename box types Thaana when the title is Dhivehi (no toggle in the breadcrumb).
-  const keyboard = useThaanaKeyboard<HTMLInputElement>({ enabled: textLang(editing || title) === 'dv' })
   if (editing !== null)
     return (
       <Input
-        ref={keyboard}
         autoFocus
         aria-label="Form title"
         dir="auto"

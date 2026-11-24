@@ -23,7 +23,6 @@
             "type": "short_text",
             "label": "ފުރިހަމަ ނަން",
             "required": true,
-            "inputScript": "auto",
             "maxLength": 120
           },
           {
@@ -34,7 +33,6 @@
             "required": true,
             "pattern": "^A[0-9]{6}$",
             "patternMessage": "ފޯމެޓް: A123456",
-            "inputScript": "latin",
             "sensitive": true
           },
           {

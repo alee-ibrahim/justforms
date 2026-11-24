@@ -73,7 +73,6 @@ PROPS: dict[str, tuple[str, str]] = {
     "patternMessage": ("Message when it doesn't match", "text"),
     "idPreset": ("ID format", "value"),
     "rows": ("Rows", "value"),
-    "inputScript": ("Typing", "script"),
     "min": ("Min", "value"),
     "max": ("Max", "value"),
     "step": ("Step", "value"),
@@ -335,8 +334,6 @@ def display(kind: str, value: Any, doc: Doc) -> list[Piece] | None:
         return [word(TYPE_NAMES.get(str(value), str(value)))]
     if kind == "display":
         return [word("Dropdown" if value == "dropdown" else "Radio buttons")]
-    if kind == "script":
-        return [word({"latin": "Latin", "thaana": "Thaana"}.get(str(value), "Automatic"))]
     if kind == "align":
         return [word(ALIGN_WORDS.get(str(value), "Automatic"))]
     if kind == "logic":

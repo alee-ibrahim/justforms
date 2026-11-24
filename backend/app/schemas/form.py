@@ -142,15 +142,6 @@ class Condition(RootModel[AllCondition | AnyCondition | NotCondition | FieldCond
 # --------------------------------------------------------------------------------------
 
 
-class InputScript(StrEnum):
-    """Phonetic Thaana keyboard for a text answer. ``auto`` turns it on when the question's
-    label is written in Thaana; the respondent can always toggle it per field."""
-
-    AUTO = "auto"
-    LATIN = "latin"
-    THAANA = "thaana"
-
-
 class Option(SchemaModel):
     value: Annotated[str, StringConstraints(min_length=1, max_length=200)]
     label: Text
@@ -179,7 +170,6 @@ class FieldBase(ElementBase):
 
 class ShortTextField(FieldBase):
     type: Literal["short_text"]
-    input_script: InputScript = InputScript.AUTO
     max_length: Annotated[int, Field(ge=1, le=10_000)] | None = None
     pattern: Annotated[str, StringConstraints(max_length=500)] | None = None
     pattern_message: Text | None = None
@@ -198,7 +188,6 @@ class ShortTextField(FieldBase):
 
 class LongTextField(FieldBase):
     type: Literal["long_text"]
-    input_script: InputScript = InputScript.AUTO
     max_length: Annotated[int, Field(ge=1, le=100_000)] | None = None
     rows: Annotated[int, Field(ge=2, le=30)] | None = None
 

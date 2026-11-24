@@ -64,9 +64,11 @@ external secrets operator").
 - **Alignment** is data: `align` on elements and pages, `settings.align` (form default, `auto`)
   and `settings.titleAlign`. `auto` follows the text's direction. Left/right are physical
   (inline `textAlign` style), never `text-left`/`text-right` classes.
-- **Thaana keyboard**: per question (`inputScript`; `auto` = on for Thaana labels, offered for
-  mixed ones) in the renderer; every studio box editing form text offers the "ތ / A" toggle.
-  Attach it through `@/thaana/keyboard` (it keeps `dir` under our control), not the package hook.
+- **No built-in keyboard**: no Thaana/phonetic keyboard and no language switch anywhere. People
+  type Dhivehi with their device's keyboard; boxes only follow what is typed (`dir`/`lang` from
+  the first strong character). Don't add a keyboard toggle or a per-question typing setting.
+- **Markers after form text** ("(optional)", "(required)") follow the text isolated in a
+  `<bdi dir>` (the label's own direction), so mixed labels never pull the marker to the wrong side.
 - Use **logical** Tailwind classes in renderer/form components that display form content (the lint
   enforces them everywhere): `ms-*`/`me-*`, `ps-*`/`pe-*`, `start-*`/`end-*`, `text-start`/`text-end`,
   `border-s`/`border-e`, `rounded-s`/`rounded-e`. Never `ml/mr/pl/pr/left/right`.

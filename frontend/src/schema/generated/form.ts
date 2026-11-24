@@ -3,11 +3,6 @@
  * then `pnpm gen:schema` here. */
 
 /**
- * Phonetic Thaana keyboard for a text answer. ``auto`` turns it on when the question's
- * label is written in Thaana; the respondent can always toggle it per field.
- */
-export type InputScript = 'auto' | 'latin' | 'thaana'
-/**
  * This interface was referenced by `JustFormsForm`'s JSON-Schema
  * via the `definition` "Condition".
  */
@@ -32,19 +27,6 @@ export type Op =
   | 'count_eq'
   | 'count_gte'
   | 'count_lte'
-/**
- * Phonetic Thaana keyboard for a text answer. ``auto`` turns it on when the question's
- * label is written in Thaana; the respondent can always toggle it per field.
- */
-export type InputScript1 = 'auto' | 'latin' | 'thaana'
-/**
- * Phonetic Thaana keyboard for a text answer. ``auto`` turns it on when the question's
- * label is written in Thaana; the respondent can always toggle it per field.
- *
- * This interface was referenced by `JustFormsForm`'s JSON-Schema
- * via the `definition` "InputScript".
- */
-export type InputScript2 = 'auto' | 'latin' | 'thaana'
 /**
  * This interface was referenced by `JustFormsForm`'s JSON-Schema
  * via the `definition` "JsonValue".
@@ -105,7 +87,6 @@ export interface ShortTextField {
   description?: string | null
   id: string
   idPreset?: string | null
-  inputScript?: InputScript
   kind: 'field'
   label: string
   maxLength?: number | null
@@ -166,7 +147,6 @@ export interface LongTextField {
   align?: ('auto' | 'left' | 'center' | 'right') | null
   description?: string | null
   id: string
-  inputScript?: InputScript1
   kind: 'field'
   label: string
   maxLength?: number | null

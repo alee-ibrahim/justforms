@@ -2,7 +2,7 @@
  * The public form for respondents who must confirm their email, sign in as staff, or pass a
  * CAPTCHA (PHASE-4-SCREENS 2-3). Loaded lazily by `app.tsx`.
  */
-import { hasThaana } from '@yashau/thaana-react'
+import { hasThaana } from '@/schema/direction'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { BrandLogo } from '@/components/brand/brand-parts'

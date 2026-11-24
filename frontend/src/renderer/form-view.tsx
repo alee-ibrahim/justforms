@@ -17,13 +17,12 @@ import { evaluate, type Evaluation } from '@/logic/engine'
 import type { Brand, ThemeOptions } from '@/lib/branding'
 import { cn } from '@/lib/utils'
 import { FormText } from '@/thaana/form-text'
-import { hasThaana } from '@yashau/thaana-react'
 import type { Element, FieldElement, Form } from '@/schema'
-import { formDirection, textDirection, textLang } from '@/schema/direction'
+import { formDirection, hasThaana, textDirection, textLang } from '@/schema/direction'
 
 import { legibleAccent } from './accent'
 import { DEFAULT_THEME, themeAttrs } from './theme'
-import { padToMinRows, placement, prefetchControls, thaanaKeyboard } from './util'
+import { padToMinRows, placement, prefetchControls } from './util'
 import {
   type AnswerPath,
   controlId,
@@ -223,11 +222,6 @@ export function FormRenderer({
       types.add(info.element.kind === 'field' ? info.element.type : info.element.kind)
     prefetchControls(types)
     if (types.has('repeater')) void import('./repeater')
-    const keyboard = [...index.elements.values()].some(
-      ({ element: el }) =>
-        el.kind === 'field' && (el.type === 'short_text' || el.type === 'long_text') && thaanaKeyboard(el) !== 'none',
-    )
-    if (keyboard) void import('./thaana-input')
   }, [index])
 
   const visibleSet = useMemo(() => new Set(ev?.visible ?? [...index.elements.keys()]), [ev, index])

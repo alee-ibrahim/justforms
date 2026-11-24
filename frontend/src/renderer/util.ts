@@ -1,8 +1,8 @@
 /** Pure helpers shared by the renderer components. */
 import type { CSSProperties } from 'react'
 
-import type { Element, FieldElement, FileField, LongTextField, RepeaterElement, ShortTextField } from '@/schema'
-import { hasThaana, resolveAlign, textDirection, textLang, type TextAlign, type TextDirection } from '@/schema/direction'
+import type { Element, FieldElement, FileField, RepeaterElement } from '@/schema'
+import { resolveAlign, textDirection, textLang, type TextAlign, type TextDirection } from '@/schema/direction'
 
 import { MSG } from './messages'
 
@@ -150,19 +150,4 @@ export function placement(
         ? text_
         : { ...text_, [side === 'left' ? 'marginRight' : 'marginLeft']: 'auto' }
   return { dir, lang: textLang(text), text: text_, block }
-}
-
-/**
- * The phonetic Thaana keyboard for a text answer: `thaana` turns it on, `latin` leaves it out,
- * and `auto` follows the question: on when its label reads in Thaana, offered (off) when the
- * label mixes in some Thaana ("Name / ނަން"), left out for English-only labels.
- */
-export function thaanaKeyboard(
-  field: ShortTextField | LongTextField,
-  script: 'auto' | 'latin' | 'thaana' = field.inputScript ?? 'auto',
-): 'on' | 'off' | 'none' {
-  if (script === 'latin') return 'none'
-  if (script === 'thaana') return 'on'
-  if (textLang(field.label) === 'dv') return 'on'
-  return hasThaana(field.label) || hasThaana(field.placeholder) ? 'off' : 'none'
 }

@@ -503,9 +503,7 @@ function TypeSettings({ field, update }: { field: FieldElement; update: (patch: 
       )
     case 'short_text':
       if (field.idPreset) return <IdPresetSettings field={field} set={set} />
-      return <TypingSettings field={field} set={set} />
-    case 'long_text':
-      return <TypingSettings field={field} set={set} />
+      return null
     case 'file': {
       const accept = field.accept ?? []
       const on = FILE_KINDS.filter((k) => k.accept.some((a) => accept.includes(a))).map((k) => k.key)
@@ -565,8 +563,6 @@ function TypeSettings({ field, update }: { field: FieldElement; update: (patch: 
 }
 
 
-type TextQuestion = Extract<FieldElement, { type: 'short_text' | 'long_text' }>
-
 /** ID number: the format comes from a preset (renderer/id-presets.ts) or the Validation group. */
 function IdPresetSettings({
   field,
@@ -593,7 +589,6 @@ function IdPresetSettings({
                   patternMessage: field.patternMessage ?? preset.message,
                   maxLength: field.maxLength ?? preset.maxLength,
                   placeholder: field.placeholder || preset.placeholder,
-                  inputScript: 'latin',
                 }
               : { idPreset: e.target.value },
           )
@@ -610,7 +605,7 @@ function IdPresetSettings({
         {preset ? (
           <>
             Checks the format <span className="font-mono">{preset.example}</span>, removes spaces and uses capital
-            letters. Typing is always Latin.
+            letters. Answers read left to right.
           </>
         ) : (
           'Set the pattern, placeholder and message under Validation.'
@@ -618,36 +613,6 @@ function IdPresetSettings({
       </FieldDescription>
     </Field>
   )
-}
-
-function TypingSettings({ field, set }: { field: TextQuestion; set: (patch: object) => void }) {
-  switch (field.type) {
-    case 'short_text':
-    case 'long_text':
-      return (
-        <Field>
-          <FieldLabel>Typing</FieldLabel>
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            value={field.inputScript ?? 'auto'}
-            onValueChange={(v) => v && set({ inputScript: v === 'auto' ? undefined : v })}
-            aria-label="Typing"
-            className={toggleGroupOn}
-          >
-            <ToggleGroupItem value="auto">Auto</ToggleGroupItem>
-            <ToggleGroupItem value="latin">Latin</ToggleGroupItem>
-            <ToggleGroupItem value="thaana">Thaana</ToggleGroupItem>
-          </ToggleGroup>
-          <FieldDescription>
-            The answer box follows what is typed. Thaana turns the phonetic keyboard on; Auto turns it on when the
-            label is in Thaana and offers it when the label mixes in Thaana.
-          </FieldDescription>
-        </Field>
-      )
-    default:
-      return null
-  }
 }
 
 function PatternTester({ pattern }: { pattern: string }) {

@@ -245,12 +245,12 @@ Rules:
 - **Underlines in Thaana** collide with below-base fili: links and error-summary links in a dv
   root use `underline-offset-[0.4em] decoration-1`.
 - **Numbers inside Dhivehi form text** (labels, titles, options, help text) are isolated at
-  display time with `isolateNumbers` from `@yashau/thaana-react`, so phone numbers and
+  display time with `isolateNumbers` (`thaana/display.ts`), so phone numbers and
   negatives keep their order. Stored text is unchanged.
 - **Numbers and fractions in RTL** must be isolated: "Step 2 of 3" rendered as `2 / 3` inside RTL
   text flips to "3 / 2". Wrap numeric runs (`2 / 3`, `1–50`, `10 MB`, dates like
-  `30/11/2026`) in `<bdi dir="ltr">`. The same applies to the "ތ / A" keyboard toggle label.
-  Put the `bdi` *inside* the element (`<Toggle><bdi dir="ltr">ތ / A</bdi></Toggle>`), never on a
+  `30/11/2026`) in `<bdi dir="ltr">`.
+  Put the `bdi` *inside* the element (`<Button><bdi dir="ltr">2 / 3</bdi></Button>`), never on a
   flex item, or its logical margins flip and it jumps to the wrong edge.
 - Thaana has no italics and no capitals. Never synthesise italic (`font-synthesis: none` in the
   dv root) and never letter-space Thaana.
@@ -374,8 +374,7 @@ button always has a `Tooltip` with the same text as its `aria-label`.
   The studio chrome stays LTR English whatever the canvas shows.
 - Logical utilities only (`ms-`, `pe-`, `start-`, `text-start`, `border-s`).
 - Wrap LTR runs inside dv text in `<bdi dir="ltr">` (emails, IDs, URLs, phone numbers,
-  version numbers). Inputs that take Latin data (`email`, `phone`, `number`, `inputScript:
-  latin`) get `dir="ltr"` on the input itself, but the label and error stay RTL.
+  version numbers). Inputs that take Latin data (`email`, `phone`, `number`, ID numbers) get `dir="ltr"` on the input itself, but the label and error stay RTL.
 - Progress bar fills from the start edge (right in RTL). Back/Next swap visual sides
   automatically because they are in a flex row; their chevrons flip.
 - Phonetic keyboard toggle sits at the input's end edge.

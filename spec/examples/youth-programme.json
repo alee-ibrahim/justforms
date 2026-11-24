@@ -14,14 +14,13 @@
         {
           "kind": "field", "id": "full_name", "type": "short_text",
           "label": "ފުރިހަމަ ނަން",
-          "required": true, "inputScript": "auto", "maxLength": 120
+          "required": true, "maxLength": 120
         },
         {
           "kind": "field", "id": "national_id", "type": "short_text",
           "label": "އައިޑީ ކާޑު ނަންބަރު",
           "required": true, "pattern": "^A[0-9]{6}$",
-          "patternMessage": "ފޯމެޓް: A123456",
-          "inputScript": "latin", "sensitive": true
+          "patternMessage": "ފޯމެޓް: A123456", "sensitive": true
         },
         {
           "kind": "field", "id": "age", "type": "number",

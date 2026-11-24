@@ -39,7 +39,7 @@ response becomes a PDF that anyone can check is genuine. It is in early developm
 
 - **Builder** with a true-to-life canvas, autosave, undo, live preview and published versions.
 - **Logic**: multi-page forms with show, hide, require and skip-page rules.
-- **Dhivehi** forms right to left in Thaana fonts, with a phonetic Thaana keyboard.
+- **Dhivehi** forms right to left in Thaana fonts; answer boxes follow what is typed.
 - **Signed PDFs** (PAdES) with a QR code to a public verify page.
 - **Approvals** in up to three steps; approvers need no account.
 - **Submissions** table with statuses, comments, sensitive answers marked and logged, and Excel export; emails and signed webhooks.

@@ -45,7 +45,7 @@ function RequirementMark({ required }: { required: boolean }) {
   const show = convention === 'optional' ? !required : required
   if (!show) return null
   return (
-    <span className="font-normal text-muted-foreground">
+    <span className="font-normal text-muted-foreground" data-slot="requirement-mark">
       {' '}
       <En>{convention === 'optional' ? MSG.optional : MSG.required}</En>
     </span>
@@ -94,9 +94,16 @@ export function QuestionView({
   // badge doesn't push one input below the other.
   const half = field.width === 'half'
   const labelText = label ?? (field.label.trim() ? <FormText text={field.label} /> : null)
+  // The label is isolated in its own direction, so a mixed label ("Island / ރަށް") is one unit
+  // for bidi and the marker that follows always sits at the block's end edge, right after it,
+  // instead of joining the label's last run.
   const heading = (
     <>
-      {labelText}
+      {labelText !== null && (
+        <bdi dir={place.dir} data-slot="question-label">
+          {labelText}
+        </bdi>
+      )}
       <RequirementMark required={required} />
       {extra}
     </>

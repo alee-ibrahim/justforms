@@ -21,7 +21,6 @@ export const SAMPLE_EN: Form = {
           label: 'ID card number',
           description: 'Like A123456',
           required: true,
-          inputScript: 'latin',
         },
         {
           kind: 'field',
@@ -56,7 +55,7 @@ export const SAMPLE_DV: Form = {
           type: 'short_text',
           label: 'އައިޑީ ކާޑު ނަންބަރު',
           required: true,
-          inputScript: 'latin',
+          placeholder: 'A123456',
         },
         {
           kind: 'field',

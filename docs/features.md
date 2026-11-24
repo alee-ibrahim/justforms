@@ -27,8 +27,8 @@ reasoning behind each part see the [design document](DESIGN.md).
 
 A form can be **English, Dhivehi or both**, even in one label ("Name / ނަން"). Every piece of
 text takes its own direction: Dhivehi is right to left in Thaana fonts, English left to right,
-and answer boxes switch as people type. A phonetic Thaana keyboard is there for any question
-(on by default when the question is in Dhivehi). Alignment is yours to set: Auto (follows the
+and answer boxes switch as people type (Dhivehi is typed with the device's own keyboard).
+Alignment is yours to set: Auto (follows the
 text), Left, Center or Right, for the whole form and for each question, heading or page. The
 builder, the public form, the submissions view, emails and the signed PDF all follow it.
 Everything around the form (the studio, the public form's buttons and messages, emails, the

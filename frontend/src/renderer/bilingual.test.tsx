@@ -3,11 +3,11 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
-import type { Form, ShortTextField } from '@/schema'
+import type { Form } from '@/schema'
 
 import { RendererContext, type RendererContextValue } from './context'
 import { FillElements } from './elements'
-import { placement, thaanaKeyboard } from './util'
+import { placement } from './util'
 
 const form: Form = {
   schemaVersion: '2',
@@ -105,27 +105,56 @@ describe('bilingual form', () => {
   })
 })
 
-describe('thaanaKeyboard', () => {
-  const field = (label: string, inputScript?: ShortTextField['inputScript']): ShortTextField => ({
-    kind: 'field',
-    id: 'x',
-    type: 'short_text',
-    label,
-    inputScript,
-  })
-  it('is on for Thaana labels, offered for mixed ones, absent for English', () => {
-    expect(thaanaKeyboard(field('ނަން'))).toBe('on')
-    expect(thaanaKeyboard(field('Name / ނަން'))).toBe('off')
-    expect(thaanaKeyboard(field('Name'))).toBe('none')
-    expect(thaanaKeyboard(field('Name', 'thaana'))).toBe('on')
-    expect(thaanaKeyboard(field('ނަން', 'latin'))).toBe('none')
-  })
-})
-
 describe('placement', () => {
   it('moves width-capped blocks with physical margins only for explicit sides', () => {
     expect(placement('Help', 'right', null).block).toEqual({ textAlign: 'right', marginLeft: 'auto' })
     expect(placement('Help', 'center', null).block).toEqual({ textAlign: 'center', marginInline: 'auto' })
     expect(placement('ނަން', null, 'auto').block).toEqual({ textAlign: 'start' })
+  })
+})
+
+describe('requirement marker', () => {
+  const label = (host: HTMLElement, id: string) => host.querySelector<HTMLElement>(`#q-${id}-label`)!
+
+  it('isolates a mixed label and puts the marker right after it, at the logical end', () => {
+    const right = { ...form, settings: { ...form.settings, align: 'right' as const } }
+    for (const host of [render(), render(right)]) {
+      const el = label(host, 'island')
+      const [name, mark] = [...el.children] as HTMLElement[]
+      expect(name.tagName).toBe('BDI')
+      expect(name.getAttribute('dir')).toBe('ltr')
+      expect(name.textContent).toBe('Island / ރަށް')
+      expect(mark.dataset.slot).toBe('requirement-mark')
+      expect(mark.textContent).toBe(' (optional)')
+      // The marker is an English run isolated from the label's Thaana run.
+      expect(mark.querySelector('bdi')?.getAttribute('dir')).toBe('ltr')
+      expect(mark.querySelector('bdi')?.getAttribute('lang')).toBe('en')
+      expect(el.textContent).toBe('Island / ރަށް (optional)')
+    }
+  })
+
+  it('isolates a Thaana-first label in its own direction (the marker then sits on the left)', () => {
+    const el = label(render(), 'full_name')
+    const name = el.firstElementChild as HTMLElement
+    expect(name.tagName).toBe('BDI')
+    expect(name.getAttribute('dir')).toBe('rtl')
+    expect(el.lastElementChild?.getAttribute('data-slot')).toBe('requirement-mark')
+  })
+
+  it('marks required questions the same way', () => {
+    const f: Form = { ...form, pages: [{ ...form.pages[0] }] }
+    const host = document.createElement('div')
+    host.innerHTML = renderToStaticMarkup(
+      <RendererContext.Provider value={{ ...ctx(f), convention: 'required', isRequired: () => true }}>
+        <FillElements elements={f.pages[0].elements ?? []} />
+      </RendererContext.Provider>,
+    )
+    const el = label(host, 'island')
+    expect(el.firstElementChild?.tagName).toBe('BDI')
+    expect(el.lastElementChild?.textContent).toBe(' (required)')
+    // Choice questions (legend) too.
+    const track = label(host, 'track')
+    expect(track.firstElementChild?.getAttribute('dir')).toBe('rtl')
+    expect(track.lastElementChild?.textContent).toBe(' (required)')
   })
 })

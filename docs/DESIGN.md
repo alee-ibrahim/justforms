@@ -18,7 +18,7 @@ Some requirements are first-class from day one: Dhivehi (Thaana, right-to-left) 
 2. **Identical logic everywhere.** Show/hide/require/skip rules are evaluated by one small rule engine. It has a Python implementation and a TypeScript implementation, and both must pass a shared conformance suite.
 3. **Owners can work with submissions easily.** Table view with filters and search, a detail view, a status workflow (New → In review → Approved/Rejected) with comments, and `.xlsx` export.
 4. **Signatures you can defend.** Raw strokes, rendered images, timestamp, IP, user agent and a SHA-256 content hash, plus a tamper-evident signed PDF.
-5. **Dhivehi, English and bilingual forms as a first-class feature.** One form can hold English and Dhivehi side by side, even in one label ("Name / ނަން"). Every piece of text takes its own direction from its content: Thaana renders right-to-left with Thaana fonts and a phonetic Thaana keyboard, English left-to-right. Alignment is adjustable per element. The studio UI itself is English only (§16).
+5. **Dhivehi, English and bilingual forms as a first-class feature.** One form can hold English and Dhivehi side by side, even in one label ("Name / ނަން"). Every piece of text takes its own direction from its content: Thaana renders right-to-left with Thaana fonts, English left-to-right; people type Dhivehi with their device's own keyboard. Alignment is adjustable per element. The studio UI itself is English only (§16).
 6. **AI that edits the schema, never code.** It works through tool calls that produce validated schema patches, previewed in the UI with undo. AI is optional and hidden when no provider is configured.
 7. **Easy to self-host.** `docker compose up` for small installs and a Helm chart for Kubernetes.
 8. **Import from Jotform.** Form structure comes from the pasted HTML source, and submissions from an Excel/CSV export with a column-mapping step. An optional API-key import adds conditions and bulk import.
@@ -133,7 +133,7 @@ justforms/
 │       ├── schema/                 # TS types + zod, GENERATED from spec/form-schema.v2.json
 │       ├── logic/                  # TS rule engine
 │       ├── renderer/               # form renderer (react-hook-form + zod), used by studio preview and form app
-│       └── thaana/                 # phonetic keyboard mapping + input hook, fonts
+│       └── thaana/                 # mixed-script display helpers, slugs
 ├── spec/
 │   ├── form-schema.v2.json         # JSON Schema exported from backend Pydantic models (CI checks it is current)
 │   └── logic/vectors/*.json        # shared logic conformance vectors (run by pytest AND vitest)
@@ -161,7 +161,7 @@ Source-of-truth chain: the Pydantic models in `backend/justforms/schema/` are ca
 - **Draft.** One mutable working copy per form. The builder and the AI both edit the draft.
 - **Version.** An immutable snapshot that is created when the draft is published. Versions are numbered `1, 2, 3, ...`. Each submission stores the exact `form_version_id` it was filled against and is always rendered, validated and exported using that version.
 - **`schemaVersion`.** The version of the spec format itself (`"2"`). It is separate from the form's version number. When the format changes, ordered migration functions (`app/schemas/migrate.py`) upgrade stored documents **on read**: `Form` validation runs them first, and the ORM upgrades drafts, published versions and AI working copies in memory when rows load. Published versions are never rewritten in the database (their `schema_hash` was taken at publish); a draft is written back in the new format on its next edit. Every step is idempotent.
-  - `1` → `2` (bilingual forms): `settings.language` is dropped, since text direction now comes from each text. A former `dv` form still renders right to left because its text is Thaana. Its text questions whose keyboard was `auto` (on because of the form language) keep the Thaana keyboard: they become `inputScript: "thaana"` unless their label is Thaana, where `auto` already turns it on. Old undo entries that touch `/settings/language` are skipped.
+  - `1` → `2` (bilingual forms): `settings.language` is dropped, since text direction now comes from each text. A former `dv` form still renders right to left because its text is Thaana. The former per-question keyboard setting `inputScript` is dropped from text questions (in any stored document that still carries it): there is no built-in keyboard, people type Dhivehi with their device's own keyboard. Old undo entries that touch `/settings/language` are skipped.
 
 ### 4.2 Element tree
 
@@ -189,8 +189,8 @@ Rules enforced by the Pydantic validators:
 
 | `type` | Value shape | Type-specific props |
 |---|---|---|
-| `short_text` | string | `inputScript: "auto" \| "latin" \| "thaana"` (phonetic Thaana keyboard; `auto`: on when the label is Thaana, offered when it mixes in Thaana), `maxLength`, `pattern` |
-| `long_text` | string | `inputScript`, `maxLength`, `rows` |
+| `short_text` | string | `maxLength`, `pattern` |
+| `long_text` | string | `maxLength`, `rows` |
 | `email` | string | — |
 | `phone` | string (E.164) | `defaultCountry` (e.g. `"MV"`) |
 | `number` | number | `min`, `max`, `step`, `integer` |
@@ -225,14 +225,13 @@ Common field props: `label`, `description`, `placeholder` (plain strings, Englis
         {
           "kind": "field", "id": "full_name", "type": "short_text",
           "label": "ފުރިހަމަ ނަން",
-          "required": true, "inputScript": "auto", "maxLength": 120
+          "required": true, "maxLength": 120
         },
         {
           "kind": "field", "id": "national_id", "type": "short_text",
           "label": "އައިޑީ ކާޑު ނަންބަރު",
           "required": true, "pattern": "^A[0-9]{6}$",
-          "patternMessage": "ފޯމެޓް: A123456",
-          "inputScript": "latin", "sensitive": true
+          "patternMessage": "ފޯމެޓް: A123456", "sensitive": true
         },
         {
           "kind": "field", "id": "age", "type": "number",
@@ -1169,11 +1168,11 @@ chip.
 - **Bilingual forms (decided, `schemaVersion` 2).** A form has no language. Any form text may be English, Dhivehi or both, even within one label ("Name / ނަން", "ނަން / Name"). There are no per-language translations: a bilingual paper form becomes one form whose labels carry both languages.
 - **Direction per piece of text.** Every text takes its direction from its **first strong character** (Unicode bidi rule P2): Thaana (and other right-to-left scripts) → `rtl`, Latin → `ltr`; text without letters takes its block's direction. `lang` is `dv` when the text reads right to left in Thaana, else `en`. The twins are `backend/app/schemas/direction.py` and `frontend/src/schema/direction.ts` (`textDirection`, `textLang`, `textProps`, `resolveAlign`); both run `spec/direction/vectors.json`.
   - *A question is one block in its label's direction*: a Thaana label makes the whole question (label, help text, options, answer box, error) read right to left, an English one left to right, so a mixed form alternates cleanly. Options, help paragraphs and list items also each take their own direction, so an English option inside a Dhivehi question stays left to right in its own isolate. Sections, repeaters, headings and paragraphs use their own title or text.
-  - *Mixed text*: inline, the run in the other script is marked (`FormText`, `thaana/form-text.tsx`): a Thaana run inside English text is `<span lang="dv" dir="rtl">` (Thaana face, scaled 1.12em), a Latin run inside Dhivehi text `<span lang="en" dir="ltr">` (Latin face). Numbers inside right-to-left text go through `isolateNumbers`.
-  - *Answers* follow what is typed: a text box's `dir` follows its value's first strong character as the respondent types; while empty it starts on the side its question reads (or the right while the Thaana keyboard is on). Email, phone, number, date and time boxes stay `ltr`.
+  - *Mixed text*: inline, the run in the other script is marked (`FormText`, `thaana/form-text.tsx`): a Thaana run inside English text is `<span lang="dv" dir="rtl">` (Thaana face, scaled 1.12em), a Latin run inside Dhivehi text `<span lang="en" dir="ltr">` (Latin face). Numbers inside right-to-left text go through `isolateNumbers` (`thaana/display.ts`).
+  - *Answers* follow what is typed: a text box's `dir` follows its value's first strong character as the respondent types; while empty it starts on the side its placeholder or question reads. Dhivehi is typed with the device's own keyboard: the app has no keyboard or language switch of its own. Email, phone, number, date and time boxes stay `ltr`.
 - **Alignment (user-adjustable).** `settings.align` is the form default (`auto` unless changed); `settings.titleAlign` sets the form title and description; each element and page may override it with `align` (`auto` / `left` / `center` / `right`; unset follows the form default). `auto` aligns each text to its start edge, so Dhivehi sits at the right and English at the left. Left and right are physical and apply to the block's text and nested paragraphs (width-capped help text moves to that side); center centres them. Controls (choice rows, answer boxes) keep their block's direction. In the builder the inspector shows an **Alignment** toggle group (Auto, Left, Center, Right) for every question, section, repeater, heading, paragraph and page, plus **Text alignment** (the form default) and **Title alignment** in the form panel; pressing the selected option again clears an element's override.
 - **Where a page's own layout comes from.** The *sheet's* layout (logo side, progress, Back/Next order, the outcome screen) follows the **form title's** direction, so a form titled in Dhivehi lays out right to left, as Dhivehi forms always have; every block inside then takes its own direction. English system strings inside a right-to-left region are rendered through `<En>` (`renderer/msg.tsx`), a `<bdi dir="ltr" lang="en">` run; plain-text slots that can't hold markup (an `<option>`, a placeholder) wrap the English in LRI…PDI (`ltrRun`). The date picker's calendar is English, so it is LTR. Error summary links isolate the question label and the (English) message separately.
-  - *The studio* applies the same rules on the builder canvas (WYSIWYG, inline editing included), the preview, the submissions view and the approver page. Every box that edits form text (canvas inline editors, inspector inputs) follows what is typed and offers the "ތ / A" Thaana keyboard toggle, on by default when the text (or, while empty, its block) is Dhivehi.
+  - *The studio* applies the same rules on the builder canvas (WYSIWYG, inline editing included), the preview, the submissions view and the approver page. Every box that edits form text (canvas inline editors, inspector inputs) follows what is typed.
   - *System-only screens* (the email-code gate, "already responded", closed / not found, the verify page) are English and LTR. Form content shown on them is a block with its own `lang`/`dir`.
   - *Emails* are English and LTR (`<html lang="en">`); each form text (the form title, the success message, every question label and answer cell) carries its own `dir`, and an `align` (for clients that ignore `dir`) from its direction and alignment; content inside an English sentence is a `<bdi>` / FSI…PDI isolate. Subjects are plain text ("Your response to {title} ({reference})").
   - *The PDF* shapes each text in its own direction (HarfBuzz, the Thaana face for Thaana) and places each question's label and answer by the question's alignment; the sheet's English lines (reference and date, "Approval", the footer "Digitally signed. Verify at", the QR) follow the sheet direction, each as one left-to-right run placed against that edge.
@@ -1185,13 +1184,9 @@ chip.
   - Server rendering (signed PDFs, link-preview images) can't use browser fonts: it uses the bundled Noto Sans Thaana unless the operator supplies a TTF/OTF with `JUSTFORMS_THAANA_FONT_FILE` (optional `_BOLD_FILE`; Helm `fonts.server.*`), shaped with HarfBuzz like the bundled face (`app/pdf/faces.py`). The file is checked once per process: it must cover U+0780 to U+07B0, and for PDFs its OS/2 `fsType` must allow subset embedding (images are rasterised, so embedding rules don't apply there). A failing file falls back to Noto Sans Thaana with one warning. The supplied face is used only for the characters Noto Sans Thaana covers, so Latin words in Dhivehi text keep the Latin face (the web rule, DESIGN-SYSTEM 4.1). Link-preview image versions include a hash of the font file, so cached images are remade when it changes.
   - Later, orgs may upload a licensed font in the admin UI (stored via the storage backend, referenced by `theme.thaanaFontFileId`).
 - **Numerals and dates.** Western digits everywhere, because that is Maldivian practice in forms. Dates are system text: English month names ("1 January 2026") in messages, the date picker (an LTR calendar), emails and PDFs.
-- **Phonetic Thaana keyboard** (`@yashau/thaana-react`, MIT, from dvfonts):
-  - Applies to `short_text` and `long_text`, per question: `inputScript: "thaana"` turns it on, `"latin"` leaves it out, and `"auto"` (default) turns it on when the question's label reads in Thaana, offers it (off) when the label mixes in Thaana, and leaves it out for English-only labels. A small toggle (shadcn `Toggle`, label "ތ / A") lets the respondent switch per field. It is a lazy chunk that only forms with such questions load.
-  - The package's `attachKeyboard` / `useThaanaKeyboard` is attached to the **official shadcn `Input`/`Textarea`** (its own `<ThaanaInput>` components are not used: shadcn only). It maps Latin keystrokes to Thaana with the standard Divehi Phonetic layout (Microsoft kbddiv1: `h→ހ`, `S→ށ`, `n→ނ`, `r→ރ`, `b→ބ`, `L→ޅ`, `k→ކ`, `w→އ`, `a→ަ`, `A→ާ`, `i→ި`, `I→ީ`, `u→ު`, `U→ޫ`, `e→ެ`, `E→ޭ`, `o→ޮ`, `O→ޯ`, `q→ް`, ..., plus `,` → `،`, `;` → `؛`, `?` → `؟`). The public renderer loads it lazily (`src/thaana/phonetic.ts`).
-  - The builder uses the same keyboard on every input that edits form text (labels, help text, options, titles), with the same "ތ / A" toggle. The app attaches `attachKeyboard` with `autoDirection: false` (`src/thaana/keyboard.ts`): the package would turn any text holding Thaana right to left, while JustForms follows the first strong character.
-  - Display: right-to-left form text (labels, titles, options, help text) goes through the package's `isolateNumbers`, so numbers, phone numbers and percentages keep their order inside RTL text. System strings are English `<En>` runs (above), so they need no number isolation of their own.
-  - Composition events (IME) and paste pass through unchanged. Cursor position and undo are preserved.
-  - Unit tested with a keystroke → output table (`src/thaana/phonetic.test.ts`). Users who already have a system Thaana keyboard can turn the toggle off.
+- **Typing Dhivehi.** There is no built-in Thaana or phonetic keyboard and no language switch anywhere (public form, studio, approver pages). People who type Dhivehi use the keyboard installed on their device; answer boxes and studio boxes only follow what is typed (`dir`/`lang` from the first strong character, Thaana face for Thaana).
+  - Display: right-to-left form text (labels, titles, options, help text) goes through `isolateNumbers` (`thaana/display.ts`, adapted from `@yashau/thaana`, MIT), so numbers, phone numbers and percentages keep their order inside RTL text. System strings are English `<En>` runs (above), so they need no number isolation of their own.
+- **Markers after a label.** A question label is rendered as its own isolate (`<bdi dir>` in the label's direction) and the requirement marker ("(optional)" / "(required)", an English `<En>` run) follows it. A mixed label ("Island / ރަށް") is then one unit for bidi, so the marker always sits right after it at the block's end edge (the right for a label that starts in English, the left for one that starts in Thaana), whatever the alignment. The PDF prints no markers.
 - **Validation messages.** The server returns error codes plus params; the public renderer turns them into English messages (`renderer/messages.ts`, one English set) for every form. A Dhivehi label is never put inside an English sentence ("Enter full name" becomes "Answer this question"); the builder's own `patternMessage` is content and is shown as written.
 
 ---
@@ -1299,14 +1294,14 @@ All endpoints are JSON. OpenAPI is served at `/api/v1/openapi.json` (with `/api/
   - A three-pane layout of field palette, canvas and inspector, made from shadcn `ResizablePanelGroup`, `Sheet`, `Tabs`, `Form`, `Select`/`NativeSelect`, `Switch`, `Command` and the other official components.
   - Drag and drop uses dnd-kit (`@dnd-kit/core` + `sortable`) for palette → canvas, reordering, and moving between sections and repeaters. Keyboard sorting comes along for accessibility.
   - State is the draft schema in a Zustand store with local undo. Edits become RFC 6902 patches, which are autosaved (debounced 800 ms) with `baseRevision`.
-  - **Inline editing** ([ux/INLINE-EDIT-AND-LOGO-SCREENS.md](ux/INLINE-EDIT-AND-LOGO-SCREENS.md) §1). Every piece of form text on the canvas is edited in place: title and description, page titles and descriptions, labels, help text, placeholders, options (Enter adds the next one, Backspace on an empty one removes it, Alt+↑/↓ or the grip reorders, "Add "Other""), headings, paragraphs, section and repeater texts, the Back / Next / Submit buttons and the message after submitting. Idle text is the renderer's own output inside a focusable `role="button"` ("Edit question label: …"); a click, tap, Enter or F2 swaps in the official `Input`/`Textarea` (with the phonetic keyboard and "ތ / A" toggle in dv forms) in the text's typography (`components/builder/inline-text.tsx`). Which text is open is `editing` in the builder store (keys from `textKey`, `inline-edit.ts`); Enter or blur commits once through `store.edit` (one undo step, one autosave patch, the server's schema validation), Esc cancels, Shift+Enter is a line break. Prompts for empty optional texts show only on the selected block. The public renderer only gained override slots (`QuestionView` `description`/`control`, `SectionFrame`/`RepeaterFrame` `description`/`addText`, `FormHeader` `title`/`description`), so the editor stays out of the public chunk.
+  - **Inline editing** ([ux/INLINE-EDIT-AND-LOGO-SCREENS.md](ux/INLINE-EDIT-AND-LOGO-SCREENS.md) §1). Every piece of form text on the canvas is edited in place: title and description, page titles and descriptions, labels, help text, placeholders, options (Enter adds the next one, Backspace on an empty one removes it, Alt+↑/↓ or the grip reorders, "Add "Other""), headings, paragraphs, section and repeater texts, the Back / Next / Submit buttons and the message after submitting. Idle text is the renderer's own output inside a focusable `role="button"` ("Edit question label: …"); a click, tap, Enter or F2 swaps in the official `Input`/`Textarea` in the text's typography and direction (`components/builder/inline-text.tsx`). Which text is open is `editing` in the builder store (keys from `textKey`, `inline-edit.ts`); Enter or blur commits once through `store.edit` (one undo step, one autosave patch, the server's schema validation), Esc cancels, Shift+Enter is a line break. Prompts for empty optional texts show only on the selected block. The public renderer only gained override slots (`QuestionView` `description`/`control`, `SectionFrame`/`RepeaterFrame` `description`/`addText`, `FormHeader` `title`/`description`), so the editor stays out of the public chunk.
   - The preview tab mounts `packages/renderer` with the draft.
 - **Logic editor.** A condition builder (field → operator → value) built from shadcn `Select`/`Input`/`Button`, with `all`/`any` grouping one level deep in the UI. Deeper nesting is possible via AI or JSON but is shown read-only.
 - **AI panel.** A chat in a `Sheet`. It streams messages, shows tool-call steps, and renders the proposal as a structured diff (added, changed and removed elements highlighted on the canvas) with Apply/Discard buttons.
 
 **`apps/form` (public)**
 - Contains `packages/renderer` and `packages/logic` with react-hook-form and zod. There is no TanStack Router or Query, a single route parsed from `location`, and the shadcn components it needs.
-- Budget: **≤ 122 KB gzipped JS** for the initial load (120 KB until bilingual forms added per-text direction and alignment). The signature pad and phonetic keyboard are lazy-loaded chunks.
+- Budget: **≤ 120 KB gzipped JS** for the initial load. The signature pad and calendar are lazy-loaded chunks.
 - **Saved progress** ([ux/SAVED-PROGRESS-SCREENS.md](ux/SAVED-PROGRESS-SCREENS.md)). Answers and the current page are kept in `localStorage` (debounced 500 ms, flushed on page change and when the page is hidden), keyed by form and, on email-code and staff forms, a hash of the respondent's email. Sensitive questions, signatures, files (upload references belong to one page load's upload session, §10) and hidden values are never stored. On reopening the form restores them (only answers whose question and type still exist when the version changed) with a polite notice and Start over; submit clears them. The per-form setting (`saveProgress`, `saveProgressDays`, default on and 7 days) comes with the public form as `saveProgress: {days} | null`. The code is a lazy chunk fetched in parallel with the form; storage errors are ignored.
 - Serves `/{slug}` and an `?embed=1` mode (no page background, card or footer; the page's padding; no sticky Back / Next bar), plus a `postMessage` protocol for iframe embeds: the form posts its content height (`justforms:resize`, rAF-throttled, only on change, measured from `#root` so it can shrink) and asks for its top to be shown on a page change or submit (`justforms:top`); `/embed.js` (`frontend/public/embed.js`) on the host page applies both, only for messages from its own origin and its own iframes. Old `/f/{org}/{slug}` links get a 301 to `/{slug}`; any other unknown path shows the public "couldn't find this form" screen with a 404. Slugs are unique across the install and may not be one of the app's own top-level words (`app/services/slugs.py`, `frontend/nginx.conf`).
 
@@ -1327,7 +1322,6 @@ All endpoints are JSON. OpenAPI is served at `/api/v1/openapi.json` (with `/api/
   - the column-mapping step is `Table` + `Select`;
   - the import report is `Table` + `Badge` + `Alert`;
   - the signature pad is `Card` + `Button` around a bare `<canvas>`;
-  - the phonetic keyboard is a `beforeinput` behaviour on the official `Input`/`Textarea` plus a `Toggle`.
 
   Only the minimal unstyled behavioural element (canvas, input handler) is custom.
 - **Code review rule.** Any new file under `packages/ui/components` that did not come from the shadcn CLI is rejected in review. CI diffs `packages/ui/components` against `pnpm dlx shadcn@latest diff` to catch drift.
@@ -1548,12 +1542,11 @@ Repo, CI (ruff, mypy, pytest, eslint, tsc, vitest), Compose stack, app config, D
 - The cycle detector rejects all cyclic fixtures.
 
 ### Phase 2: Builder and renderer
-Studio builder (dnd-kit, all v1 field types except signature, sections, repeaters, pages), inspector, logic editor, draft autosave with patches/revisions, server undo/redo, publish/versions. Public form app with wizard, logic, client validation, English and Dhivehi (RTL) forms, Thaana fonts and phonetic keyboard. Embed mode.
+Studio builder (dnd-kit, all v1 field types except signature, sections, repeaters, pages), inspector, logic editor, draft autosave with patches/revisions, server undo/redo, publish/versions. Public form app with wizard, logic, client validation, English and Dhivehi (RTL) forms, Thaana fonts. Embed mode.
 **Acceptance:**
 - The §4.4 example (minus signatures) can be built entirely in the UI, published, and rendered RTL with Thaana; English text renders LTR, and one form may mix both.
 - Hiding, requiring and skipping behave as the vectors specify.
-- The public bundle is ≤ 122 KB gzip.
-- The phonetic keyboard passes its mapping tests.
+- The public bundle is ≤ 120 KB gzip.
 - No physical-direction Tailwind classes remain (lint passes).
 
 ### Phase 3: Submissions core
@@ -1636,7 +1629,7 @@ Provider interface and adapters (Gemini, Anthropic, OpenAI-compatible), tool lay
 2. **AI document import.** Paper/PDF/photo → form is for **blank** forms only, which may be sent to the cloud LLM provider. Filled-in forms are never sent to a cloud LLM (§12.3). Submission data reaches a provider only through "Ask your submissions" (§12.6): counts by default; every textual answer (contact details and sensitive questions included, never files, signatures or IP addresses) only when the form's owner turns on "Allow AI to read answers", off by default for every form (decided).
 3. **PDF signing.** Each install signs with its own self-signed key and certificate by default. An uploaded org certificate may be added later (§9.5).
 4. **Thaana fonts.** The font stack is `Faruma, "MV Faseyha", "Noto Sans Thaana", sans-serif`. Noto Sans Thaana is bundled as the fallback; Faruma/MV files are never committed and are supplied by operators through the `/fonts/` directory (§16). The Faruma licence is still to be confirmed (open question 6 in §22.2).
-5. **English-only UI, bilingual forms.** The studio, builder and dashboard UI is English only; there is no UI internationalisation. Dhivehi exists only in form content, and one form may mix it with English freely: there is no form language (it was dropped in `schemaVersion` 2). Each piece of form text takes its direction from its content and its alignment from `align` (auto by default). Thaana support (font stack, per-text `lang`/`dir`, the phonetic keyboard) applies wherever form content is typed or shown (§4.2, §16).
+5. **English-only UI, bilingual forms.** The studio, builder and dashboard UI is English only; there is no UI internationalisation. Dhivehi exists only in form content, and one form may mix it with English freely: there is no form language (it was dropped in `schemaVersion` 2). Each piece of form text takes its direction from its content and its alignment from `align` (auto by default). Thaana support (font stack, per-text `lang`/`dir`) applies wherever form content is typed or shown (§4.2, §16).
 
 6. **Clean respondent PDF.** The PDF prints only the title, answers, signatures, reference, date, the approval record and a verify footer with a QR code; audit data stays in the studio and the signed metadata. The verify page is status only (§9.5, §9.5.2).
 7. **Approvals.** Settings live outside the schema and are copied onto each response; approvers confirm by email code and never see sensitive answers; the status is locked while an approval runs, and stopping it hands control back (§15.3).

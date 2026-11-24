@@ -744,16 +744,6 @@
       "title": "HiddenField",
       "type": "object"
     },
-    "InputScript": {
-      "description": "Phonetic Thaana keyboard for a text answer. ``auto`` turns it on when the question's\nlabel is written in Thaana; the respondent can always toggle it per field.",
-      "enum": [
-        "auto",
-        "latin",
-        "thaana"
-      ],
-      "title": "InputScript",
-      "type": "string"
-    },
     "JsonValue": {},
     "LongTextField": {
       "additionalProperties": false,
@@ -793,10 +783,6 @@
           "pattern": "^[a-z][a-z0-9_]{0,62}$",
           "title": "Id",
           "type": "string"
-        },
-        "inputScript": {
-          "$ref": "#/$defs/InputScript",
-          "default": "auto"
         },
         "kind": {
           "const": "field",
@@ -2505,10 +2491,6 @@
           ],
           "default": null,
           "title": "Idpreset"
-        },
-        "inputScript": {
-          "$ref": "#/$defs/InputScript",
-          "default": "auto"
         },
         "kind": {
           "const": "field",

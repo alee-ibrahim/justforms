@@ -2,10 +2,10 @@
  * Restricted Markdown for help text and text blocks: **bold**, _italic_ / *italic*,
  * [links](https://...) and "- " lists. Produces React nodes, never HTML strings.
  */
-import { isolateNumbers } from '@yashau/thaana-react'
 import type { CSSProperties, ReactNode } from 'react'
 
 import { textDirection, textLang } from '@/schema/direction'
+import { isolateNumbers } from '@/thaana/display'
 
 const INLINE = /(\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_|\[[^\]]+\]\([^)\s]+\))/g
 
@@ -14,7 +14,7 @@ function safeHref(href: string): string | null {
 }
 
 function inline(text: string, key: string, rtl = false): ReactNode[] {
-  const show = (s: string) => (rtl ? isolateNumbers(s, true) : s)
+  const show = (s: string) => (rtl ? isolateNumbers(s) : s)
   return text.split(INLINE).map((part, i) => {
     const k = `${key}-${i}`
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4)

@@ -2,13 +2,12 @@
  * Form text edited in place on the canvas (docs/ux/INLINE-EDIT-AND-LOGO-SCREENS.md §1).
  *
  * Idle, it is the renderer's own text inside a focusable `role="button"` ("Edit question label:
- * Full name"). A click, tap, Enter or F2 swaps in an official shadcn Input / Textarea (with the
- * "ތ / A" phonetic keyboard toggle) set in the text's own typography and direction. Enter or
+ * Full name"). A click, tap, Enter or F2 swaps in an official shadcn Input / Textarea set in the
+ * text's own typography and direction (it follows what is typed). Enter or
  * blur commits once (one undo step, one autosave patch), Esc cancels, Shift+Enter is a line
  * break in multi-line text. Which text is being edited lives in the builder store
  * (`editing`), so other parts (a new block, Enter in an option) can open an editor.
  */
-import { mergeRefs, useThaanaKeyboard } from '@/thaana/keyboard'
 import {
   type CSSProperties,
   type FocusEvent,
@@ -22,13 +21,12 @@ import {
 } from 'react'
 import { flushSync } from 'react-dom'
 
-import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupTextarea } from '@/components/ui/input-group'
+import { InputGroup, InputGroupInput, InputGroupTextarea } from '@/components/ui/input-group'
 import { cn } from '@/lib/utils'
 import { FormText } from '@/thaana/form-text'
 import { textDirection, textLang, type TextDirection } from '@/schema/direction'
 
-import { ThaanaToggle } from './content-input'
-import { useContentTyping } from './content-typing'
+import { contentTyping } from './content-typing'
 
 import { focusInlineText } from './inline-edit'
 import { useBuilder, useStore } from './store'
@@ -184,9 +182,8 @@ function InlineEditor({
   const store = useStore()
   const box = variant === 'box'
   const [draft, setDraft] = useState(value)
-  const { thaana, setThaana, attrs } = useContentTyping(draft, dir)
+  const attrs = contentTyping(draft, dir)
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
-  const keyboard = useThaanaKeyboard<HTMLInputElement & HTMLTextAreaElement>({ enabled: thaana })
   const done = useRef(false)
   const latest = useRef({ draft, value, onCommit })
   useEffect(() => {
@@ -233,7 +230,6 @@ function InlineEditor({
     }
   }
 
-  const merged = mergeRefs(ref, keyboard)
   const common = {
     value: draft,
     onChange: (e: { target: { value: string } }) => setDraft(e.target.value),
@@ -261,16 +257,13 @@ function InlineEditor({
         {multiline ? (
           <InputGroupTextarea
             {...common}
-            ref={merged}
+            ref={ref}
             rows={box ? 3 : 1}
             className={cn(BOX, 'mx-0 my-0 h-auto min-h-0 resize-none', box && 'min-h-28', inputClassName)}
           />
         ) : (
-          <InputGroupInput {...common} ref={merged} className={cn(BOX, 'mx-0 my-0', inputClassName)} />
+          <InputGroupInput {...common} ref={ref} className={cn(BOX, 'mx-0 my-0', inputClassName)} />
         )}
-        <InputGroupAddon align={multiline ? 'block-end' : 'inline-end'} className={multiline ? 'justify-end' : undefined}>
-          <ThaanaToggle on={thaana} onChange={setThaana} />
-        </InputGroupAddon>
       </InputGroup>
     </Wrap>
   )
