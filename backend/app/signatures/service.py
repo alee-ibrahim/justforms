@@ -106,7 +106,6 @@ async def store(
             ip=ip,
             user_agent=user_agent,
             attestation_text=p.field.attestation or "",
-            language=sub.language,
         )
         db.add(row)
         rows.append(row)

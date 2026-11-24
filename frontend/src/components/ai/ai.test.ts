@@ -8,8 +8,8 @@ import { changedIds, errorText } from './controller'
 import { fileProblem } from './files'
 
 const form: Form = {
-  schemaVersion: '1',
-  settings: { language: 'en', title: 'T' },
+  schemaVersion: '2',
+  settings: { title: 'T' },
   pages: [{ id: 'page_1', elements: [{ kind: 'field', id: 'a', type: 'short_text', label: 'A' }] }],
 } as Form
 

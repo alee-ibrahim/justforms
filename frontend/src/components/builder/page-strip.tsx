@@ -14,7 +14,7 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useMenuTooltip } from '@/components/layout/use-menu-tooltip'
 import { cn } from '@/lib/utils'
-import { formLanguage } from '@/schema/language'
+import { textLang } from '@/schema/direction'
 
 import { useChipDrop, useDropTarget } from './dnd-state'
 import { formProblems } from './problems'
@@ -31,7 +31,6 @@ function Chip({ index }: { index: number }) {
   const { target } = useDropTarget()
   const over = target?.kind === 'page' && target.pageIndex === index
   const broken = formProblems(form).some((p) => p.pageIndex === index)
-  const lang = formLanguage(form)
   return (
     <div ref={setNodeRef} className={cn('flex shrink-0 items-center rounded-md', over && 'bg-accent ring-2 ring-marker-edge')}>
       <Button
@@ -44,7 +43,7 @@ function Chip({ index }: { index: number }) {
         <span className="tabular-nums">{index + 1}</span>
         <span className="min-w-0 truncate">
           {page.title ? (
-            <bdi dir="auto" lang={lang}>
+            <bdi dir="auto" lang={textLang(page.title)}>
               {page.title}
             </bdi>
           ) : (

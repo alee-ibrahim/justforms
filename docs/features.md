@@ -25,9 +25,14 @@ reasoning behind each part see the [design document](DESIGN.md).
 
 ## Languages: English and Dhivehi
 
-Each form is written in **English or Dhivehi**. Dhivehi forms are right to left in Thaana
-fonts, with a phonetic Thaana keyboard for answers. Everything around the form (the studio, the
-public form's buttons and messages, emails, the verify page and the PDF's labels) is English.
+A form can be **English, Dhivehi or both**, even in one label ("Name / ނަން"). Every piece of
+text takes its own direction: Dhivehi is right to left in Thaana fonts, English left to right,
+and answer boxes switch as people type (Dhivehi is typed with the device's own keyboard).
+Alignment is yours to set: Auto (follows the
+text), Left, Center or Right, for the whole form and for each question, heading or page. The
+builder, the public form, the submissions view, emails and the signed PDF all follow it.
+Everything around the form (the studio, the public form's buttons and messages, emails, the
+verify page and the PDF's labels) is English.
 
 The Thaana font stack is `Faruma, "MV Faseyha", "Noto Sans Thaana", sans-serif`. Only Noto Sans
 Thaana (SIL OFL) is bundled; Faruma loads from a font service by default and can be self-hosted
@@ -60,7 +65,7 @@ and the same logic engine runs in the browser and on the server.
 
 ## Filling forms
 
-- A small, fast public form (initial JavaScript under 120 KB gzip) made for mid-range phones.
+- A small, fast public form (initial JavaScript under 122 KB gzip) made for mid-range phones.
 - Answers are validated the same way in the browser and on the server.
 - Progress is saved on the respondent's device (browser storage) while they type, so a closed
   tab or a reload loses nothing: the form reopens with their answers and page and a small

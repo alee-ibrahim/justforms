@@ -1,16 +1,19 @@
-"""JustForms form schema, spec format ``schemaVersion: "1"`` (docs/DESIGN.md section 4).
+"""JustForms form schema, spec format ``schemaVersion: "2"`` (docs/DESIGN.md section 4).
 
 These Pydantic models are the **canonical** definition of a form. Everything else derives
-from them: ``spec/form-schema.v1.json`` is exported from here (``uv run python -m
+from them: ``spec/form-schema.v2.json`` is exported from here (``uv run python -m
 app.schemas.export``), the frontend TS types and zod schemas are generated from that file,
 and the database stores documents that validate against :class:`Form`.
 
 JSON field names are camelCase (``visibleIf``, ``patternMessage``); Python attributes are
 snake_case. Always dump with ``by_alias=True`` (the default here via ``serialize_by_alias``).
 
-A form is written in exactly one language (``settings.language``: ``en`` or ``dv``); every
-user-facing text is a plain string in that language and the text direction derives from it
-(``dv`` is right-to-left). There are no per-language translations.
+Form text is plain strings that may mix English and Dhivehi (Thaana) freely: there is no form
+language. Every piece of text gets its own direction from its content (first strong character:
+Thaana is right-to-left, Latin left-to-right, see :mod:`app.schemas.direction`). Alignment is
+an explicit, optional override (``align`` on elements and pages, ``settings.align`` as the
+form default, ``settings.titleAlign`` for the form header). Older documents are upgraded on
+read by :func:`app.schemas.migrate.upgrade_form`.
 
 Structural rules (unique ids, nesting limits, logic references, forward-only
 ``goto``, dependency cycles) are enforced by :func:`app.schemas.rules.check_form`, which
@@ -33,7 +36,7 @@ from pydantic import (
 )
 from pydantic.alias_generators import to_camel
 
-SCHEMA_VERSION: Literal["1"] = "1"
+SCHEMA_VERSION: Literal["2"] = "2"
 
 ID_PATTERN = r"^[a-z][a-z0-9_]{0,62}$"
 
@@ -52,11 +55,11 @@ class SchemaModel(BaseModel):
     )
 
 
-FormLanguage = Literal["en", "dv"]
-"""Language of a form's content. ``dv`` (Dhivehi, Thaana script) is right-to-left."""
-
 Text = Annotated[str, StringConstraints(max_length=10_000)]
-"""User-facing text in the form's language (``settings.language``)."""
+"""User-facing form text: English, Dhivehi or both. Its direction comes from its content."""
+
+Align = Literal["auto", "left", "center", "right"]
+"""Text alignment. ``auto`` follows the text's own direction (start edge)."""
 
 
 # --------------------------------------------------------------------------------------
@@ -139,12 +142,6 @@ class Condition(RootModel[AllCondition | AnyCondition | NotCondition | FieldCond
 # --------------------------------------------------------------------------------------
 
 
-class InputScript(StrEnum):
-    AUTO = "auto"
-    LATIN = "latin"
-    THAANA = "thaana"
-
-
 class Option(SchemaModel):
     value: Annotated[str, StringConstraints(min_length=1, max_length=200)]
     label: Text
@@ -153,6 +150,8 @@ class Option(SchemaModel):
 class ElementBase(SchemaModel):
     id: ElementId
     visible_if: Condition | None = None
+    # Alignment of the element's text; unset follows ``settings.align``.
+    align: Align | None = None
 
 
 class FieldBase(ElementBase):
@@ -171,7 +170,6 @@ class FieldBase(ElementBase):
 
 class ShortTextField(FieldBase):
     type: Literal["short_text"]
-    input_script: InputScript = InputScript.AUTO
     max_length: Annotated[int, Field(ge=1, le=10_000)] | None = None
     pattern: Annotated[str, StringConstraints(max_length=500)] | None = None
     pattern_message: Text | None = None
@@ -190,7 +188,6 @@ class ShortTextField(FieldBase):
 
 class LongTextField(FieldBase):
     type: Literal["long_text"]
-    input_script: InputScript = InputScript.AUTO
     max_length: Annotated[int, Field(ge=1, le=100_000)] | None = None
     rows: Annotated[int, Field(ge=2, le=30)] | None = None
 
@@ -381,6 +378,8 @@ class NavigationRule(SchemaModel):
 
 class Page(SchemaModel):
     id: ElementId
+    # Alignment of the page title and description; unset follows ``settings.align``.
+    align: Align | None = None
     title: Text | None = None
     description: Text | None = None
     visible_if: Condition | None = None
@@ -397,9 +396,12 @@ class Theme(SchemaModel):
 
 
 class Settings(SchemaModel):
-    language: FormLanguage = "en"
     title: Text
     description: Text | None = None
+    # Default alignment of every form text; elements and pages may override it.
+    align: Align = "auto"
+    # Alignment of the form title and description; unset follows ``align``.
+    title_align: Align | None = None
     submit_label: Text | None = None
     # The wizard's Next and Back buttons; English "Next"/"Back" when empty.
     next_label: Text | None = None
@@ -408,22 +410,21 @@ class Settings(SchemaModel):
     theme: Theme = Field(default_factory=Theme)
 
 
-RTL_LANGUAGES: frozenset[str] = frozenset({"dv"})
-
-
-def text_direction(language: str) -> Literal["ltr", "rtl"]:
-    """Text direction for a form language: ``dv`` is right-to-left, ``en`` left-to-right."""
-    return "rtl" if language in RTL_LANGUAGES else "ltr"
-
-
 class Form(SchemaModel):
     """A complete form document (draft or published version)."""
 
     model_config = ConfigDict(title="JustFormsForm")
 
-    schema_version: Literal["1"] = SCHEMA_VERSION
+    schema_version: Literal["2"] = SCHEMA_VERSION
     settings: Settings
     pages: Annotated[list[Page], Field(min_length=1, max_length=200)]
+
+    @model_validator(mode="before")
+    @classmethod
+    def _upgrade(cls, data: Any) -> Any:
+        from app.schemas.migrate import upgrade_form
+
+        return upgrade_form(data) if isinstance(data, dict) else data
 
     @model_validator(mode="after")
     def _structure_and_logic(self) -> Self:

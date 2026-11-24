@@ -2,9 +2,8 @@
   "name": "sections",
   "description": "Section visibility propagates to all descendants; sections contribute no answer keys",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

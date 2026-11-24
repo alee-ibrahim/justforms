@@ -32,7 +32,7 @@ def _xlsx_cell(value: Any) -> Any:
 )
 def test_file_name_cells_are_never_formulas(name: str) -> None:
     el = FileField.model_validate({"kind": "field", "id": "doc", "type": "file", "label": "Doc"})
-    ctx = Context(Settings(environment="test"), "en", {})
+    ctx = Context(Settings(environment="test"), {})
     value = [{"fileId": str(uuid.uuid4()), "name": clean_name(name)}]
     text = cell_value(Column("doc", "Doc", el), value, SimpleNamespace(id=uuid.uuid4()), ctx)  # type: ignore[arg-type]
     assert isinstance(text, str) and not text.startswith(("=", "+", "-", "@"))

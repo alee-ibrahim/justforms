@@ -36,6 +36,7 @@ import { api, type AccessMode, type FormListItem, type PersonRef } from '@/lib/a
 import { formatDateTime, formatRelative } from '@/lib/format'
 import { metaQuery } from '@/lib/queries'
 import { cn } from '@/lib/utils'
+import { textProps } from '@/schema/align'
 
 const FOCUS = 'rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
 
@@ -109,9 +110,9 @@ function FormLink({ form }: { form: FormListItem }) {
         'font-medium underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center',
       )}
     >
-      {/* Titles are form content: the form's language, and the browser picks the direction. */}
+      {/* Titles are form content: each takes its own language and direction. */}
       {form.title ? (
-        <bdi dir="auto" lang={form.language}>
+        <bdi {...textProps(form.title)}>
           {form.title}
         </bdi>
       ) : (
@@ -121,7 +122,7 @@ function FormLink({ form }: { form: FormListItem }) {
   )
 }
 
-/** Small facts under the title: who can fill it in, language, where it came from. */
+/** Small facts under the title: who can fill it in, where it came from. */
 function FormFacts({ form }: { form: FormListItem }) {
   const access = ACCESS_LABELS[form.accessMode]
   return (
@@ -131,7 +132,6 @@ function FormFacts({ form }: { form: FormListItem }) {
         <span className="sr-only">Who can fill it in: </span>
         {access.label}
       </span>
-      {form.language === 'dv' && <Badge variant="outline">Dhivehi</Badge>}
       {form.importedFrom === 'jotform' && (
         <span className="inline-flex items-center gap-1">
           <FileInputIcon className="size-3.5" aria-hidden="true" />

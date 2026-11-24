@@ -2,14 +2,14 @@
  * Form text edited in place on the canvas (docs/ux/INLINE-EDIT-AND-LOGO-SCREENS.md §1).
  *
  * Idle, it is the renderer's own text inside a focusable `role="button"` ("Edit question label:
- * Full name"). A click, tap, Enter or F2 swaps in an official shadcn Input / Textarea (with the
- * "ތ / A" phonetic keyboard toggle in a Dhivehi form) set in the text's own typography. Enter or
+ * Full name"). A click, tap, Enter or F2 swaps in an official shadcn Input / Textarea set in the
+ * text's own typography and direction (it follows what is typed). Enter or
  * blur commits once (one undo step, one autosave patch), Esc cancels, Shift+Enter is a line
  * break in multi-line text. Which text is being edited lives in the builder store
  * (`editing`), so other parts (a new block, Enter in an option) can open an editor.
  */
-import { mergeRefs, useThaanaKeyboard } from '@yashau/thaana-react'
 import {
+  type CSSProperties,
   type FocusEvent,
   type KeyboardEvent,
   type MouseEvent,
@@ -21,14 +21,12 @@ import {
 } from 'react'
 import { flushSync } from 'react-dom'
 
-import { Input } from '@/components/ui/input'
-import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupTextarea } from '@/components/ui/input-group'
-import { Textarea } from '@/components/ui/textarea'
-import { Toggle } from '@/components/ui/toggle'
-import { toggleOn } from '@/lib/toggle'
+import { InputGroup, InputGroupInput, InputGroupTextarea } from '@/components/ui/input-group'
 import { cn } from '@/lib/utils'
-import { displayText } from '@/thaana/display'
-import { contentProps, type FormLanguage } from '@/schema/language'
+import { FormText } from '@/thaana/form-text'
+import { textDirection, textLang, type TextDirection } from '@/schema/direction'
+
+import { contentTyping } from './content-typing'
 
 import { focusInlineText } from './inline-edit'
 import { useBuilder, useStore } from './store'
@@ -49,9 +47,10 @@ export interface InlineTextProps {
   onCommit: (text: string) => void
   /** What it edits, for the accessible name: "question label" → "Edit question label: …". */
   name: string
-  language: FormLanguage
+  /** Direction of its block, assumed while the box is empty. */
+  dir?: TextDirection
   multiline?: boolean
-  /** The idle rendering of a non-empty value (default: the text, numbers isolated in dv). */
+  /** The idle rendering of a non-empty value (default: the text, mixed scripts marked). */
   display?: ReactNode
   /** Shown when the value is empty: a string is a muted placeholder ("Untitled question"); a
    * node is shown as is (a button's English default text). */
@@ -75,6 +74,8 @@ export interface InlineTextProps {
   /** Layout of the idle element. */
   block?: boolean
   className?: string
+  /** Alignment of the idle text (a width-capped block moves to its side). */
+  style?: CSSProperties
   inputClassName?: string
 }
 
@@ -91,7 +92,7 @@ export function InlineText(props: InlineTextProps) {
   const store = useStore()
   const editing = useBuilder((s) => s.editing === props.editKey)
   const locked = useBuilder((s) => s.locked)
-  const { value, language, active, block } = props
+  const { value, active, block } = props
   const interactive = !store.readOnly && !locked
   const pressed = useRef(false)
 
@@ -102,9 +103,16 @@ export function InlineText(props: InlineTextProps) {
   const empty = props.empty ?? props.prompt
   const content =
     props.frame ??
-    (filled ? (props.display ?? displayText(value, language)) : typeof empty === 'string' ? <Prompt>{empty}</Prompt> : empty)
+    (filled ? (props.display ?? <FormText text={value} />) : typeof empty === 'string' ? <Prompt>{empty}</Prompt> : empty)
   const Tag = block ? 'div' : 'span'
-  if (!interactive) return <Tag className={props.className}>{content}</Tag>
+  // The text keeps its own direction inside its block (an English option in a Dhivehi question).
+  const own = filled && !props.frame && !props.display ? { dir: textDirection(value), lang: textLang(value) } : {}
+  if (!interactive)
+    return (
+      <Tag className={props.className} style={props.style} {...own}>
+        {content}
+      </Tag>
+    )
 
   const start = (e: MouseEvent | KeyboardEvent) => {
     e.stopPropagation()
@@ -119,6 +127,8 @@ export function InlineText(props: InlineTextProps) {
       role="button"
       tabIndex={0}
       data-inline-text={props.editKey}
+      {...own}
+      style={props.style}
       aria-label={`Edit ${props.name}${filled ? `: ${value}` : ''}`}
       className={cn(
         'relative cursor-text rounded-xs outline-offset-2 box-decoration-clone',
@@ -161,7 +171,7 @@ function InlineEditor({
   value,
   onCommit,
   name,
-  language,
+  dir,
   multiline,
   onEditKey,
   placeholder,
@@ -172,9 +182,8 @@ function InlineEditor({
   const store = useStore()
   const box = variant === 'box'
   const [draft, setDraft] = useState(value)
-  const [thaana, setThaana] = useState(true)
+  const attrs = contentTyping(draft, dir)
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
-  const keyboard = useThaanaKeyboard<HTMLInputElement & HTMLTextAreaElement>({ enabled: language === 'dv' && thaana })
   const done = useRef(false)
   const latest = useRef({ draft, value, onCommit })
   useEffect(() => {
@@ -221,7 +230,6 @@ function InlineEditor({
     }
   }
 
-  const merged = mergeRefs(ref, keyboard)
   const common = {
     value: draft,
     onChange: (e: { target: { value: string } }) => setDraft(e.target.value),
@@ -231,7 +239,7 @@ function InlineEditor({
     placeholder,
     autoCapitalize: 'sentences',
     enterKeyHint: multiline ? ('enter' as const) : ('done' as const),
-    ...contentProps(language),
+    ...attrs,
   }
   const Wrap = block ? 'div' : 'span'
   // Placeholders are typed in a box like the answer box; other texts in their own typography.
@@ -245,34 +253,18 @@ function InlineEditor({
       }}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      {language === 'dv' ? (
-        <InputGroup className={cn(box ? 'h-auto' : '-mx-1.5 -my-0.5 h-auto rounded-sm', shift, multiline && 'flex-col')}>
-          {multiline ? (
-            <InputGroupTextarea {...common} ref={merged} rows={box ? 3 : 1} className={cn(BOX, 'mx-0 my-0 h-auto min-h-0 resize-none', inputClassName)} />
-          ) : (
-            <InputGroupInput {...common} ref={merged} className={cn(BOX, 'mx-0 my-0', inputClassName)} />
-          )}
-          <InputGroupAddon align={multiline ? 'block-end' : 'inline-end'} className={multiline ? 'justify-end' : undefined}>
-            <Toggle
-              size="sm"
-              pressed={thaana}
-              onPressedChange={setThaana}
-              // Keep the caret in the text: pressing the toggle mustn't blur (commit) it.
-              onPointerDown={(e) => e.preventDefault()}
-              onMouseDown={(e) => e.preventDefault()}
-              aria-label="Thaana keyboard"
-              title="Thaana keyboard"
-              className={toggleOn}
-            >
-              <bdi dir="ltr">ތ / A</bdi>
-            </Toggle>
-          </InputGroupAddon>
-        </InputGroup>
-      ) : multiline ? (
-        <Textarea {...common} ref={merged} rows={box ? 3 : 1} className={cn(BOX, shift, 'h-auto resize-none', box && 'min-h-28', inputClassName)} />
-      ) : (
-        <Input {...common} ref={merged} className={cn(BOX, shift, inputClassName)} />
-      )}
+      <InputGroup className={cn(box ? 'h-auto' : '-mx-1.5 -my-0.5 h-auto rounded-sm', shift, multiline && 'flex-col')}>
+        {multiline ? (
+          <InputGroupTextarea
+            {...common}
+            ref={ref}
+            rows={box ? 3 : 1}
+            className={cn(BOX, 'mx-0 my-0 h-auto min-h-0 resize-none', box && 'min-h-28', inputClassName)}
+          />
+        ) : (
+          <InputGroupInput {...common} ref={ref} className={cn(BOX, 'mx-0 my-0', inputClassName)} />
+        )}
+      </InputGroup>
     </Wrap>
   )
 }

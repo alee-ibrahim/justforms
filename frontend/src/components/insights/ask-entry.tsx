@@ -8,11 +8,12 @@ import { MessageSquareTextIcon, SparklesIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import type { Form } from '@/schema'
+import { textLang } from '@/schema/direction'
 
 import { askExamples } from './ask-examples'
 import { useAsk } from './ask-state'
 
-export function AskEntry({ schema, language }: { schema: Form | undefined; language: string }) {
+export function AskEntry({ schema }: { schema: Form | undefined }) {
   const ask = useAsk()
   if (!ask?.available || ask.open) return null
   const ideas = askExamples(schema, false, 3)
@@ -45,7 +46,7 @@ export function AskEntry({ schema, language }: { schema: Form | undefined; langu
                 className="h-auto max-w-full py-1.5 text-start font-normal whitespace-normal"
                 onClick={() => ask.ask(idea)}
               >
-                <bdi dir="auto" lang={/[ހ-޿]/.test(idea) ? 'dv' : language}>
+                <bdi dir="auto" lang={textLang(idea)}>
                   {idea}
                 </bdi>
               </Button>

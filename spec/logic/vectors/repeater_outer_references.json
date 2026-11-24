@@ -2,9 +2,8 @@
   "name": "repeater_outer_references",
   "description": "Repeater children may read fields outside the repeater; outside logic may count rows",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

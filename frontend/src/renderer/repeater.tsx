@@ -10,14 +10,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { FieldLegend, FieldSet } from '@/components/ui/field'
 import { cn } from '@/lib/utils'
 import type { RepeaterElement } from '@/schema'
-import { displayText } from '@/thaana/display'
+import { FormText } from '@/thaana/form-text'
+import { textDirection, textLang } from '@/schema/direction'
 
 import { useRenderer } from './context'
 import { DESCRIPTION } from './elements'
 import { Markdown } from './markdown'
 import { fmt, MSG } from './messages'
 import { En } from './msg'
-import { rowTitle } from './util'
+import { placement, rowTitle } from './util'
 
 function RowRemove({
   name,
@@ -84,7 +85,7 @@ export function RepeaterFrame({
   sample?: ReactNode
 }) {
   const ctx = useRenderer()
-  const { language } = ctx
+  const place = placement(el.label, el.align, ctx.form.settings.align, ctx.dir)
   const rows = ctx.mode === 'fill' ? ctx.rowCount(el.id) : 1
   const min = el.minRows ?? 0
   const max = el.maxRows ?? null
@@ -97,16 +98,25 @@ export function RepeaterFrame({
   return (
     <FieldSet className="gap-3">
       <FieldLegend
+        dir={place.dir}
+        lang={place.lang}
+        style={place.text}
         className={cn(
-            'mb-0 text-lg data-[variant=legend]:text-lg',
-            language === 'dv' ? 'font-normal' : 'font-semibold',
-          )}
+          'mb-0 w-full text-lg data-[variant=legend]:text-lg',
+          place.lang === 'dv' ? 'font-normal' : 'font-semibold',
+        )}
       >
-        {label ?? displayText(el.label, language)}
+        {label ?? <FormText text={el.label} />}
       </FieldLegend>
-      {description !== undefined
-        ? description
-        : el.description && <Markdown text={el.description} className={DESCRIPTION} rtl={language === 'dv'} />}
+      {description !== undefined ? (
+        description
+      ) : (
+        el.description && (
+          <div dir={place.dir} lang={place.lang}>
+            <Markdown text={el.description} className={DESCRIPTION} style={place.block} rtl={place.dir === 'rtl'} />
+          </div>
+        )
+      )}
       {Array.from({ length: rows }, (_, row) => {
         // "Dependent 2" comes from the builder's English add label; "Entry 2" is system text.
         const custom = rowTitle(el, row + 1)
@@ -117,9 +127,11 @@ export function RepeaterFrame({
               <CardTitle
                 id={`${el.id}-row-${row}`}
                 tabIndex={-1}
-                className={cn('text-base outline-none', language === 'dv' ? 'font-normal' : 'font-semibold')}
+                dir={custom ? textDirection(custom, place.dir) : undefined}
+                lang={custom ? textLang(custom) : undefined}
+                className={cn('text-base outline-none', custom && textLang(custom) === 'dv' ? 'font-normal' : 'font-semibold')}
               >
-                {custom ?? <En>{title}</En>}
+                {custom ? <FormText text={custom} /> : <En>{title}</En>}
               </CardTitle>
               {ctx.mode === 'fill' && rows > min && (
                 <RowRemove
@@ -149,7 +161,13 @@ export function RepeaterFrame({
         onClick={() => ctx.addRow(el.id)}
       >
         <PlusIcon />
-        {addLabel ? displayText(addLabel, language) : <En>{MSG.addEntry}</En>}
+        {addLabel ? (
+          <bdi dir={textDirection(addLabel)} lang={textLang(addLabel)}>
+            <FormText text={addLabel} />
+          </bdi>
+        ) : (
+          <En>{MSG.addEntry}</En>
+        )}
       </Button>
       )}
       {max !== null && rows >= Math.max(1, max - 2) && (

@@ -63,7 +63,6 @@ class SubmissionSummary(ApiModel):
     id: uuid.UUID
     seq: int
     status: SubmissionStatus
-    language: str
     version: int
     created_at: datetime
     submitted_at: datetime
@@ -316,7 +315,6 @@ async def list_submissions(
                 id=s.id,
                 seq=s.seq,
                 status=s.status,
-                language=s.language,
                 version=number,
                 created_at=s.created_at,
                 submitted_at=s.submitted_at,
@@ -410,7 +408,6 @@ async def _detail(db: DbDep, sub: Submission, role: FormRole) -> SubmissionDetai
         form_id=sub.form_id,
         seq=sub.seq,
         status=sub.status,
-        language=sub.language,
         version=version.version,
         created_at=sub.created_at,
         submitted_at=sub.submitted_at,
@@ -581,7 +578,6 @@ async def list_deleted(
                 id=s.id,
                 seq=s.seq,
                 status=s.status,
-                language=s.language,
                 version=number,
                 created_at=s.created_at,
                 submitted_at=s.submitted_at,
@@ -758,7 +754,7 @@ async def reveal_sensitive(
         value = sub.data.get(body.field_id)
     await append_event(db, sub, EventType.VIEWED, actor_id=user.id, payload=payload)
     await db.commit()
-    return {"value": answer_text(info.element, value, form.settings.language)}  # type: ignore[arg-type]
+    return {"value": answer_text(info.element, value)}  # type: ignore[arg-type]
 
 
 @router.delete("/submissions/{submission_id}", status_code=status.HTTP_204_NO_CONTENT)

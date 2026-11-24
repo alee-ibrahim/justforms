@@ -18,7 +18,7 @@ Some requirements are first-class from day one: Dhivehi (Thaana, right-to-left) 
 2. **Identical logic everywhere.** Show/hide/require/skip rules are evaluated by one small rule engine. It has a Python implementation and a TypeScript implementation, and both must pass a shared conformance suite.
 3. **Owners can work with submissions easily.** Table view with filters and search, a detail view, a status workflow (New → In review → Approved/Rejected) with comments, and `.xlsx` export.
 4. **Signatures you can defend.** Raw strokes, rendered images, timestamp, IP, user agent and a SHA-256 content hash, plus a tamper-evident signed PDF.
-5. **Dhivehi and RTL forms as a first-class feature.** Each form is written in English or Dhivehi (`settings.language`). Dhivehi forms render right-to-left with Thaana fonts and a phonetic Thaana keyboard. The studio UI itself is English only (§16).
+5. **Dhivehi, English and bilingual forms as a first-class feature.** One form can hold English and Dhivehi side by side, even in one label ("Name / ނަން"). Every piece of text takes its own direction from its content: Thaana renders right-to-left with Thaana fonts, English left-to-right; people type Dhivehi with their device's own keyboard. Alignment is adjustable per element. The studio UI itself is English only (§16).
 6. **AI that edits the schema, never code.** It works through tool calls that produce validated schema patches, previewed in the UI with undo. AI is optional and hidden when no provider is configured.
 7. **Easy to self-host.** `docker compose up` for small installs and a Helm chart for Kubernetes.
 8. **Import from Jotform.** Form structure comes from the pasted HTML source, and submissions from an Excel/CSV export with a column-mapping step. An optional API-key import adds conditions and bulk import.
@@ -130,12 +130,12 @@ justforms/
 │   │   └── form/                   # public form page; renderer only, no router/query heavy deps
 │   └── packages/
 │       ├── ui/                     # official shadcn/ui components (generated via shadcn CLI) + Tailwind config
-│       ├── schema/                 # TS types + zod, GENERATED from spec/form-schema.v1.json
+│       ├── schema/                 # TS types + zod, GENERATED from spec/form-schema.v2.json
 │       ├── logic/                  # TS rule engine
 │       ├── renderer/               # form renderer (react-hook-form + zod), used by studio preview and form app
-│       └── thaana/                 # phonetic keyboard mapping + input hook, fonts
+│       └── thaana/                 # mixed-script display helpers, slugs
 ├── spec/
-│   ├── form-schema.v1.json         # JSON Schema exported from backend Pydantic models (CI checks it is current)
+│   ├── form-schema.v2.json         # JSON Schema exported from backend Pydantic models (CI checks it is current)
 │   └── logic/vectors/*.json        # shared logic conformance vectors (run by pytest AND vitest)
 ├── deploy/
 │   ├── compose/                    # docker-compose.yml, .env.example, fonts/ (operator fonts, git-ignored)
@@ -149,7 +149,7 @@ justforms/
 └── .github/workflows/              # lint, test, conformance, image build
 ```
 
-Source-of-truth chain: the Pydantic models in `backend/justforms/schema/` are canonical. `just spec` exports `spec/form-schema.v1.json`. `frontend/packages/schema` is then generated from that file (`json-schema-to-typescript` for types, `json-schema-to-zod` for structural validation). CI fails if any generated artifact is stale.
+Source-of-truth chain: the Pydantic models in `backend/justforms/schema/` are canonical. `just spec` exports `spec/form-schema.v2.json`. `frontend/packages/schema` is then generated from that file (`json-schema-to-typescript` for types, `json-schema-to-zod` for structural validation). CI fails if any generated artifact is stale.
 
 ---
 
@@ -160,7 +160,8 @@ Source-of-truth chain: the Pydantic models in `backend/justforms/schema/` are ca
 - **Form.** A long-lived entity with a stable `id`, an owner org, settings, and a sequence of versions.
 - **Draft.** One mutable working copy per form. The builder and the AI both edit the draft.
 - **Version.** An immutable snapshot that is created when the draft is published. Versions are numbered `1, 2, 3, ...`. Each submission stores the exact `form_version_id` it was filled against and is always rendered, validated and exported using that version.
-- **`schemaVersion`.** The version of the spec format itself (`"1"`). It is separate from the form's version number. When the format changes, ordered migration functions upgrade stored documents on read.
+- **`schemaVersion`.** The version of the spec format itself (`"2"`). It is separate from the form's version number. When the format changes, ordered migration functions (`app/schemas/migrate.py`) upgrade stored documents **on read**: `Form` validation runs them first, and the ORM upgrades drafts, published versions and AI working copies in memory when rows load. Published versions are never rewritten in the database (their `schema_hash` was taken at publish); a draft is written back in the new format on its next edit. Every step is idempotent.
+  - `1` → `2` (bilingual forms): `settings.language` is dropped, since text direction now comes from each text. A former `dv` form still renders right to left because its text is Thaana. The former per-question keyboard setting `inputScript` is dropped from text questions (in any stored document that still carries it): there is no built-in keyboard, people type Dhivehi with their device's own keyboard. Old undo entries that touch `/settings/language` are skipped.
 
 ### 4.2 Element tree
 
@@ -181,14 +182,15 @@ Rules enforced by the Pydantic validators:
 - Every element has an `id` that matches `^[a-z][a-z0-9_]{0,62}$` and is unique within the form. The id is the submission data key, the webhook payload key and the logic reference. It can be renamed while the form is unpublished and is **frozen after its first publish**. The builder generates it from a Latin label (`full_name`, `full_name_2`) or, for Thaana labels, from the field type (`short_text_1`).
 - Repeaters cannot nest in v1. Sections can sit inside repeaters. Sections can nest at most 2 levels deep.
 - `signature` fields cannot sit inside repeaters in v1.
-- A form has exactly one language: `settings.language` is `"en"` (default) or `"dv"`. All user-facing text (titles, labels, descriptions, placeholders, option labels, messages) is a **plain string** in that language; there are no per-language translation objects. Text direction derives from the language (`dv` → `rtl`, `en` → `ltr`). Drafts may hold blank text; publishing requires a non-blank form title, field and repeater labels, option labels and heading/paragraph text (issue code `blank_text`).
+- A form has **no language**. All user-facing text (titles, labels, descriptions, placeholders, option labels, messages) is a **plain string** that may be English, Dhivehi or both ("Name / ނަން"); there are no per-language translation objects. Each text's direction comes from its first strong character (§16).
+- **Alignment.** `settings.align` (`"auto"` default, `"left"`, `"center"`, `"right"`) is the form default for all form text; `settings.titleAlign` overrides it for the form title and description; every element and page may set `align` (unset follows the form default). `auto` follows each text's own direction (Thaana at the right, English at the left). Drafts may hold blank text; publishing requires a non-blank form title, field and repeater labels, option labels and heading/paragraph text (issue code `blank_text`).
 
 ### 4.3 Field types (v1)
 
 | `type` | Value shape | Type-specific props |
 |---|---|---|
-| `short_text` | string | `inputScript: "auto" \| "latin" \| "thaana"`, `maxLength`, `pattern` |
-| `long_text` | string | `inputScript`, `maxLength`, `rows` |
+| `short_text` | string | `maxLength`, `pattern` |
+| `long_text` | string | `maxLength`, `rows` |
 | `email` | string | — |
 | `phone` | string (E.164) | `defaultCountry` (e.g. `"MV"`) |
 | `number` | number | `min`, `max`, `step`, `integer` |
@@ -202,15 +204,14 @@ Rules enforced by the Pydantic validators:
 | `signature` | `SignatureRef` | `attestation: string` (the "I confirm..." text shown above the pad) |
 | `hidden` | string | `prefillParam` (URL query param name) |
 
-Common field props: `label`, `description`, `placeholder` (plain strings in the form's language), `required`, `requiredIf`, `visibleIf`, `prefillParam`, `sensitive` (marked with a lock in the studio, logged when a submission that has it is opened, left out of search, emails and webhooks unless explicitly opted in, and only counted by the AI unless the form allows AI to read answers), and `width: "full" | "half"`.
+Common field props: `label`, `description`, `placeholder` (plain strings, English and/or Dhivehi), `align`, `required`, `requiredIf`, `visibleIf`, `prefillParam`, `sensitive` (marked with a lock in the studio, logged when a submission that has it is opened, left out of search, emails and webhooks unless explicitly opted in, and only counted by the AI unless the form allows AI to read answers), and `width: "full" | "half"`.
 
 ### 4.4 Concrete example
 
 ```json
 {
-  "schemaVersion": "1",
+  "schemaVersion": "2",
   "settings": {
-    "language": "dv",
     "title": "ޒުވާނުންގެ ޕްރޮގްރާމަށް ހުށަހަޅާ ފޯމު",
     "submitLabel": "ހުށަހަޅާ",
     "successMessage": "ޝުކުރިއްޔާ!",
@@ -224,14 +225,13 @@ Common field props: `label`, `description`, `placeholder` (plain strings in the 
         {
           "kind": "field", "id": "full_name", "type": "short_text",
           "label": "ފުރިހަމަ ނަން",
-          "required": true, "inputScript": "auto", "maxLength": 120
+          "required": true, "maxLength": 120
         },
         {
           "kind": "field", "id": "national_id", "type": "short_text",
           "label": "އައިޑީ ކާޑު ނަންބަރު",
           "required": true, "pattern": "^A[0-9]{6}$",
-          "patternMessage": "ފޯމެޓް: A123456",
-          "inputScript": "latin", "sensitive": true
+          "patternMessage": "ފޯމެޓް: A123456", "sensitive": true
         },
         {
           "kind": "field", "id": "age", "type": "number",
@@ -557,7 +557,7 @@ The respondent must have a staff session (OIDC) and belong to the form's organis
 ### 9.1 Capture (client)
 
 - The signature pad is built on shadcn primitives (`Card`, `Button`), with a `<canvas>` driven by Pointer Events. It records strokes as `[[x, y, t, pressure], ...]` per stroke, in pad-normalised coordinates (0–1 on both axes) with `t` in milliseconds since the pad was first touched.
-- Buttons: Clear and Undo stroke. The attestation text is displayed above the pad, in the form's language and direction.
+- Buttons: Clear and Undo stroke. The attestation text is displayed above the pad, in its own direction.
 - On submit the client sends the strokes, an `svg` (paths generated from the strokes on the client and used only for preview), the client timestamp, pad dimensions, device pixel ratio and the displayed attestation text.
 
 ### 9.2 Server processing
@@ -565,7 +565,7 @@ The respondent must have a staff session (OIDC) and belong to the form's organis
 1. Validate the strokes: at least 1 stroke, at least 10 points, at most 20,000 points, coordinates in range, and a minimum bounding box so that a single dot is rejected.
 2. **Re-render server-side** from the strokes to SVG (written directly) and to PNG (Pillow, 4× supersampled, deterministic: the same strokes always give the same bytes). The client's drawing is never trusted. Store `signatures/{submission_id}/{field_id}.svg|.png`. The answer value becomes `{"signatureId": ...}`; strokes and audit data live in `signatures`.
 3. Compute `strokes_sha256` over the canonical JSON of the strokes.
-4. Record `received_at`, IP (unless IP capture is disabled for the form), user agent, the attestation text, and the form's language.
+4. Record `received_at`, IP (unless IP capture is disabled for the form), user agent, and the attestation text.
 
 ### 9.3 Submission content hash
 
@@ -581,7 +581,7 @@ Each `submission_events` row stores `hash = SHA-256(prev_hash || JCS(event_witho
 
 For any submission with at least one signature (and on demand for any submission), the worker job `render_submission_pdf` does the following:
 
-1. Renders the document with **fpdf2** and HarfBuzz text shaping (`uharfbuzz`), so Thaana is shaped and laid out right to left with no system libraries (a pure-Python stack that also runs on developer machines; WeasyPrint needs Pango). Fonts are bundled in `app/pdf/fonts` under the SIL OFL: Inter (a Latin subset) and Noto Sans Thaana (Faruma is never bundled; an operator may supply a Thaana face for server rendering, §16 Fonts). The direction follows the form's language (`dv` → RTL); the fixed labels are English for every form (§16). **The PDF is the respondent's document and prints only** (decided):
+1. Renders the document with **fpdf2** and HarfBuzz text shaping (`uharfbuzz`), so Thaana is shaped and laid out right to left with no system libraries (a pure-Python stack that also runs on developer machines; WeasyPrint needs Pango). Fonts are bundled in `app/pdf/fonts` under the SIL OFL: Inter (a Latin subset) and Noto Sans Thaana (Faruma is never bundled; an operator may supply a Thaana face for server rendering, §16 Fonts). Each text is shaped in its own direction and placed by its question's alignment, and the sheet's chrome follows the form title's direction (§16); the fixed labels are English for every form (§16). **The PDF is the respondent's document and prints only** (decided):
    - the form title, the reference number (`#seq`) and the submission date;
    - every visible question and answer in schema order (repeaters as tables, files by name and size);
    - signature images, each under the statement the signer saw (form content, so it stays);
@@ -609,7 +609,7 @@ How much a PDF viewer trusts the signature depends on where the signing certific
 
 Every signed PDF carries a QR code to `/v/{token}`. The token is 128 random bits (`secrets.token_urlsafe(16)`), created with the submission's first PDF and kept, so every signed copy points at the same page. The page (and `GET /public/verify/{token}`) is **status only** (decided): "Genuine document" or "This document was changed" (the content hash or the activity log no longer verifies), the issuing organisation's name, the reference number, the date the latest copy was signed and, when the form uses approvals, the outcome ("Approved on …", "Rejected on …", "In progress (step n of N)", "Stopped"). It never returns answers, names, email addresses or the form's title. Unknown tokens, deleted submissions and submissions without a signed PDF are "Document not found". "Check your copy" uploads the PDF (`POST /public/verify/{token}/check`, 20 MB, rate limited) and answers: genuine; genuine but an older copy; changed after signing; a different document; the record changed since signing; or not signed by this install. Responses send `Referrer-Policy: no-referrer`; the pages are `noindex` and refuse framing.
 
-The page is a separate entry (`doc.html`, built on its own so it never changes how the public form is chunked) with a 95 KB gzip budget for its initial load (86 KB today, mostly React). Its strings are English for every form (§16); only the form title and the approver's view of the answers take the form's language and direction.
+The page is a separate entry (`doc.html`, built on its own so it never changes how the public form is chunked) with a 95 KB gzip budget for its initial load (86 KB today, mostly React). Its strings are English for every form (§16); only the form title and the approver's view of the answers are form content, each text in its own direction.
 
 ---
 
@@ -642,7 +642,7 @@ Antivirus scanning comes later. `scan_status` already exists in the schema. A la
 
 ### 11.1 Email
 
-- SMTP only (`JUSTFORMS_SMTP_*`). Messages are sent by the worker and rendered from Jinja2 templates as both HTML and text. Template wording is English for every form, `dv` ones included (§16); form content in an email (title, labels, answers, `successMessage`, approval step names) is shown in the form's language and direction inside the English, left-to-right message.
+- SMTP only (`JUSTFORMS_SMTP_*`). Messages are sent by the worker and rendered from Jinja2 templates as both HTML and text. Template wording is English for every form, Dhivehi ones included (§16); form content in an email (title, labels, answers, `successMessage`, approval step names) is shown with each text in its own direction and alignment inside the English, left-to-right message.
 - **Owner notification.** Sent to the configured recipients (up to 10 addresses, inside or outside the organisation; empty = the form's owners) with a summary and a link to the submission. Answers are included only if `include_answers` is on, and sensitive fields are never included.
 - **Respondent receipt.** Sent to the verified OTP email (or the signed-in staff address), or to the value of a designated `email` question (not in a repeater). A typed address counts as confirmed only when it equals the confirmed one; any other typed address gets a receipt only when the owner turns on `toUnverified` ("Send to addresses nobody confirmed"; upgraded forms that already sent to a question have it on). Those receipts are limited to 3 an hour per address and form and `JUSTFORMS_RECEIPT_UNVERIFIED_PER_HOUR` (default 100) per form; over a limit the row is logged as failed and nothing is sent. They carry only the confirmation, the reference and the owner's wording with `{answer:…}` placeholders left empty; the answers and the signed PDF go too only with `unverifiedAnswers`. A receipt can attach the signed PDF, in which case the job waits for the PDF job to finish.
 - **Custom wording.** Each rule can replace the subject and the opening text (plain text, not HTML; the receipt's replaces the thank-you or the form's success message, the owner's goes above the link) and set a Reply-To address. Placeholders: `{reference}`, `{form_title}`, `{submitted}` and `{answer:<question key>}` for a question outside a repeater that isn't sensitive, a signature or a file. Saving refuses any other placeholder; an unanswered question fills in as empty. The reference, the answers and the PDF note stay as they are. The owner writes this text, so it is not system text and may be in any language.
@@ -665,7 +665,7 @@ Payload:
   "createdAt": "2026-10-23T08:15:02Z",
   "form": { "id": "...", "slug": "youth-programme", "url": "https://forms.example.org/youth-programme", "version": 3 },
   "submission": {
-    "id": "...", "seq": 142, "status": "new", "language": "dv",
+    "id": "...", "seq": 142, "status": "new",
     "submittedAt": "...", "contentHash": "sha256:...",
     "data": { "full_name": "Aishath Ali", "national_id": "[redacted]" },
     "url": "https://forms.example.org/forms/0192.../submissions?open=0192..."
@@ -712,7 +712,7 @@ All ids are element ids from the current working copy. `field` objects use the s
 | Tool | Arguments | Notes |
 |---|---|---|
 | `get_form` | — | Returns a compact outline (ids, types, labels, logic) for orientation on long chats |
-| `update_settings` | `title?`, `description?`, `language?`, `submitLabel?`, `successMessage?` | |
+| `update_settings` | `title?`, `description?`, `submitLabel?`, `successMessage?` | |
 | `add_page` | `title`, `afterPageId?` | Returns the new page id |
 | `update_page` | `pageId`, `title?` | |
 | `remove_page` | `pageId`, `moveElementsTo?` | |
@@ -730,14 +730,14 @@ Tool JSON Schemas are generated from Pydantic argument models, so the definition
 ### 12.3 Flows
 
 **Describe → form** (`mode=create`, on an empty draft):
-User prompt → system prompt (role, schema rules summary, field type catalogue, the form's language, "use tools only") → tool loop → proposal → preview → Apply.
+User prompt → system prompt (role, schema rules summary, field type catalogue, "forms may be English, Dhivehi or both", "use tools only") → tool loop → proposal → preview → Apply.
 
 **Chat edits** (`mode=edit`): the same loop seeded with `get_form` output for the current draft (at `draft_revision`). If the draft revision has changed by the time the user clicks Apply, because someone else edited it, the server rebases the patch when it applies cleanly and otherwise asks the user to re-run.
 
 **Paper / PDF / photo → form** (`mode=import`). **Blank forms only (decided):** this flow exists to recreate the structure of an empty paper form. The upload dialog names the provider the pages go to, and the person must tick "This form is blank" for every upload (the API refuses requests without `blankConfirmed=true`). Filled-in forms never leave the server for an AI provider, and the builder's assistant never sends respondent data; the one path that sends anything about submissions is "Ask your submissions" (§12.6), under its own rules.
 1. The studio posts the file itself to `POST /forms/{formId}/ai/sessions/{id}/import` (raw body, at most 20 MB; PDF, JPEG, PNG or WebP). It is read in memory for that request and never stored. HEIC is not accepted (no licence-clean decoder in the image); phones can share JPEG.
 2. The API rasterises PDF pages with `pypdfium2` (150 dpi, at most 10 pages, scaled down so a page is never more than 2048 px on its longer side, page boxes over 200 in refused) and normalises photos (EXIF orientation, max 2048 px, JPEG; JPEGs are decoded at a reduced scale, and an image over 40 megapixels after that is refused before decoding with 413 `image_too_large`), so a tiny file can't make the server allocate gigabytes. This takes a second or two, so import runs in the request like a chat turn (same SSE stream, Stop and limits) instead of a worker job.
-3. It calls a vision-capable provider with the images, instructing the model to recreate the structure (sections, fields, choices, signature boxes, labels as printed, in the form's language) using the tools, and to call `flag_uncertain` wherever it is unsure.
+3. It calls a vision-capable provider with the images, instructing the model to recreate the structure (sections, fields, choices, signature boxes, labels as printed, in the language or languages printed) using the tools, and to call `flag_uncertain` wherever it is unsure.
 4. The suggestion is stored on the `ai_session` and streamed to the studio, where the person reviews it, including flagged items, before applying. If the model sees a filled-in document it calls `report_filled_in` instead, and nothing is added.
 
 **Loop limits:** at most 40 tool calls per request (`JUSTFORMS_AI_MAX_TOOL_CALLS`), 12 rejected tool calls, a 120 s wall clock (`JUSTFORMS_AI_TURN_SECONDS`), daily token allowances per person and per organisation (`JUSTFORMS_AI_DAILY_TOKENS_PER_USER`, `_PER_ORG`: every provider call first reserves its worst case, input characters / 3 plus the output limit, atomically against both and is refused when that would pass either; the reservation is then settled with the real usage, estimated from characters when the provider reports none; the day's first call always goes), one running AI request per person (a newer request on any form, or reopening a chat with `fresh`, stops the older one within half a second), rate limits `ai_request` (per person and per organisation) and `ai_import`, requests of at most 4,000 characters, and forms of at most `JUSTFORMS_AI_MAX_FORM_CHARS` of JSON. Requests stream to the studio over SSE, with events `message.delta`, `tool.applied`, `tool.error`, `proposal`, `error`, `cancelled`, `filled_in` and `done`. A request that fails, times out or is stopped keeps nothing.
@@ -776,9 +776,9 @@ Operators should give JustForms its own provider credentials rather than sharing
 ### 12.5 As built
 
 - **Adapters use plain HTTPS (httpx), not the vendor SDKs.** Each adapter is a small request/response translation, tested against recorded shapes without network access, and JustForms carries no extra SDK dependency trees. Transient failures (429, 5xx, timeouts) are retried once.
-- **Tools** (`app/ai/tools.py`) are the §12.2 set. `update_settings` cannot change the language or theme (the person picks the language; the AI writes in it), `update_field` cannot change ids, kinds or child elements, and the AI can't set image or logo file ids. Missing ids are made from labels (or the type, for Thaana labels) and options get values from their labels. Every call is validated by the full `Form` model, including reference and cycle checks; a failing call changes nothing and its error goes back to the model.
+- **Tools** (`app/ai/tools.py`) are the §12.2 set. `update_settings` cannot change the theme (it may set `align` / `titleAlign` when asked), `update_field` cannot change ids, kinds or child elements, and the AI can't set image or logo file ids. Missing ids are made from labels (or the type, for Thaana labels) and options get values from their labels. Every call is validated by the full `Form` model, including reference and cycle checks; a failing call changes nothing and its error goes back to the model.
 - **Suggestions.** Each request starts from the pending suggestion (follow-ups refine it) or from the saved draft. The studio flushes autosave first, shows the suggestion on the canvas from a read-only builder store with added and changed questions marked, and locks the draft (no edits, no undo) until Apply or Discard. Apply writes one `form_draft_history` entry with `actor_type = ai` and the session id, so one Undo reverts it. When the draft moved on since the suggestion, the server applies the patch with `test` operations guarding everything it touches (whole lists where it adds or removes items); a clash returns 409 `proposal_stale` and the studio offers "Ask again".
-- **Language.** The system prompt asks for content in the form's language (Dhivehi in Thaana, formal register, for `dv` forms); the reply to the person and all assistant UI are English. Suggestions flag added or changed questions written in the wrong script, and `dv` suggestions always carry "Check the Dhivehi wording before you publish."
+- **Language.** Forms have no language: the system prompt says a form may be English, Dhivehi (in Thaana, formal register) or both, even within one label ("Name / ނަން"), to write in the language or languages the person asks for or the source uses, and never to set a language. It describes the optional `align` property and sets it only when asked. The reply to the person and all assistant UI are English. Suggestions that add or change Thaana text carry "Check the Dhivehi wording before you publish."
 - **Privacy.** Only the form schema and the person's requests go to the provider: no submissions, no approval or notification settings. A test submits answers and checks they never appear in anything sent. Audit entries (`ai.session_create`, `ai.request`, `ai.import`, `ai.apply`, `ai.discard`, `ai.cancel`) record counts, outcome and tokens, not the text.
 - **Permissions.** Editors and owners only; each chat is visible to the person who started it. With `JUSTFORMS_AI_PROVIDER` unset every `/ai` endpoint returns 404 and `GET /meta` reports `features.ai = false` (plus `aiVision` and `aiProviderLabel`).
 
@@ -927,7 +927,7 @@ There are two paths:
    - the field name from `name="q{qid}_{slug}"`, which seeds the JustForms `id` (`slug` normalised to snake_case, deduplicated).
 3. **Pages.** Each `control_pagebreak` line closes the current page and starts a new one. Page titles come from the next `control_head` if present, and otherwise "Page N". `control_collapse` becomes a step (a page titled with the section's text) or an open section; see "Collapsible sections" in §13.6.
 4. **Conditions.** If the source contains an inline `JotForm.setConditions([...])` call, the parser extracts that JSON and translates the supported subset: `field` show/hide → `visibleIf`, `require` → `requiredIf`, and page skip → `next`. Operators map as `equals`→`eq`, `notEquals`→`neq`, `isEmpty`→`empty`, `isFilled`→`not_empty`, `lessThan`→`lt`, `greaterThan`→`gt`, `contains`→`contains`, and `any`/`all` link → `any`/`all`. Anything else is listed in the report as "not imported". This includes calculations, email routing, `startsWith`/`endsWith`, and conditions that reference unsupported fields. Expect that many embeds carry no conditions at all, in which case the report says so.
-5. **Labels.** The import dialog sets the form's `language` (en or dv) and labels are imported as plain strings. Thaana text is detected by Unicode range, and when a form is mostly Thaana the dialog suggests `dv`.
+5. **Labels.** Labels are imported as plain strings, as written: English, Dhivehi or both. Nothing sets a form language (forms have none); each text takes its direction from its content.
 6. **Import report.** This is shown before the draft is created and stored on the import record. It lists:
    - every question with its Jotform type → JustForms type, and its status (`imported`, `imported with changes`, `skipped`), each with a reason;
    - every condition as `imported` or `not imported`, with its reason;
@@ -1001,7 +1001,7 @@ This works only against a form that has at least one **published** version. The 
 
 - **Data model.** New table `imports` (`id`, `org_id`, `form_id` nullable, `kind` enum(`jotform_html`,`jotform_api`,`jotform_submissions`), `status`, `source_file_id`, `mapping` jsonb, `report` jsonb, `created_by`, `stats` jsonb). `submissions` gains `source` enum(`justforms`,`jotform_import`) defaulting to `justforms`, plus `external_id` text, with a unique index on (`form_id`, `source`, `external_id`).
 - **API:**
-  - `POST /orgs/{orgId}/imports/jotform/html`: `{fileId | html, language}` → import with report preview; `POST /imports/{id}/commit` → creates the form draft.
+  - `POST /orgs/{orgId}/imports/jotform/html`: `{fileId | html}` → import with report preview; `POST /imports/{id}/commit` → creates the form draft.
   - `POST /orgs/{orgId}/imports/jotform/api/forms`: `{apiKey, region}` → form list (not persisted).
   - `POST /orgs/{orgId}/imports/jotform/api`: `{apiKey, region, formIds, includeSubmissions}` → job.
   - `POST /forms/{formId}/imports/submissions`: `{fileId, versionId}` → parsed headers + suggested mapping; `PUT /imports/{id}/mapping`; `GET /imports/{id}/preview`; `POST /imports/{id}/commit`.
@@ -1099,25 +1099,25 @@ The proof-of-work salt is `<random>?expires=<unix>&` (the trailing `&` ends it, 
   - Filters: status, date range, form version, full-text search, and per-field filters (choice equals/in, number range, date range, yes/no, text contains). These compile to JSONB predicates against GIN-indexed `data`.
   - Bulk actions: change status, export selection, delete (owner only, confirmation then Undo toast). Owners also get a **Deleted** tab (the form's trash) with restore and delete permanently (§14.5).
   - Filters, the status tab and the search live in the URL. The per-question filter (`filter=<json>`) is a list of `{field, op, value}` with `op` one of `contains`, `eq`, `neq`, `gte`, `lte`, `includes`, `answered`, `unanswered` (`app/submissions/query.py`); search runs over a `search_text` column holding the non-sensitive answers. Column choices are kept per user per form in the browser.
-- **Detail view** (sheet or page). Answers are rendered with the **submission's own schema version**, in that form's language and direction. Files show inline previews for images and PDFs via presigned URLs. Signature images appear with their audit metadata. The detail view also shows the integrity badge (hash chain verified), the status control, the comment thread and the event timeline, plus buttons for Download PDF and Previous/Next within the current filter.
+- **Detail view** (sheet or page). Answers are rendered with the **submission's own schema version**, each text in its own direction and alignment (§16). Files show inline previews for images and PDFs via presigned URLs. Signature images appear with their audit metadata. The detail view also shows the integrity badge (hash chain verified), the status control, the comment thread and the event timeline, plus buttons for Download PDF and Previous/Next within the current filter.
 - **Status workflow.** `new → in_review → approved | rejected`. Any of these may be changed back to `in_review` by an editor or owner. A comment is required when moving to `rejected` and optional otherwise. Each change emits a `status_changed` event, a webhook and (optionally) an owner email. On forms with approvals, the approval sets the status while it runs (§15.3).
 
 ### 15.2 `.xlsx` export (worker, openpyxl `write_only=True`)
 
 - **Sheet "Submissions".** One row per submission. Fixed columns are `#`, `Submitted at` (local TZ from `JUSTFORMS_TIMEZONE`, `UTC` by default), `Status`, `Version`, `Respondent email` and `Locale`.
   - One column follows for each field, across the **union of all versions**: fields are ordered by the latest version, and removed fields are appended at the end with "(version N)" after the label, N being the last version that asked them.
-  - Header row is `Label (id)`, with labels in the form's language.
+  - Header row is `Label (id)`, with labels as written (English, Dhivehi or both).
 - **Value formatting.** Multi-choice values are joined with `; ` using option labels. Files are app download links, and signatures are a "Signed <timestamp>" link to the PDF.
 - **Repeaters.** Each repeater gets its own sheet named after the repeater, with columns `Submission #`, `Row` and then its child fields.
 - **Version field mappings.** When a newer version turns fixed questions ("Member 1 name", "Member 2 name"…) into a repeater, older submissions keep their version. `forms.settings["versionMappings"]` (`PATCH /forms/{id}` `versionMappings`, editors and owners; an empty list removes it) lists, per repeater, which older question fills each repeater question in row 1, 2…: `[{"repeater": "members", "rows": [{"member_name": "member1_name", "member_role": "member1_role"}, …]}]`. In the export, a submission whose version has no such repeater gets rows on the repeater's sheet read from those questions in order (a row whose questions are all empty is skipped), linked by its `#`, and the mapped questions get no columns on the Submissions sheet. Answers and hashes are never changed. Saving checks the mapping against the draft and the published versions (`bad_version_mapping` with the problems: not a repeater, a question not in the repeater, a source that is not a top-level question of a published version or is still on the form, anything mapped twice); malformed stored values are ignored. Code: `app/submissions/version_map.py`. The submission page and cards show each submission in its own version, so they need no mapping.
-- **Thaana and RTL.** Cells are stored as text, and sheets are set to `rightToLeft` when the form's language is `dv`.
+- **Thaana and RTL.** Cells are stored as text, and a sheet is set to `rightToLeft` when the latest version's title reads right to left.
 - **Formula injection.** Cells starting with `= + - @` are prefixed with `'`.
-- **Implementation notes.** Headers use the form's own language (forms have one language, so there is no per-export language choice). Numbers and ratings stay numeric; everything else is text. A `Language` fixed column replaces `Locale`; `Respondent email` arrives with OTP access in Phase 4. Progress (`rowsDone` of `rowCount`) is reported while the worker writes in batches of 500.
+- **Implementation notes.** Headers use the labels as written (English, Dhivehi or both). Numbers and ratings stay numeric; everything else is text. There is no language column (forms have none since `schemaVersion` 2); `Respondent email` arrives with OTP access in Phase 4. Progress (`rowsDone` of `rowCount`) is reported while the worker writes in batches of 500.
 - **Delivery.** The file goes to the storage backend at `exports/{id}.xlsx` with a 24 h expiry. The UI shows progress and offers a download, and an `exported` audit event is written. Exports up to 2000 rows are generated inline-fast, meaning the job still runs in the worker but the UI waits on it. Larger exports send a notification when ready.
 
 ### 15.3 Approvals (built)
 
-Per form, optional ordered approval steps (1–3), set on the **Settings** page by owners. Each step has a name ("Supervisor", in the form's language) and an approver: the answer to a top-level email question, a fixed address, or **people with edit access, in the studio**. Decisions:
+Per form, optional ordered approval steps (1–3), set on the **Settings** page by owners. Each step has a name ("Supervisor", English or Dhivehi) and an approver: the answer to a top-level email question, a fixed address, or **people with edit access, in the studio**. Decisions:
 
 - **Where the settings live.** In `forms.settings["approvals"]`, not the form schema: the public form receives the schema, and fixed approver addresses must not reach respondents; changing an approver needs no publish. The steps are copied onto each submission when it arrives (`approval_steps`, approver addresses resolved then), so later changes never affect responses already in approval.
 - **Checks.** On save and at publish. A step whose question is missing, isn't an email question or sits inside a repeater is an error: saving is refused and publishing is blocked (`approval_source_missing` / `approval_source_not_email`; the builder's publish dialog lists it with "Open settings"). An optional question, a question only some respondents see (a show-if on it, its section or its page, or an earlier page that can jump past it) and a question not published yet are warnings, shown on the step and in the publish confirmation.
@@ -1128,7 +1128,7 @@ Per form, optional ordered approval steps (1–3), set on the **Settings** page 
 - **Deciding in the studio** (decided). Editors and owners of the form (so organisation admins and superadmins too) can approve or reject the current step from the submission page or, for several submissions, from the selection bar. It is that step's decision, recorded as the staff member (`decided_via = "studio"`, their user id and address on the step; the `approval_decided` event carries `decidedVia: "studio"`, `decidedByEmail` and the actor; audit entry `submission.approval_decide`), and the workflow moves on exactly as after a link decision: the next approver is emailed, or the final status is set, the PDF is made and signed again and the outcome email goes out. A rejection needs a comment; bulk rejections share one. The request names the step it decides (`{step}`), so a stale page can't decide a later step. The approver's link then shows "This approval is done" with who decided and when, and can't send codes or decide. Viewers can't decide.
 - **Concurrency.** Every decision (link or studio) takes a row lock on the submission, re-reads the step and changes it with a conditional update (`WHERE state IN ('pending', 'no_approver')`); if nothing changed, the decision is refused with 409 `approval_done` (the studio's carries who decided, when and how). So when an approver and a staff member act at once, exactly one decision counts and the other person is told it was already decided.
 - **Wording.** In the approval settings owners can set the request email's subject and message and list its non-sensitive answers, the approved and not-approved messages of the outcome email and the outcome's Reply-To address. Same placeholders and checks as the notification wording (§11.1); errors come back as issues with `field`. "Send test emails" (`POST /forms/{formId}/approvals/test`, owners, `notify_test` rate limit) sends the request (and/or, for steps decided in the studio, the "to review" notice) and both outcome emails with sample answers and "[Test]" to the person asking only; the test request's buttons open the submissions instead of an approver link.
-- **What approvers see** (decided). An English page; the response in the form's language and direction with **sensitive answers hidden** ("Hidden"): approvers are outside the studio's roles, and sensitive answers never leave the app in emails or webhooks either. Non-sensitive files can be downloaded and signatures are shown; earlier steps' decisions are listed. The request email carries no answers.
+- **What approvers see** (decided). An English page; the response, each text in its own direction and alignment, with **sensitive answers hidden** ("Hidden"): approvers are outside the studio's roles, and sensitive answers never leave the app in emails or webhooks either. Non-sensitive files can be downloaded and signatures are shown; earlier steps' decisions are listed. The request email carries no answers.
 - **Manual status** (decided). While an approval runs nobody sets the status by hand: `PATCH` returns 409 `approval_in_progress`, bulk status changes skip those submissions, and the studio's status control is disabled with "The status changes when the approval finishes." Editors can **send the approver's email again** or **stop the approval** (reason required; an `approval_stopped` event; the link stops working), after which the status is theirs again. Once an approval finishes or stops, the status works as before; later changes are logged but never edit the approval record.
 - **Record.** Every step goes through the hash-chained event log (`approval_requested`, `approval_decided`, `approval_waiting`, `approval_stopped`) and the `submission.approval_step` webhook. The studio shows the steps in the detail sheet ("Approval"), "Step n of N" in the table and the events in the activity log.
 
@@ -1164,14 +1164,18 @@ chip.
 ## 16. Languages, RTL and Thaana
 
 - **All system text is English only (decided, strict).** Every string JustForms itself writes is English, for every form: the studio, the public form's chrome (buttons, navigation, "Step 2 of 3", "(optional)", validation and error messages, file and signature controls, "Yes"/"No", the CAPTCHA, email-code and sign-in steps, success / closed / not-found screens), the approver and verify pages, every email (receipts, codes, approval requests, outcomes, staff notifications), the PDF's fixed labels (reference, submitted, the approval record, the footer "Digitally signed. Verify at") and the Excel export's fixed headers. There is no UI internationalisation, no translation bundle and no language switcher.
-- **Dhivehi lives only in form content and answers.** The form builder writes the form title, description, page titles, question labels, help text, options, headings and paragraphs, the Back / Next / Submit button texts (`settings.backLabel`, `nextLabel`, `submitLabel`) and the success message; respondents write the answers. Those are in the form's language. When the builder leaves a button text or the success message empty, the English default is shown.
-- **One language per form.** `settings.language` is `"en"` (default) or `"dv"` (§4.2). Every user-facing schema string (title, labels, descriptions, option labels, messages) is a plain string written in that language. There are no per-language translations; a bilingual paper form becomes one form in one language (or two forms).
-- **Direction derives from the language.** `dv` → `rtl`, `en` → `ltr`; there is no separate direction setting. In the studio, every place that edits or shows form content (form title, field labels, options, the preview canvas) sets `lang`/`dir` from the form's language so Thaana typing and rendering are correct, while the surrounding UI stays English/LTR.
-- **Where a page's direction comes from (decided).** A region takes the direction of what it mostly holds:
-  - *The form sheet* (public form, studio preview, the PDF) is mostly questions and answers, so it follows the form: for `dv` the renderer sets `lang="dv" dir="rtl"` on the form root (Radix `DirectionProvider` too), lines start at the right and the layout mirrors. Every English string inside it is rendered through `<En>` (`renderer/msg.tsx`), a `<bdi dir="ltr" lang="en">` run: punctuation and numbers stay in place ("Step 2 of 3", "Enter a number between 1 and 5."), the Latin face is used, screen readers switch voice, and the run still sits at the start (right) edge of its RTL block. Plain-text slots that can't hold markup (an `<option>`, a placeholder) wrap the English in LRI…PDI (`ltrRun`). The date picker's calendar is English, so it is LTR. Error summary links isolate the (Dhivehi) question label and the (English) message separately.
-  - *System-only screens* (the email-code gate, "already responded", closed / not found, the verify page, the approver page) are English and LTR. Form content shown on them (the form title, the approver's view of the questions and answers) is a block with the form's `lang`/`dir`.
-  - *Emails* are English and LTR (`<html lang="en">`); the form title, the success message and the answers table carry the form's `lang`/`dir` (and `align` for clients that ignore `dir`), and content inside an English sentence (step name, form title) is a `<bdi>` with the form's language. Subjects are plain text ("Your response to {title} ({reference})").
-  - *The PDF* follows the form like the sheet: in a `dv` PDF every line starts at the right; content is shaped right to left, and each English label line (reference and date, "Approval", "No answer", "Yes"/"No", the footer) is one left-to-right run placed against that edge.
+- **Dhivehi lives only in form content and answers.** The form builder writes the form title, description, page titles, question labels, help text, options, headings and paragraphs, the Back / Next / Submit button texts (`settings.backLabel`, `nextLabel`, `submitLabel`) and the success message; respondents write the answers. When the builder leaves a button text or the success message empty, the English default is shown.
+- **Bilingual forms (decided, `schemaVersion` 2).** A form has no language. Any form text may be English, Dhivehi or both, even within one label ("Name / ނަން", "ނަން / Name"). There are no per-language translations: a bilingual paper form becomes one form whose labels carry both languages.
+- **Direction per piece of text.** Every text takes its direction from its **first strong character** (Unicode bidi rule P2): Thaana (and other right-to-left scripts) → `rtl`, Latin → `ltr`; text without letters takes its block's direction. `lang` is `dv` when the text reads right to left in Thaana, else `en`. The twins are `backend/app/schemas/direction.py` and `frontend/src/schema/direction.ts` (`textDirection`, `textLang`, `textProps`, `resolveAlign`); both run `spec/direction/vectors.json`.
+  - *A question is one block in its label's direction*: a Thaana label makes the whole question (label, help text, options, answer box, error) read right to left, an English one left to right, so a mixed form alternates cleanly. Options, help paragraphs and list items also each take their own direction, so an English option inside a Dhivehi question stays left to right in its own isolate. Sections, repeaters, headings and paragraphs use their own title or text.
+  - *Mixed text*: inline, the run in the other script is marked (`FormText`, `thaana/form-text.tsx`): a Thaana run inside English text is `<span lang="dv" dir="rtl">` (Thaana face, scaled 1.12em), a Latin run inside Dhivehi text `<span lang="en" dir="ltr">` (Latin face). Numbers inside right-to-left text go through `isolateNumbers` (`thaana/display.ts`).
+  - *Answers* follow what is typed: a text box's `dir` follows its value's first strong character as the respondent types; while empty it starts on the side its placeholder or question reads. Dhivehi is typed with the device's own keyboard: the app has no keyboard or language switch of its own. Email, phone, number, date and time boxes stay `ltr`.
+- **Alignment (user-adjustable).** `settings.align` is the form default (`auto` unless changed); `settings.titleAlign` sets the form title and description; each element and page may override it with `align` (`auto` / `left` / `center` / `right`; unset follows the form default). `auto` aligns each text to its start edge, so Dhivehi sits at the right and English at the left. Left and right are physical and apply to the block's text and nested paragraphs (width-capped help text moves to that side); center centres them. Controls (choice rows, answer boxes) keep their block's direction. In the builder the inspector shows an **Alignment** toggle group (Auto, Left, Center, Right) for every question, section, repeater, heading, paragraph and page, plus **Text alignment** (the form default) and **Title alignment** in the form panel; pressing the selected option again clears an element's override.
+- **Where a page's own layout comes from.** The *sheet's* layout (logo side, progress, Back/Next order, the outcome screen) follows the **form title's** direction, so a form titled in Dhivehi lays out right to left, as Dhivehi forms always have; every block inside then takes its own direction. English system strings inside a right-to-left region are rendered through `<En>` (`renderer/msg.tsx`), a `<bdi dir="ltr" lang="en">` run; plain-text slots that can't hold markup (an `<option>`, a placeholder) wrap the English in LRI…PDI (`ltrRun`). The date picker's calendar is English, so it is LTR. Error summary links isolate the question label and the (English) message separately.
+  - *The studio* applies the same rules on the builder canvas (WYSIWYG, inline editing included), the preview, the submissions view and the approver page. Every box that edits form text (canvas inline editors, inspector inputs) follows what is typed.
+  - *System-only screens* (the email-code gate, "already responded", closed / not found, the verify page) are English and LTR. Form content shown on them is a block with its own `lang`/`dir`.
+  - *Emails* are English and LTR (`<html lang="en">`); each form text (the form title, the success message, every question label and answer cell) carries its own `dir`, and an `align` (for clients that ignore `dir`) from its direction and alignment; content inside an English sentence is a `<bdi>` / FSI…PDI isolate. Subjects are plain text ("Your response to {title} ({reference})").
+  - *The PDF* shapes each text in its own direction (HarfBuzz, the Thaana face for Thaana) and places each question's label and answer by the question's alignment; the sheet's English lines (reference and date, "Approval", the footer "Digitally signed. Verify at", the QR) follow the sheet direction, each as one left-to-right run placed against that edge.
 - **Styling.** Components that display form content (renderer, preview, builder inputs for form text) use Tailwind **logical properties only** (`ms-*`, `me-*`, `ps-*`, `pe-*`, `start-*`, `end-*`, `text-start`). A lint script bans `ml-/mr-/pl-/pr-/left-/right-/text-left/text-right` in app code. Directional icons such as chevrons and arrows flip with `rtl:rotate-180`.
 - **Fonts.** The Thaana font stack is `Faruma, "MV Faseyha", "Noto Sans Thaana", sans-serif` (Latin text uses Inter first). **Noto Sans Thaana** (SIL OFL) is bundled and self-hosted as woff2 and is always available as the fallback. Faruma and MV-series fonts are **not** shipped in the repo or images: their licence is unclear (listed as "Unspecified" on dvfonts). Faruma is loaded **at runtime** from a configurable stylesheet URL, `JUSTFORMS_THAANA_FONT_CSS_URL` (served to the SPA by `GET /meta` and to the public form with its schema):
   - Default: the public dvfonts CDN, `https://dvfonts.yashau.com/css2?family=Faruma&display=swap` (unicode-range subsets, so Latin pages download nothing). Trade-off: a third-party host then sees respondents' IP addresses and the page they load from.
@@ -1180,13 +1184,9 @@ chip.
   - Server rendering (signed PDFs, link-preview images) can't use browser fonts: it uses the bundled Noto Sans Thaana unless the operator supplies a TTF/OTF with `JUSTFORMS_THAANA_FONT_FILE` (optional `_BOLD_FILE`; Helm `fonts.server.*`), shaped with HarfBuzz like the bundled face (`app/pdf/faces.py`). The file is checked once per process: it must cover U+0780 to U+07B0, and for PDFs its OS/2 `fsType` must allow subset embedding (images are rasterised, so embedding rules don't apply there). A failing file falls back to Noto Sans Thaana with one warning. The supplied face is used only for the characters Noto Sans Thaana covers, so Latin words in Dhivehi text keep the Latin face (the web rule, DESIGN-SYSTEM 4.1). Link-preview image versions include a hash of the font file, so cached images are remade when it changes.
   - Later, orgs may upload a licensed font in the admin UI (stored via the storage backend, referenced by `theme.thaanaFontFileId`).
 - **Numerals and dates.** Western digits everywhere, because that is Maldivian practice in forms. Dates are system text: English month names ("1 January 2026") in messages, the date picker (an LTR calendar), emails and PDFs.
-- **Phonetic Thaana keyboard** (`@yashau/thaana-react`, MIT, from dvfonts):
-  - Applies to `short_text` and `long_text` with `inputScript: "thaana"`. With `"auto"` it is enabled when the form's language is `dv`. It ships with the public renderer in Phase 2. A small toggle (shadcn `Toggle`, label "ތ / A") lets the respondent switch per field.
-  - The package's `attachKeyboard` / `useThaanaKeyboard` is attached to the **official shadcn `Input`/`Textarea`** (its own `<ThaanaInput>` components are not used: shadcn only). It maps Latin keystrokes to Thaana with the standard Divehi Phonetic layout (Microsoft kbddiv1: `h→ހ`, `S→ށ`, `n→ނ`, `r→ރ`, `b→ބ`, `L→ޅ`, `k→ކ`, `w→އ`, `a→ަ`, `A→ާ`, `i→ި`, `I→ީ`, `u→ު`, `U→ޫ`, `e→ެ`, `E→ޭ`, `o→ޮ`, `O→ޯ`, `q→ް`, ..., plus `,` → `،`, `;` → `؛`, `?` → `؟`). The public renderer loads it lazily (`src/thaana/phonetic.ts`).
-  - The builder uses the same keyboard on every input that edits form text of a `dv` form (labels, help text, options, titles), with the same "ތ / A" toggle.
-  - Display: form text shown in a `dv` form (labels, titles, options, help text) goes through the package's `isolateNumbers`, so numbers, phone numbers and percentages keep their order inside RTL text. System strings are English `<En>` runs (above), so they need no number isolation of their own.
-  - Composition events (IME) and paste pass through unchanged. Cursor position and undo are preserved.
-  - Unit tested with a keystroke → output table (`src/thaana/phonetic.test.ts`). Users who already have a system Thaana keyboard can turn the toggle off.
+- **Typing Dhivehi.** There is no built-in Thaana or phonetic keyboard and no language switch anywhere (public form, studio, approver pages). People who type Dhivehi use the keyboard installed on their device; answer boxes and studio boxes only follow what is typed (`dir`/`lang` from the first strong character, Thaana face for Thaana).
+  - Display: right-to-left form text (labels, titles, options, help text) goes through `isolateNumbers` (`thaana/display.ts`, adapted from `@yashau/thaana`, MIT), so numbers, phone numbers and percentages keep their order inside RTL text. System strings are English `<En>` runs (above), so they need no number isolation of their own.
+- **Markers after a label.** A question label is rendered as its own isolate (`<bdi dir>` in the label's direction) and the requirement marker ("(optional)" / "(required)", an English `<En>` run) follows it. A mixed label ("Island / ރަށް") is then one unit for bidi, so the marker always sits right after it at the block's end edge (the right for a label that starts in English, the left for one that starts in Thaana), whatever the alignment. The PDF prints no markers.
 - **Validation messages.** The server returns error codes plus params; the public renderer turns them into English messages (`renderer/messages.ts`, one English set) for every form. A Dhivehi label is never put inside an English sentence ("Enter full name" becomes "Answer this question"); the builder's own `patternMessage` is content and is shown as written.
 
 ---
@@ -1253,7 +1253,7 @@ All endpoints are JSON. OpenAPI is served at `/api/v1/openapi.json` (with `/api/
 
 **Public (respondent; no cookies)**
 - `GET /public/forms/{slug}` → live version schema, settings, upload nonce, captcha config. Returns 410 if closed. (Slugs are unique across the install; the public page is `/{slug}`.)
-- `POST /public/forms/{...}/otp/request`, `POST /public/forms/{...}/otp/verify`; for email-code forms the form `GET` returns the title and language but `schema: null` until a respondent token is sent
+- `POST /public/forms/{...}/otp/request`, `POST /public/forms/{...}/otp/verify`; for email-code forms the form `GET` returns the title but `schema: null` until a respondent token is sent
 - `GET /public/forms/{...}/captcha` (fresh proof-of-work challenge), `GET /public/frame-ancestors` (used by nginx for the per-form CSP and the link-preview tags, §18.4)
 - `POST /public/forms/{...}/uploads`
 - `POST /public/forms/{...}/submissions` with `{versionId, data, signatures, uploadNonce, captchaToken?}` → `{seq, receiptAvailable}`. A 409 is returned if the live version changed mid-fill, and the client re-fetches and re-validates while keeping compatible answers.
@@ -1294,14 +1294,14 @@ All endpoints are JSON. OpenAPI is served at `/api/v1/openapi.json` (with `/api/
   - A three-pane layout of field palette, canvas and inspector, made from shadcn `ResizablePanelGroup`, `Sheet`, `Tabs`, `Form`, `Select`/`NativeSelect`, `Switch`, `Command` and the other official components.
   - Drag and drop uses dnd-kit (`@dnd-kit/core` + `sortable`) for palette → canvas, reordering, and moving between sections and repeaters. Keyboard sorting comes along for accessibility.
   - State is the draft schema in a Zustand store with local undo. Edits become RFC 6902 patches, which are autosaved (debounced 800 ms) with `baseRevision`.
-  - **Inline editing** ([ux/INLINE-EDIT-AND-LOGO-SCREENS.md](ux/INLINE-EDIT-AND-LOGO-SCREENS.md) §1). Every piece of form text on the canvas is edited in place: title and description, page titles and descriptions, labels, help text, placeholders, options (Enter adds the next one, Backspace on an empty one removes it, Alt+↑/↓ or the grip reorders, "Add "Other""), headings, paragraphs, section and repeater texts, the Back / Next / Submit buttons and the message after submitting. Idle text is the renderer's own output inside a focusable `role="button"` ("Edit question label: …"); a click, tap, Enter or F2 swaps in the official `Input`/`Textarea` (with the phonetic keyboard and "ތ / A" toggle in dv forms) in the text's typography (`components/builder/inline-text.tsx`). Which text is open is `editing` in the builder store (keys from `textKey`, `inline-edit.ts`); Enter or blur commits once through `store.edit` (one undo step, one autosave patch, the server's schema validation), Esc cancels, Shift+Enter is a line break. Prompts for empty optional texts show only on the selected block. The public renderer only gained override slots (`QuestionView` `description`/`control`, `SectionFrame`/`RepeaterFrame` `description`/`addText`, `FormHeader` `title`/`description`), so the editor stays out of the public chunk.
+  - **Inline editing** ([ux/INLINE-EDIT-AND-LOGO-SCREENS.md](ux/INLINE-EDIT-AND-LOGO-SCREENS.md) §1). Every piece of form text on the canvas is edited in place: title and description, page titles and descriptions, labels, help text, placeholders, options (Enter adds the next one, Backspace on an empty one removes it, Alt+↑/↓ or the grip reorders, "Add "Other""), headings, paragraphs, section and repeater texts, the Back / Next / Submit buttons and the message after submitting. Idle text is the renderer's own output inside a focusable `role="button"` ("Edit question label: …"); a click, tap, Enter or F2 swaps in the official `Input`/`Textarea` in the text's typography and direction (`components/builder/inline-text.tsx`). Which text is open is `editing` in the builder store (keys from `textKey`, `inline-edit.ts`); Enter or blur commits once through `store.edit` (one undo step, one autosave patch, the server's schema validation), Esc cancels, Shift+Enter is a line break. Prompts for empty optional texts show only on the selected block. The public renderer only gained override slots (`QuestionView` `description`/`control`, `SectionFrame`/`RepeaterFrame` `description`/`addText`, `FormHeader` `title`/`description`), so the editor stays out of the public chunk.
   - The preview tab mounts `packages/renderer` with the draft.
 - **Logic editor.** A condition builder (field → operator → value) built from shadcn `Select`/`Input`/`Button`, with `all`/`any` grouping one level deep in the UI. Deeper nesting is possible via AI or JSON but is shown read-only.
 - **AI panel.** A chat in a `Sheet`. It streams messages, shows tool-call steps, and renders the proposal as a structured diff (added, changed and removed elements highlighted on the canvas) with Apply/Discard buttons.
 
 **`apps/form` (public)**
 - Contains `packages/renderer` and `packages/logic` with react-hook-form and zod. There is no TanStack Router or Query, a single route parsed from `location`, and the shadcn components it needs.
-- Budget: **≤ 120 KB gzipped JS** for the initial load. The signature pad and phonetic keyboard are lazy-loaded chunks.
+- Budget: **≤ 120 KB gzipped JS** for the initial load. The signature pad and calendar are lazy-loaded chunks.
 - **Saved progress** ([ux/SAVED-PROGRESS-SCREENS.md](ux/SAVED-PROGRESS-SCREENS.md)). Answers and the current page are kept in `localStorage` (debounced 500 ms, flushed on page change and when the page is hidden), keyed by form and, on email-code and staff forms, a hash of the respondent's email. Sensitive questions, signatures, files (upload references belong to one page load's upload session, §10) and hidden values are never stored. On reopening the form restores them (only answers whose question and type still exist when the version changed) with a polite notice and Start over; submit clears them. The per-form setting (`saveProgress`, `saveProgressDays`, default on and 7 days) comes with the public form as `saveProgress: {days} | null`. The code is a lazy chunk fetched in parallel with the form; storage errors are ignored.
 - Serves `/{slug}` and an `?embed=1` mode (no page background, card or footer; the page's padding; no sticky Back / Next bar), plus a `postMessage` protocol for iframe embeds: the form posts its content height (`justforms:resize`, rAF-throttled, only on change, measured from `#root` so it can shrink) and asks for its top to be shown on a page change or submit (`justforms:top`); `/embed.js` (`frontend/public/embed.js`) on the host page applies both, only for messages from its own origin and its own iframes. Old `/f/{org}/{slug}` links get a 301 to `/{slug}`; any other unknown path shows the public "couldn't find this form" screen with a 404. Slugs are unique across the install and may not be one of the app's own top-level words (`app/services/slugs.py`, `frontend/nginx.conf`).
 
@@ -1322,7 +1322,6 @@ All endpoints are JSON. OpenAPI is served at `/api/v1/openapi.json` (with `/api/
   - the column-mapping step is `Table` + `Select`;
   - the import report is `Table` + `Badge` + `Alert`;
   - the signature pad is `Card` + `Button` around a bare `<canvas>`;
-  - the phonetic keyboard is a `beforeinput` behaviour on the official `Input`/`Textarea` plus a `Toggle`.
 
   Only the minimal unstyled behavioural element (canvas, input handler) is custom.
 - **Code review rule.** Any new file under `packages/ui/components` that did not come from the shadcn CLI is rejected in review. CI diffs `packages/ui/components` against `pnpm dlx shadcn@latest diff` to catch drift.
@@ -1454,7 +1453,7 @@ Screens and copy: [ux/FORM-THEME-SCREENS.md](ux/FORM-THEME-SCREENS.md).
   it for the title rule and page headings only (fonts stay the embedded OFL faces).
 - **Logo per form** ([ux/INLINE-EDIT-AND-LOGO-SCREENS.md](ux/INLINE-EDIT-AND-LOGO-SCREENS.md) §2).
   The form theme gains `logoSize` (`s`/`m`/`l`: 24, 32, 56 px; PDF 7, 9, 13 mm), `logoPlacement`
-  `end` (logical: start/end flip in dv forms and PDFs) and `logoLink` (absolute `http(s)` URL,
+  `end` (logical: start/end flip in forms titled in Dhivehi and their PDFs) and `logoLink` (absolute `http(s)` URL,
   ≤ 500 characters), inherited like every theme value. The file itself is per form only:
   `PUT/DELETE /forms/{id}/logo` (raw body, editors; same checks as branding logos: PNG decoded
   and re-encoded, SVG rebuilt from the allow-list, ≤ 512 KB, ≤ 4096 px) stores
@@ -1484,7 +1483,7 @@ Screens, layout and copy: [ux/SHARING-PREVIEW-SCREENS.md](ux/SHARING-PREVIEW-SCR
   PDFs and rasterised with pdfium (Pillow has no raqm/FriBiDi in slim images): logo and
   organisation name, the title at the largest size that fits three lines, up to two lines of
   description, the address, a band in the theme's primary colour; mirrored and shaped right to
-  left for dv forms (Noto Sans Thaana; Latin always Inter). Colours are the
+  left for Thaana text (Noto Sans Thaana; Latin always Inter). Colours are the
   form theme's light values.
 - **Cache** (`app/sharing/service.py`). `version` hashes everything drawn; the file lives at
   `og/{form_id}/{version}.png` in `app.storage`, made on first request and the previous one
@@ -1538,17 +1537,16 @@ A typical production setup, for orientation only:
 Repo, CI (ruff, mypy, pytest, eslint, tsc, vitest), Compose stack, app config, DB models and Alembic baseline, orgs/users, OIDC login and local-OTP fallback, sessions and CSRF, permission resolver. Form schema Pydantic models, JSON Schema export and TS/zod generation. **Logic engine in Python and TS plus the conformance suite.**
 **Acceptance:**
 - `docker compose up` produces a working login via Keycloak (in dev compose) and via local OTP.
-- `spec/form-schema.v1.json` is generated and checked in CI.
+- `spec/form-schema.v2.json` is generated and checked in CI.
 - At least 150 logic vectors pass identically in pytest and vitest.
 - The cycle detector rejects all cyclic fixtures.
 
 ### Phase 2: Builder and renderer
-Studio builder (dnd-kit, all v1 field types except signature, sections, repeaters, pages), inspector, logic editor, draft autosave with patches/revisions, server undo/redo, publish/versions. Public form app with wizard, logic, client validation, English and Dhivehi (RTL) forms, Thaana fonts and phonetic keyboard. Embed mode.
+Studio builder (dnd-kit, all v1 field types except signature, sections, repeaters, pages), inspector, logic editor, draft autosave with patches/revisions, server undo/redo, publish/versions. Public form app with wizard, logic, client validation, English and Dhivehi (RTL) forms, Thaana fonts. Embed mode.
 **Acceptance:**
-- The §4.4 example (minus signatures) can be built entirely in the UI as a `dv` form, published, and rendered RTL with Thaana; an `en` form renders LTR.
+- The §4.4 example (minus signatures) can be built entirely in the UI, published, and rendered RTL with Thaana; English text renders LTR, and one form may mix both.
 - Hiding, requiring and skipping behave as the vectors specify.
 - The public bundle is ≤ 120 KB gzip.
-- The phonetic keyboard passes its mapping tests.
 - No physical-direction Tailwind classes remain (lint passes).
 
 ### Phase 3: Submissions core
@@ -1619,7 +1617,7 @@ Provider interface and adapters (Gemini, Anthropic, OpenAI-compatible), tool lay
 - Google Forms importer, following the §13 pattern. These are deterministic, not AI. Fetching Jotform-hosted files during submission import (needs authenticated download).
 - SAML, and SCIM provisioning.
 - Uploaded per-org PDF signing certificate (PKCS#12) in the admin UI.
-- Additional form languages beyond en/dv (the `settings.language` enum grows; direction is looked up per language), and multilingual forms with per-language translations if there is demand. A translated studio UI is not planned.
+- Other right-to-left scripts already get their direction (first strong character); fonts and keyboards beyond Thaana, and per-language translations (one form shown in a chosen language), if there is demand. A translated studio UI is not planned.
 
 ---
 
@@ -1631,7 +1629,7 @@ Provider interface and adapters (Gemini, Anthropic, OpenAI-compatible), tool lay
 2. **AI document import.** Paper/PDF/photo → form is for **blank** forms only, which may be sent to the cloud LLM provider. Filled-in forms are never sent to a cloud LLM (§12.3). Submission data reaches a provider only through "Ask your submissions" (§12.6): counts by default; every textual answer (contact details and sensitive questions included, never files, signatures or IP addresses) only when the form's owner turns on "Allow AI to read answers", off by default for every form (decided).
 3. **PDF signing.** Each install signs with its own self-signed key and certificate by default. An uploaded org certificate may be added later (§9.5).
 4. **Thaana fonts.** The font stack is `Faruma, "MV Faseyha", "Noto Sans Thaana", sans-serif`. Noto Sans Thaana is bundled as the fallback; Faruma/MV files are never committed and are supplied by operators through the `/fonts/` directory (§16). The Faruma licence is still to be confirmed (open question 6 in §22.2).
-5. **English-only UI, single-language forms.** The studio, builder and dashboard UI is English only; there is no UI internationalisation. Dhivehi exists only in form content: each form has one `settings.language` (`en` or `dv`), all form text is plain strings in that language, and direction derives from it. Thaana support (font stack, `lang`/`dir` on form content, the phonetic keyboard for `dv` forms) applies wherever form content is typed or shown (§4.2, §16).
+5. **English-only UI, bilingual forms.** The studio, builder and dashboard UI is English only; there is no UI internationalisation. Dhivehi exists only in form content, and one form may mix it with English freely: there is no form language (it was dropped in `schemaVersion` 2). Each piece of form text takes its direction from its content and its alignment from `align` (auto by default). Thaana support (font stack, per-text `lang`/`dir`) applies wherever form content is typed or shown (§4.2, §16).
 
 6. **Clean respondent PDF.** The PDF prints only the title, answers, signatures, reference, date, the approval record and a verify footer with a QR code; audit data stays in the studio and the signed metadata. The verify page is status only (§9.5, §9.5.2).
 7. **Approvals.** Settings live outside the schema and are copied onto each response; approvers confirm by email code and never see sensitive answers; the status is locked while an approval runs, and stopping it hands control back (§15.3).

@@ -1,6 +1,6 @@
 import type { Operation } from 'fast-json-patch'
 
-import type { Form, FormLanguage } from '@/schema'
+import type { Form } from '@/schema'
 
 import type { Brand, ThemeOptions } from './branding'
 import type { Appearance } from './color-scheme'
@@ -189,7 +189,6 @@ export interface PersonRef {
 
 /** A row of the forms list: the form plus owner and activity (docs/ux/FORMS-LIST-SCREENS.md). */
 export interface FormListItem extends FormSummary {
-  language: FormLanguage
   /** Published, and the draft differs from the live version. */
   hasUnpublishedChanges: boolean
   /** The creator while they are an owner, else the earliest owner. */
@@ -280,7 +279,6 @@ export interface SharingOut {
   defaultDescription: string
   siteName: string
   url: string
-  language: FormLanguage
   imageUrl: string
   customImage: { width: number; height: number } | null
   published: boolean
@@ -314,7 +312,7 @@ export interface Draft {
   canRedo: boolean
 }
 
-/** A piece of a change's text: form-language content (labels, options) or English words. */
+/** A piece of a change's text: form content (labels, options) or English words. */
 export interface DiffPiece {
   text: string
   content: boolean
@@ -374,7 +372,6 @@ export interface DraftChanges {
   hasChanges: boolean
   summary: string
   counts: Record<DiffStatus, number>
-  language: 'en' | 'dv'
   settings: PropertyChange[]
   pages: PageChange[]
 }
@@ -399,7 +396,6 @@ export interface SubmissionSummary {
   id: string
   seq: number
   status: SubmissionStatus
-  language: FormLanguage
   version: number
   createdAt: string
   submittedAt: string
@@ -491,7 +487,6 @@ export interface Approvals {
   config: ApprovalConfig
   issues: ApprovalIssue[]
   emailFields: { id: string; label: string }[]
-  language: FormLanguage
   smtpEnabled: boolean
 }
 
@@ -615,7 +610,6 @@ export interface TrashedForm {
   title: string
   slug: string
   status: FormStatus
-  language: 'en' | 'dv'
   deletedAt: string
   deletedBy: PersonRef | null
   purgeAt: string
@@ -843,7 +837,6 @@ export interface BulkDecideResult {
 
 export interface Notifications {
   smtpEnabled: boolean
-  language: FormLanguage
   ownerEmail: NotificationRule
   respondentReceipt: NotificationRule
   emailFields: { id: string; label: string }[]
@@ -916,7 +909,7 @@ export const api = {
     request<Me>('POST', '/auth/local/verify', { email, code }),
 
   listForms: (orgId: string) => request<FormListItem[]>('GET', `/orgs/${orgId}/forms`),
-  createForm: (orgId: string, body: { title: string; language: FormLanguage; slug?: string }) =>
+  createForm: (orgId: string, body: { title: string; slug?: string }) =>
     request<FormSummary>('POST', `/orgs/${orgId}/forms`, body),
   orgTheme: (orgId: string) => request<ThemeOut>('GET', `/orgs/${orgId}/form-theme`),
   saveOrgTheme: (orgId: string, theme: FormTheme) => request<ThemeOut>('PUT', `/orgs/${orgId}/form-theme`, theme),

@@ -83,9 +83,7 @@ async def test_counts_owner_and_activity(
     # A Dhivehi draft owned by someone else, shared with the admin's org as admin (implicit).
     async with make_client(app) as other:
         await login(other, queue, "aminath@example.org")
-        res = await other.post(
-            f"/api/v1/orgs/{org_id}/forms", json={"title": "ފޯމު", "language": "dv"}
-        )
+        res = await other.post(f"/api/v1/orgs/{org_id}/forms", json={"title": "ފޯމު"})
         assert res.status_code == 201, res.text
 
     res = await client.get(f"/api/v1/orgs/{org_id}/forms")
@@ -104,7 +102,7 @@ async def test_counts_owner_and_activity(
     assert grant["hasUnpublishedChanges"] is True
     assert grant["currentVersion"] == 1
     assert grant["importedFrom"] == "jotform"
-    assert grant["language"] == "en"
+    assert "language" not in grant
     assert grant["owner"]["email"] == "admin@example.org"
     assert grant["owner"]["name"] == "Root Admin"
     assert grant["ownerCount"] == 1
@@ -112,7 +110,7 @@ async def test_counts_owner_and_activity(
     assert grant["role"] == "owner"
     assert grant["lastEditedBy"]["email"] == "admin@example.org"
 
-    assert dv["language"] == "dv"
+    assert "language" not in dv
     assert dv["status"] == "draft"
     assert dv["currentVersion"] is None
     assert dv["hasUnpublishedChanges"] is False

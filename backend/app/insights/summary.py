@@ -466,5 +466,4 @@ async def summarise(
         "total": total,
         "questions": questions,
         "repeaters": repeaters,
-        "language": cat.language,
     }

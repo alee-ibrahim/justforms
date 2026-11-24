@@ -2,7 +2,7 @@
  * The public form for respondents who must confirm their email, sign in as staff, or pass a
  * CAPTCHA (PHASE-4-SCREENS 2-3). Loaded lazily by `app.tsx`.
  */
-import { hasThaana } from '@yashau/thaana-react'
+import { hasThaana } from '@/schema/direction'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { BrandLogo } from '@/components/brand/brand-parts'
@@ -12,6 +12,7 @@ import type { Uploader } from '@/renderer/context'
 import { FormRenderer, StatusScreen, type SubmitOutcome } from '@/renderer/form-view'
 import { MSG } from '@/renderer/messages'
 import { themeAttrs } from '@/renderer/theme'
+import { textDirection, textLang } from '@/schema/direction'
 
 import { AccessScreen, CaptchaStatus, CaptchaWidget, OtpGate, RespondingAs } from './access'
 import { freshChallenge, solveAltcha } from './access-lib'
@@ -32,7 +33,7 @@ function Sheet({ children }: { children: ReactNode }) {
 
 function GateHeader({ live }: { live: LiveForm }) {
   return (
-    <header className="flex flex-col gap-2" lang={live.language} dir={live.language === 'dv' ? 'rtl' : 'ltr'}>
+    <header className="flex flex-col gap-2" lang={textLang(live.title)} dir={textDirection(live.title)}>
       {live.brand?.logoUrl ? (
         <div className="mb-2 flex">
           <BrandLogo brand={live.brand} />

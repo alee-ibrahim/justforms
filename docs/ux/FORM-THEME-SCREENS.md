@@ -210,7 +210,7 @@ read).
   "Edit the organisation theme" for admins.
 - Footer: `Discard`, `Save appearance`; toast "Appearance saved".
 - The preview card sits under the controls (the settings page is narrow) and uses the same
-  samples, starting on the form's language.
+  samples, starting on the script of the form's title.
 
 ### 3.4 Live preview
 

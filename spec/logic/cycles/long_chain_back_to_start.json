@@ -2,9 +2,8 @@
   "name": "long_chain_back_to_start",
   "expect": "cycle",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Cycle"
     },
     "pages": [

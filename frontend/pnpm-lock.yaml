@@ -217,9 +217,6 @@ importers:
       '@tanstack/react-router':
         specifier: ^1.170.46
         version: 1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
-      '@yashau/thaana-react':
-        specifier: ^2026.1029.0
-        version: 2026.1029.0(react@19.3.1)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -1897,14 +1894,6 @@ packages:
 
   '@vitest/spy@5.1.1':
     resolution: {integrity: sha512-6K8C6alQG1/Yc8/ZI22iJS7JEsxPdVzqtqDq+/xM4Z0mGVykemMVjLhqMy/q6/IHYG3kKD8hKSwRen/ZdyI9vQ==}
-
-  '@yashau/thaana-react@2026.1029.0':
-    resolution: {integrity: sha512-K9szzGrh+KYIWft74YnfpthBd+1APc+r/kbPFkdpIYNVheAPFNUodhKYqYkcy3mxxYQNqVu6q5+usBHVEisNpQ==}
-    peerDependencies:
-      react: '>=18'
-
-  '@yashau/thaana@2026.1029.0':
-    resolution: {integrity: sha512-uk9nx3Bj3Kvk/e0BTtylWeLOh7CotT4Zpa7RXz4cM9mUpvgHxl7Ku95Gz5g53SfOf8K+8qvD8CU/5B2aToUSLw==}
 
   ajv-formats@2.1.1:
     resolution: {integrity: sha512-Wx0Kx52hxE7C18hkMEggYlEifqWZtYaRgouJor+WMdPnQyEK13vgEWyVNup7SoeeoLMsr4kf5h6dOW11I15MUA==}
@@ -4786,13 +4775,6 @@ snapshots:
       vite: 8.3.8(@types/node@24.19.2)(jiti@2.7.0)
 
   '@vitest/spy@5.1.1': {}
-
-  '@yashau/thaana-react@2026.1029.0(react@19.3.1)':
-    dependencies:
-      '@yashau/thaana': 2026.1029.0
-      react: 19.3.1
-
-  '@yashau/thaana@2026.1029.0': {}
 
   ajv-formats@2.1.1:
     dependencies:

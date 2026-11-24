@@ -1024,7 +1024,7 @@ def answer_of(
         values = [data.get(q.key)]
     else:
         values = [r.get(q.key) for r in _rows_of(cat, q.repeater, data, version_id)]
-    texts = [answer_text(q.element, v, cat.language) for v in values]
+    texts = [answer_text(q.element, v) for v in values]
     return sep.join(t for t in texts if t)
 
 

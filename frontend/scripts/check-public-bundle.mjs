@@ -1,7 +1,7 @@
 // Fails if the initial JavaScript (entry plus static imports) of a public page goes over its
 // gzip budget (DESIGN 18): the public form (120 KB) and the document pages for verify and
 // approver links (95 KB; the approver page is a lazy chunk). Lazy chunks (calendar, signature
-// pad, phonetic keyboard, approver page) are not counted. Run after `vite build`.
+// pad, approver page) are not counted. Run after `vite build`.
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'

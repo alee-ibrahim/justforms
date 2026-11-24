@@ -1,4 +1,4 @@
-"""Suggestions: what changed, language checks, applying with a rebase, and token allowances."""
+"""Suggestions: what changed, security checks, applying with a rebase, and token allowances."""
 
 from __future__ import annotations
 
@@ -19,8 +19,6 @@ from app.models import ActorType, AiMessage, AiMode, AiSession, AiSessionStatus,
 from app.services import forms as form_svc
 
 HISTORY_TURNS = 10
-THAANA = re.compile(r"[ހ-޿]")
-LATIN = re.compile(r"[A-Za-z]")
 
 
 class ProposalStale(Exception):
@@ -185,29 +183,6 @@ def _texts(el: dict[str, Any]) -> list[str]:
     return texts
 
 
-def language_flags(
-    new: dict[str, Any], changed: list[dict[str, Any]], language: str
-) -> list[dict[str, Any]]:
-    """Added or changed questions whose text is in the wrong script for the form."""
-    touched = {
-        c["id"] for c in changed if c["kind"] == "element" and c["change"] in ("added", "changed")
-    }
-    flags: list[dict[str, Any]] = []
-    for eid, info in _flat(new).items():
-        if eid not in touched:
-            continue
-        texts = _texts(info["el"])
-        if language == "dv":
-            wrong = any(LATIN.search(t) and not THAANA.search(t) for t in texts)
-            note = "Not written in Thaana script"
-        else:
-            wrong = any(THAANA.search(t) for t in texts)
-            note = "Written in Thaana, but the form is in English"
-        if wrong:
-            flags.append({"targetId": eid, "note": note, "source": "language"})
-    return flags
-
-
 LINK = re.compile(r"(?:https?://|www\.)[^\s)\]>\"']+", re.I)
 
 
@@ -251,7 +226,6 @@ def proposal(session: AiSession) -> dict[str, Any] | None:
         return None
     base = session.base_schema or session.working_schema
     new = session.working_schema
-    language = str(new.get("settings", {}).get("language", "en"))
     changed = changes(base, new)
     known = (
         {c["id"] for c in changed}
@@ -259,8 +233,6 @@ def proposal(session: AiSession) -> dict[str, Any] | None:
         | {p["id"] for p in new["pages"]}
     )
     flags = [f for f in session.flags if f.get("targetId") in known]
-    flagged = {f["targetId"] for f in flags}
-    flags += [f for f in language_flags(new, changed, language) if f["targetId"] not in flagged]
     flags += security_flags(base, new, changed)
     labels = {info["el"]["id"]: element_label(info["el"]) for info in _flat(new).values()}
     for f in flags:
@@ -270,7 +242,6 @@ def proposal(session: AiSession) -> dict[str, Any] | None:
         "schema": new,
         "changes": changed,
         "flags": flags,
-        "language": language,
     }
 
 

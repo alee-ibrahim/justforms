@@ -19,6 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 from app.models.base import IdMixin, TimestampMixin, str_enum
+from app.models.form import upgrade_on_load
 
 
 class AiMode(StrEnum):
@@ -70,3 +71,6 @@ class AiMessage(IdMixin, Base):
     role: Mapped[str] = mapped_column(String(20))
     content: Mapped[dict[str, Any]] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+upgrade_on_load(AiSession, "base_schema", "working_schema")

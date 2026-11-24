@@ -22,7 +22,8 @@ import { FieldControl } from '@/renderer/fields'
 import { idPresetOf } from '@/renderer/id-presets'
 import { ltrRun, MSG } from '@/renderer/messages'
 import type { FieldElement, Form, Option } from '@/schema'
-import type { FormLanguage } from '@/schema/language'
+import { textDirection, type TextDirection } from '@/schema/direction'
+import { placement } from '@/renderer/util'
 
 import { focusInlineText, insertOption, moveOption, removeOption, renameOption, setAllowOther, setSettingsText, textKey } from './inline-edit'
 import { type EditControls, InlineText } from './inline-text'
@@ -45,7 +46,7 @@ function En({ children }: { children: ReactNode }) {
 /** The answer box with its placeholder edited in place ("Add placeholder text…" when selected). */
 export function PlaceholderControl({ field, active }: { field: FieldElement; active: boolean }) {
   const store = useStore()
-  const { language } = useRenderer()
+  const { dir } = useRenderer()
   const activate = useActivate({ type: 'element', id: field.id })
   const value = ('placeholder' in field ? field.placeholder : undefined) ?? ''
   // An ID number shows its preset's placeholder (A123456) until the owner writes their own.
@@ -60,7 +61,7 @@ export function PlaceholderControl({ field, active }: { field: FieldElement; act
       editKey={textKey.element(field.id, 'placeholder')}
       value={value}
       name="placeholder"
-      language={latin ? 'en' : language}
+      dir={latin ? 'ltr' : textDirection(field.label, dir)}
       variant="box"
       block
       multiline={field.type === 'long_text'}
@@ -120,7 +121,7 @@ function OptionRow({
   compact: boolean
 }) {
   const store = useStore()
-  const { language } = useRenderer()
+  const { dir } = useRenderer()
   const activate = useActivate({ type: 'element', id: field.id })
   const { setNodeRef, setActivatorNodeRef, transform, transition, isDragging, attributes, listeners } = useSortable({
     id: option.value,
@@ -197,7 +198,7 @@ function OptionRow({
           editKey={key}
           value={option.label}
           name={`option ${index + 1}`}
-          language={language}
+          dir={textDirection(field.label, dir)}
           active={active}
           activate={activate}
           empty={`Option ${index + 1}`}
@@ -280,7 +281,7 @@ function RemoveButton({
 /** A new option typed after position `after`; committing it adds it (one undo step). */
 function NewOptionRow({ field, after, compact }: { field: ChoiceField; after: number; compact: boolean }) {
   const store = useStore()
-  const { language } = useRenderer()
+  const { dir } = useRenderer()
   const position = after + 2
   // Spacers where the other rows have their grip and remove buttons, so the cards line up.
   const spacer = <span aria-hidden className="w-8 shrink-0 pointer-coarse:w-11" />
@@ -292,7 +293,7 @@ function NewOptionRow({ field, after, compact }: { field: ChoiceField; after: nu
           editKey={textKey.newOption(field.id, after)}
           value=""
           name={`new option ${position}`}
-          language={language}
+          dir={textDirection(field.label, dir)}
           placeholder={`Option ${position}`}
           className="w-full"
           block
@@ -420,7 +421,7 @@ export function OptionList({ field, active }: { field: ChoiceField; active: bool
 
 /** Back / Next / Submit at the bottom of the sheet, as on the live page, with their text edited
  * in place (form settings). */
-export function NavPreview({ form, pageIndex, language }: { form: Form; pageIndex: number; language: FormLanguage }) {
+export function NavPreview({ form, pageIndex, dir }: { form: Form; pageIndex: number; dir: TextDirection }) {
   const store = useStore()
   const activate = useActivate({ type: 'form' })
   const last = pageIndex === form.pages.length - 1
@@ -430,7 +431,7 @@ export function NavPreview({ form, pageIndex, language }: { form: Form; pageInde
       editKey={textKey.settings(part)}
       value={s[part] ?? ''}
       name={name}
-      language={language}
+      dir={dir}
       activate={activate}
       empty={<En>{fallback}</En>}
       placeholder={fallback}
@@ -455,8 +456,10 @@ export function NavPreview({ form, pageIndex, language }: { form: Form; pageInde
   )
 }
 
-export function SuccessPreview({ form, language }: { form: Form; language: FormLanguage }) {
+export function SuccessPreview({ form, dir }: { form: Form; dir: TextDirection }) {
   const store = useStore()
+  const message = form.settings.successMessage ?? ''
+  const place = placement(message, null, form.settings.align, dir)
   const activate = useActivate({ type: 'form' })
   return (
     <div
@@ -469,12 +472,12 @@ export function SuccessPreview({ form, language }: { form: Form; language: FormL
       <p className="text-sm text-muted-foreground" lang="en" dir="ltr">
         Shown after submitting
       </p>
-      <div className="text-2xl font-bold">
+      <div className="text-2xl font-bold" dir={place.dir} lang={place.lang} style={place.text}>
         <InlineText
           editKey={textKey.settings('successMessage')}
-          value={form.settings.successMessage ?? ''}
+          value={message}
           name="message after submitting"
-          language={language}
+          dir={dir}
           multiline
           activate={activate}
           empty={<En>{MSG.successDefault}</En>}

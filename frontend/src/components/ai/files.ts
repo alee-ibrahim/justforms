@@ -8,11 +8,3 @@ export function fileProblem(file: File): string | null {
   if (file.size > MAX_BYTES) return 'This file is larger than 20 MB. Scan it at a lower resolution.'
   return null
 }
-
-const THAANA = /[ހ-޿]/
-
-/** `lang` for a snippet of form text shown in the English studio: "dv" only when it is in
- * Thaana, so Latin words in a Dhivehi form keep the Latin face. */
-export function textLang(text: string, language: string): string | undefined {
-  return language === 'dv' && THAANA.test(text) ? 'dv' : undefined
-}

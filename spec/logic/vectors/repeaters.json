@@ -2,9 +2,8 @@
   "name": "repeaters",
   "description": "Repeater children are evaluated per row; sibling references resolve within the same row",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

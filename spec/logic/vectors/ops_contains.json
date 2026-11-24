@@ -2,9 +2,8 @@
   "name": "ops_contains",
   "description": "contains: array membership on arrays, case-sensitive NFC substring on strings",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

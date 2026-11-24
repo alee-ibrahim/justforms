@@ -419,8 +419,8 @@ def test_dv_emails_are_english_with_rtl_content() -> None:
     """System wording is English for every form; only form content is Dhivehi, marked RTL."""
     form = Form.model_validate(
         {
-            "schemaVersion": "1",
-            "settings": {"language": "dv", "title": "ފޯމު"},
+            "schemaVersion": "2",
+            "settings": {"title": "ފޯމު"},
             "pages": [
                 {
                     "id": "p1",
@@ -445,10 +445,10 @@ def test_dv_emails_are_english_with_rtl_content() -> None:
     assert msg.subject == "Your response to \u2068ފޯމު\u2069 (#0001)"
     assert msg.html and "ޢަލީ" in msg.text
     assert "Thank you. We received your response" in msg.html and "Reference: " in msg.text
-    # The title and the answers carry the form's language and direction; the email is LTR.
+    # The title and the answers carry their own language and direction; the email is LTR.
     assert 'lang="dv" dir="rtl" align="right">ފޯމު</h1>' in msg.html
-    assert 'lang="dv" dir="rtl">' in msg.html and '<html lang="en">' in msg.html
-    code = emails.code_message(org_name="", title="ފޯމު", language="dv", code="123456", minutes=10)
+    assert 'lang="dv" dir="rtl" align="right"' in msg.html and '<html lang="en">' in msg.html
+    code = emails.code_message(org_name="", title="ފޯމު", code="123456", minutes=10)
     assert code.subject == "Your code for \u2068ފޯމު\u2069"
     assert "Your code is 123456. It works for 10 minutes." in code.text
     assert code.html and 'lang="dv" dir="rtl"' in code.html
@@ -473,8 +473,8 @@ async def test_due_deliveries_sweeper(
 def test_dv_approval_emails_isolate_form_content() -> None:
     form = Form.model_validate(
         {
-            "schemaVersion": "1",
-            "settings": {"language": "dv", "title": "ފޯމު"},
+            "schemaVersion": "2",
+            "settings": {"title": "ފޯމު"},
             "pages": [{"id": "p1"}],
         }
     )

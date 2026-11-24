@@ -2,9 +2,8 @@
   "name": "ops_ordering",
   "description": "gt/gte/lt/lte on numbers, YYYY-MM-DD dates and HH:MM times; anything else is false",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

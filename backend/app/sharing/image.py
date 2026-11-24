@@ -5,9 +5,10 @@ the signed PDFs in :mod:`app.pdf.render`), then rasterised with pdfium. Thaana i
 laid out right to left without system libraries (Pillow's own complex text layout needs
 libraqm and FriBiDi, which slim containers don't have).
 
-Layout, mirrored for Dhivehi forms: the logo and organisation name at the top start, the form
-title (up to three lines, the largest size that fits), an optional description (up to two
-lines), the form's address at the bottom start, and a band in the primary colour along the
+Layout, mirrored when the form title reads right to left (Dhivehi): the logo and
+organisation name at the top start, the form title (up to three lines, the largest size that
+fits), an optional description (up to two lines, aligned by its own direction), the form's
+address at the bottom start, and a band in the primary colour along the
 bottom edge. Colours are the form theme's light values; Latin text uses the bundled Inter
 (``app.pdf.faces.LATIN_REGULAR``) and Thaana the install's server Thaana face
 (``app.pdf.faces``: the operator's ``JUSTFORMS_THAANA_FONT_FILE``, else the bundled Noto Sans
@@ -27,6 +28,7 @@ from PIL import Image
 
 from app.pdf.faces import BUNDLED, LATIN_BOLD, LATIN_REGULAR, ThaanaFace
 from app.pdf.render import add_thaana
+from app.schemas.direction import is_rtl
 
 WIDTH, HEIGHT = 1200, 630
 PAD = 72
@@ -42,7 +44,7 @@ THAANA_SCALE = 1.12
 THAANA = re.compile(r"[ހ-޿]")
 ELLIPSIS = "…"
 # Bumped when the drawing changes, so cached images are made again.
-RENDER_VERSION = "1"
+RENDER_VERSION = "2"
 
 # pdfium is not thread-safe; rendering runs in worker threads.
 _pdfium_lock = threading.Lock()
@@ -63,7 +65,7 @@ class Card:
     description: str | None
     org_name: str
     address: str  # host/slug, shown at the bottom
-    rtl: bool
+    rtl: bool  # the card's direction: the title's
     colors: Colors
     logo: bytes | None = None  # PNG or sanitised SVG
     logo_size: tuple[int, int] | None = None
@@ -92,17 +94,25 @@ class _Canvas(FPDF):
         self.add_page()
 
     def use(self, text: str, size: float, *, bold: bool = False) -> float:
-        """Pick the font for ``text`` (Thaana: right to left, a step larger); returns the size
-        used."""
+        """Pick the font for ``text`` (with Thaana: the Thaana face a step larger); the text is
+        shaped in its own direction (first strong character; a mixed text is split into runs
+        by the bidi algorithm). Returns the size used."""
+        direction = "rtl" if is_rtl(text) else "ltr"
         if is_thaana(text):
             size *= THAANA_SCALE
             self.set_font("thaana", "B" if bold else "", size)
             self.set_fallback_fonts(["latin"], exact_match=False)
-            self.set_text_shaping(True, direction="rtl", script="thaa", language="div")
+            pure = not any(ch.isascii() and ch.isalpha() for ch in text)
+            self.set_text_shaping(
+                True,
+                direction=direction,
+                script="thaa" if pure else None,
+                language="div" if pure else None,
+            )
         else:
             self.set_font("latin", "B" if bold else "", size)
             self.set_fallback_fonts(["thaana"], exact_match=False)
-            self.set_text_shaping(True, direction="ltr")
+            self.set_text_shaping(True, direction=direction)
         return size
 
     def lines(self, text: str, width: float) -> list[str]:
@@ -225,11 +235,11 @@ def _draw(card: Card) -> bytes:
     t_size = c.use(title, base, bold=True)
     line_h = t_size * (1.45 if title_rtl else 1.16)
     y = top + max(0.0, (bottom - top - block(lines, line_h, desc_n)) / 2)
-    y = _text_lines(c, lines, y=y, line_h=line_h, rtl=rtl, color=card.colors.text)
+    y = _text_lines(c, lines, y=y, line_h=line_h, rtl=is_rtl(title), color=card.colors.text)
     if desc_n:
         c.use(desc, DESC_SIZE)
         shown = d_lines if desc_n == len(d_lines) else _fit(c, desc, inner, desc_n)
-        _text_lines(c, shown, y=y + gap, line_h=d_line, rtl=rtl, color=card.colors.muted)
+        _text_lines(c, shown, y=y + gap, line_h=d_line, rtl=is_rtl(desc), color=card.colors.muted)
 
     # Address at the bottom start, always left to right.
     if card.address:

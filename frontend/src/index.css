@@ -260,7 +260,7 @@
       --df-sheet: var(--df-page-width, 40rem);
     }
   }
-  /* Form content in Dhivehi (elements get lang="dv" from the form's language). Thaana is set
+  /* Form content in Dhivehi (each piece of Thaana text gets lang="dv" from its own content). Thaana is set
      about 1.12x larger with about 1.75x line-height so fili never clip. Redefining Tailwind's
      type-scale variables here makes shadcn components (which hard-code text-sm etc.) scale
      without being edited (DESIGN-SYSTEM 4.2). Never size Thaana per component. */
@@ -312,6 +312,11 @@
   input[inputmode='numeric'],
   input[inputmode='decimal'] {
     font-variant-numeric: tabular-nums;
+  }
+  /* A Thaana run inside English form text ("Name / ނަން", marked by FormText): the Thaana face,
+     scaled like Thaana text so both scripts read at the same size. */
+  :not(:lang(dv)) > .df-run:lang(dv) {
+    font-size: 1.12em;
   }
   /* Thaana underlines sit below the lower vowel signs. */
   :lang(dv) a {

@@ -117,7 +117,6 @@ describe('FormsList', () => {
       listItem({
         id: 'dv',
         title: 'ފޯމު',
-        language: 'dv',
         owner: { id: 'me', name: 'Me Myself', email: 'me@example.org' },
         approvalsOn: false,
         pendingApprovalCount: 4,
@@ -129,7 +128,6 @@ describe('FormsList', () => {
     const text = row!.textContent ?? ''
     expect(text).toContain('You')
     expect(text).not.toContain('Me Myself')
-    expect(text).toContain('Dhivehi')
     expect(text).toContain('Draft')
     expect(text).not.toContain('awaiting approval')
     expect(row!.querySelector('bdi[lang=dv]')?.textContent).toBe('ފޯމު')

@@ -57,7 +57,7 @@ def _settings(path: Path | str, bold: Path | str = "") -> Settings:
 def _pdf(face: faces.ThaanaFace) -> bytes:
     form = Form.model_validate(
         {
-            "settings": {"title": DV_TITLE, "language": "dv"},
+            "settings": {"title": DV_TITLE},
             "pages": [{"id": "p1", "elements": [field("name", label="ނަން")]}],
         }
     )
@@ -131,7 +131,6 @@ def test_link_preview_uses_the_face_and_its_version(tmp_path: Path) -> None:
             title=c.title,
             description="",
             site_name="Example Council",
-            language="dv",
             url="https://forms.example.org/intake",
             card=c,
             custom=None,

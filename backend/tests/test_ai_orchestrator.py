@@ -16,7 +16,6 @@ async def go(provider: ScriptedProvider, **kwargs: Any) -> Any:
     defaults: dict[str, Any] = {
         "working": WorkingCopy(base()),
         "mode": "edit",
-        "language": "en",
         "history": [],
         "request": ChatMessage("user", text="Add a phone question"),
         "max_tool_calls": 40,
@@ -189,13 +188,13 @@ async def test_filled_in_document_stops_at_once() -> None:
     assert len(out.steps) == 1 and len(provider.calls) == 1
 
 
-async def test_dhivehi_forms_ask_for_thaana() -> None:
+async def test_prompt_allows_english_dhivehi_or_both() -> None:
     provider = ScriptedProvider([turn("ok")])
-    await go(provider, working=WorkingCopy(base("dv")), language="dv")
-    assert "Thaana script" in provider.calls[0].system
-    provider = ScriptedProvider([turn("ok")])
-    await go(provider)
-    assert "The form is in English" in provider.calls[0].system
+    await go(provider, working=WorkingCopy(base("ފޯމު")))
+    system = provider.calls[0].system
+    assert "Thaana script" in system and "Name / ނަން" in system
+    assert "never try to set one" in system and "align" in system
+    assert "The form is in" not in system
 
 
 async def test_history_is_sent_before_the_request() -> None:

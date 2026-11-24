@@ -2,9 +2,8 @@
   "name": "navigation",
   "description": "next rules (first match wins, goto forward or submit) and page visibleIf build the path",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

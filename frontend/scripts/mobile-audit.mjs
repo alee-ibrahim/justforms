@@ -143,7 +143,9 @@ async function discover(api) {
   const publicForms = []
   for (const f of published.slice(0, 2)) {
     const live = await (await api.get(`/api/v1/public/forms/${f.slug}`)).json()
-    publicForms.push({ path: `/${f.slug}`, lang: live.schema?.settings?.language ?? live.form?.settings?.language ?? 'en' })
+    // Forms have no language: label the run by the script of the title (Thaana or Latin).
+    const title = live.schema?.settings?.title ?? live.title ?? ''
+    publicForms.push({ path: `/${f.slug}`, lang: /[\u0780-\u07bf]/.test(title) ? 'dv' : 'en' })
   }
   let submissionId = null
   if (form.submissionCount > 0) {

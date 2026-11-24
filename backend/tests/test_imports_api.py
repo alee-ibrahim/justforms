@@ -50,7 +50,11 @@ async def test_html_preview_and_create_draft(
     assert res.status_code == 201, res.text
     preview = res.json()
     assert preview["status"] == "preview" and preview["kind"] == "jotform_html"
-    assert preview["language"] == "en" and preview["detectedLanguage"] == "en"
+    assert "language" not in preview and "detectedLanguage" not in preview
+    assert (
+        preview["schema"]["schemaVersion"] == "2"
+        and "language" not in preview["schema"]["settings"]
+    )
     assert preview["pageCount"] == 2 and preview["fieldCount"] > 20
     assert preview["jotformFormId"] == "200000000000002"
     assert preview["report"]["counts"]["skipped"] == 2
@@ -75,17 +79,16 @@ async def test_html_preview_and_create_draft(
     assert got["status"] == "done" and got["formId"] == form_id
 
 
-async def test_language_override_and_errors(
+async def test_dhivehi_import_and_errors(
     client: AsyncClient, db: AsyncSession, settings: Settings, queue: RecordingQueue
 ) -> None:
     me = await admin_client(client, db, settings, queue)
     res = await _preview(client, me, html=html("dhivehi_form.html"))
-    assert res.json()["language"] == "dv"
-    res = await _preview(client, me, html=html("dhivehi_form.html"), language="en")
-    assert res.json()["language"] == "en" and res.json()["detectedLanguage"] == "dv"
-    res = await client.post(f"/api/v1/imports/{res.json()['id']}/form", json={"language": "dv"})
+    assert res.status_code == 201 and "language" not in res.json()
+    res = await client.post(f"/api/v1/imports/{res.json()['id']}/form", json={})
     draft = (await client.get(f"/api/v1/forms/{res.json()['formId']}/draft")).json()
-    assert draft["schema"]["settings"]["language"] == "dv"
+    assert "language" not in draft["schema"]["settings"]
+    assert draft["schema"]["settings"]["title"] == "ޒުވާނުންގެ ޕްރޮގްރާމަށް ހުށަހަޅާ ފޯމު"
 
     embed = '<iframe src="https://form.jotform.com/200000000000009"></iframe>'
     res = await _preview(client, me, html=embed)

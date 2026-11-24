@@ -2,9 +2,8 @@
   "name": "navigation_goto_chain",
   "description": "Several goto rules in sequence, including an unconditional goto and rules reading earlier pages",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

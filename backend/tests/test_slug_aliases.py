@@ -25,9 +25,7 @@ async def test_thaana_titles_get_romanised_addresses(
     org = me["orgs"][0]["id"]
 
     async def create(title: str) -> dict[str, str]:
-        res = await client.post(
-            f"/api/v1/orgs/{org}/forms", json={"title": title, "language": "dv"}
-        )
+        res = await client.post(f"/api/v1/orgs/{org}/forms", json={"title": title})
         assert res.status_code == 201, res.text
         return res.json()
 
@@ -74,7 +72,7 @@ async def test_changed_address_redirects(
     client: AsyncClient, db: AsyncSession, settings: Settings, queue: RecordingQueue
 ) -> None:
     me = await admin_client(client, db, settings, queue)
-    pub = await publish(client, me, [field("name")], title="ފޯމު", language="dv")
+    pub = await publish(client, me, [field("name")], title="ފޯމު")
     form_id = pub.form["id"]
     # Created before romanisation existed: a generic address.
     await db.execute(

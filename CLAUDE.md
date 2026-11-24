@@ -34,7 +34,7 @@ external secrets operator").
   operator-supplied fonts and is git-ignored.
 - `deploy/helm/justforms/` — Helm chart (migration hook, hardening, optional HPA/PDB/HTTPRoute). Every value and Secret key is in its README. Local storage = PVC; S3 = `storage.s3.*` + `existingSecret`.
 - `docs/` — design docs (`docs/DESIGN.md`).
-- `spec/` — generated `form-schema.v1.json`, shared logic vectors (`logic/vectors`), cycle fixtures
+- `spec/` — generated `form-schema.v2.json`, shared logic vectors (`logic/vectors`), cycle fixtures
   (`logic/cycles`) and examples. Run by both pytest and vitest.
 
 ## Tooling
@@ -45,19 +45,30 @@ external secrets operator").
   Lint with oxlint (`pnpm lint`).
 - Common tasks live in the root `justfile` (`just dev`, `just test`, `just lint`, `just infra`, ...). No Makefile.
 
-## Languages: English UI, Dhivehi form content
+## Languages: English UI, bilingual form content
 
 - **All system/interface text (studio, public form chrome, approver/verify pages, emails, PDF
-  labels) is English only. Dhivehi appears only in form content and answers; dv forms render
-  content RTL with Thaana fonts/keyboard.** No i18n layer: write English strings inline. No
-  i18next, no locale bundles, no UI language/direction toggle; `<html>` stays `lang="en" dir="ltr"`.
-  Inside a dv form sheet render English strings through `<En>` / `Msg` (`renderer/msg.tsx`)
-  (see docs/DESIGN.md §16 for the direction rules).
-- **Form content respects the form's language.** `settings.language` is `en` (default) or `dv`
-  (Dhivehi, Thaana, RTL); direction derives from it. Wherever form text is edited or shown
-  (title, labels, options, preview, renderer) spread `contentProps(formLanguage(form))` from
-  `@/schema` to set `lang`/`dir`, so Thaana typing and rendering work. `:lang(dv)` uses the Thaana
-  font stack.
+  labels) is English only. Dhivehi appears only in form content and answers.** No i18n layer:
+  write English strings inline. No i18next, no locale bundles, no UI language/direction toggle;
+  `<html>` stays `lang="en" dir="ltr"`. Inside right-to-left content render English strings
+  through `<En>` / `Msg` (`renderer/msg.tsx`) (see docs/DESIGN.md §16 for the direction rules).
+- **Forms have no language** (`schemaVersion` 2). One form may hold English and Dhivehi side by
+  side, even in one label ("Name / ނަން"). Every piece of form text takes its direction from its
+  first strong character (Thaana → RTL, Latin → LTR): use the twins
+  `frontend/src/schema/direction.ts` / `backend/app/schemas/direction.py` (`textDirection`,
+  `textLang`, `textProps`, `resolveAlign`; shared vectors in `spec/direction/vectors.json`).
+  Wherever form text is edited or shown, set `lang`/`dir` from **that text** (`textProps(text)`,
+  or the renderer's `placement()` for blocks), render it with `<FormText text>` (marks the
+  other script's runs) or `displayText(text)` in plain-text slots. `:lang(dv)` uses the Thaana
+  font stack. Never reintroduce a form-level language.
+- **Alignment** is data: `align` on elements and pages, `settings.align` (form default, `auto`)
+  and `settings.titleAlign`. `auto` follows the text's direction. Left/right are physical
+  (inline `textAlign` style), never `text-left`/`text-right` classes.
+- **No built-in keyboard**: no Thaana/phonetic keyboard and no language switch anywhere. People
+  type Dhivehi with their device's keyboard; boxes only follow what is typed (`dir`/`lang` from
+  the first strong character). Don't add a keyboard toggle or a per-question typing setting.
+- **Markers after form text** ("(optional)", "(required)") follow the text isolated in a
+  `<bdi dir>` (the label's own direction), so mixed labels never pull the marker to the wrong side.
 - Use **logical** Tailwind classes in renderer/form components that display form content (the lint
   enforces them everywhere): `ms-*`/`me-*`, `ps-*`/`pe-*`, `start-*`/`end-*`, `text-start`/`text-end`,
   `border-s`/`border-e`, `rounded-s`/`rounded-e`. Never `ml/mr/pl/pr/left/right`.
@@ -70,7 +81,7 @@ external secrets operator").
 - The form definition lives in `backend/app/schemas/form.py` (Form → pages → fields).
   Database tables, API payloads, the renderer, validation and importers derive from it.
   Change the schema first, then everything else. After changing it run `just spec` (exports
-  `spec/form-schema.v1.json`, regenerates `frontend/src/schema/generated/`); CI fails on stale files.
+  `spec/form-schema.v2.json`, regenerates `frontend/src/schema/generated/`); CI fails on stale files.
 - The rule engine has twins (`backend/app/logic`, `frontend/src/logic`). Change both together and add a
   vector to `spec/logic/vectors` for every behaviour change or fix.
 - Answer validation also has twins (`backend/app/validation/answers.py`, `frontend/src/renderer/validation.ts`)
@@ -78,7 +89,7 @@ external secrets operator").
   (run by pytest and vitest).
 - ID-number presets are data in `backend/app/schemas/id_presets.json` (exported to `spec/id-presets.v1.json`
   and the frontend by `just spec`); a preset's pattern and normalising run in both validation twins.
-- Form text is plain strings in the form's language (`settings.language`), never `{en, dv}` objects;
+- Form text is plain strings (English, Dhivehi or both), never `{en, dv}` objects;
   field/page keys are snake_case and unique per form.
 - Backend config comes from env vars with the `JUSTFORMS_` prefix (`app/config.py`). No secrets in the repo.
 

@@ -46,7 +46,6 @@ export const MSG = {
   yes: 'Yes',
   no: 'No',
   ratingItem: '{n} of {max}',
-  thaanaKeyboard: 'Thaana keyboard',
   countryCode: 'Country code',
   // files
   dragFiles: 'Drag files here or',

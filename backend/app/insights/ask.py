@@ -553,7 +553,7 @@ class Tools:
             files = sum(len(v) if isinstance(v, list) else 1 for v in given)
             return "1 file provided" if files == 1 else f"{files} files provided"
         if row:
-            return answer_text(q.element, data.get(q.key), self.cat.language)
+            return answer_text(q.element, data.get(q.key))
         return answer_of(self.cat, q, data, vid)
 
     def _meta_values(self, sub: Submission) -> dict[str, Any]:

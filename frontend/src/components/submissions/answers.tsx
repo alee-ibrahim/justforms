@@ -1,6 +1,6 @@
 /**
  * A submission laid out as the filled form (docs/ux/SUBMISSIONS-VIEWER-SCREENS.md 1): the
- * submission's own schema version and language, pages stacked, sections and half-width pairs as
+ * submission's own schema version, pages stacked, sections and half-width pairs as
  * on the public form, read-only answers on ruled lines.
  */
 import { CheckIcon, LockIcon, StarIcon, XIcon } from 'lucide-react'
@@ -13,11 +13,13 @@ import { cn } from '@/lib/utils'
 import { QuestionGrid } from '@/renderer/elements'
 import { Markdown } from '@/renderer/markdown'
 import { En } from '@/renderer/msg'
+import { placement } from '@/renderer/util'
 import { rowTitle, widthClass } from '@/renderer/util'
 import type { FileRef } from '@/renderer/validation'
-import type { Element, FieldElement, Form, FormLanguage } from '@/schema'
-import { formLanguage } from '@/schema/language'
-import { displayText } from '@/thaana/display'
+import type { Element, FieldElement, Form } from '@/schema'
+import { textDirection, textLang, type TextAlign } from '@/schema/direction'
+import { alignClass, textProps } from '@/schema/align'
+import { FormText } from '@/thaana/form-text'
 
 import { hasAnswers, isEmptyAnswer, useLogic } from './answer-logic'
 import { FileCards, type FileCardEntry } from './file-cards'
@@ -28,7 +30,8 @@ type Data = Record<string, unknown>
 type Scope = { repeater: string; row: number }
 
 interface AnswerContextValue {
-  language: FormLanguage
+  /** The form's default alignment (`settings.align`). */
+  formAlign: TextAlign | null | undefined
   signatures: SignatureInfo[]
   /** Copies of files and signatures imported from Jotform, by question. */
   imported: ReadonlyMap<string, FileCardEntry[]>
@@ -38,7 +41,7 @@ interface AnswerContextValue {
 }
 
 const AnswerContext = createContext<AnswerContextValue>({
-  language: 'en',
+  formAlign: undefined,
   signatures: [],
   imported: new Map(),
   showSkipped: false,
@@ -59,7 +62,7 @@ export function Sensitive({ text }: { text: string }) {
   return (
     <span className="inline-flex items-start gap-2">
       <LockIcon className="mt-1 size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-      <bdi dir="auto" className="whitespace-pre-wrap">
+      <bdi dir="auto" lang={textLang(text)} className="whitespace-pre-wrap">
         {text}
       </bdi>
       <span className="sr-only">(sensitive)</span>
@@ -96,6 +99,40 @@ function Chip({ icon, children }: { icon?: 'check' | 'x'; children: ReactNode })
   )
 }
 
+/**
+ * A heading or label of form text: its own direction and language, its alignment (the element's,
+ * else the form default) and a lighter weight for Thaana, which reads heavy when bold.
+ */
+function Heading({
+  as: Tag,
+  text,
+  align,
+  className,
+  latin,
+  thaana,
+  id,
+}: {
+  as: 'h2' | 'h3' | 'dt'
+  text: string
+  align: TextAlign | null | undefined
+  className: string
+  /** Weight classes for Latin and Thaana text. */
+  latin: string
+  thaana: string
+  id?: string
+}) {
+  const { formAlign } = useContext(AnswerContext)
+  return (
+    <Tag
+      id={id}
+      {...textProps(text)}
+      className={cn(className, textLang(text) === 'dv' ? thaana : latin, alignClass(align, formAlign, textDirection(text)))}
+    >
+      <FormText text={text} />
+    </Tag>
+  )
+}
+
 /** On a ruled answer line, like ink on a paper form. */
 function Line({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cn('min-h-8 border-b border-border pb-1.5 text-base break-words', className)}>{children}</div>
@@ -105,7 +142,7 @@ const LATIN = new Set(['email', 'phone', 'number', 'date', 'time'])
 
 /** One answer, by question type (SUBMISSIONS-VIEWER-SCREENS 1.3). */
 export function AnswerValue({ field, value, row }: { field: FieldElement; value: unknown; row?: number }) {
-  const { signatures, language, imported } = useContext(AnswerContext)
+  const { signatures, imported } = useContext(AnswerContext)
   const copies = row === undefined ? imported.get(field.id) : undefined
   if (isEmptyAnswer(value) && copies?.length) return <FileCards files={copies} />
   if (isEmptyAnswer(value))
@@ -117,7 +154,7 @@ export function AnswerValue({ field, value, row }: { field: FieldElement; value:
   if (field.sensitive)
     return (
       <Line>
-        <Sensitive text={answerText(field, value, language)} />
+        <Sensitive text={answerText(field, value)} />
       </Line>
     )
   switch (field.type) {
@@ -131,7 +168,7 @@ export function AnswerValue({ field, value, row }: { field: FieldElement; value:
       const sig = signatures.find((s) => s.fieldId === field.id)
       return sig ? (
         <div className="break-inside-avoid">
-          <SignatureBlock sig={sig} language={language} />
+          <SignatureBlock sig={sig} />
         </div>
       ) : (
         <Line>
@@ -143,9 +180,14 @@ export function AnswerValue({ field, value, row }: { field: FieldElement; value:
     case 'multi_choice': {
       const { chosen, other } = chosenOptions(field, value)
       return (
-        <div className="flex flex-wrap gap-1.5 pt-0.5">
+        // Inline chips, so they follow the question's alignment (text-align) and direction.
+        <div className="pt-0.5 [&>[data-slot=badge]]:me-1.5 [&>[data-slot=badge]]:mb-1.5">
           {chosen.map((o) => (
-            <Chip key={o.value}>{displayText(o.label, language)}</Chip>
+            <Chip key={o.value}>
+              <bdi {...textProps(o.label)}>
+                <FormText text={o.label} />
+              </bdi>
+            </Chip>
           ))}
           {other.map((text, i) => (
             <Chip key={`other-${i}`}>
@@ -205,7 +247,7 @@ export function AnswerValue({ field, value, row }: { field: FieldElement; value:
         </Line>
       )
     default: {
-      const text = answerText(field, value, language)
+      const text = answerText(field, value)
       if (LATIN.has(field.type))
         return (
           <Line className="tabular-nums">
@@ -214,7 +256,9 @@ export function AnswerValue({ field, value, row }: { field: FieldElement; value:
         )
       return (
         <Line className={cn('whitespace-pre-wrap', field.type === 'long_text' && 'max-w-[36em]')}>
-          <bdi dir="auto">{displayText(text, language)}</bdi>
+          <bdi {...textProps(text)}>
+            <FormText text={text} />
+          </bdi>
         </Line>
       )
     }
@@ -223,13 +267,26 @@ export function AnswerValue({ field, value, row }: { field: FieldElement; value:
 
 /** One question: the printed label and the written answer (a one-item description list). */
 function Question({ field, data, scope }: { field: FieldElement; data: Data; scope?: Scope }) {
-  const { language, showSkipped, isVisible } = useContext(AnswerContext)
+  const { showSkipped, isVisible, formAlign } = useContext(AnswerContext)
   const skipped = !isVisible(field.id, scope)
+  // Like the live form, the question is one block in its label's direction and alignment; the
+  // answer keeps its own direction inside it.
+  const place = placement(field.label, field.align, formAlign)
   return (
-    <dl className="flex h-full flex-col gap-1.5" data-question={field.id}>
-      <dt className={cn('text-sm text-muted-foreground', language === 'dv' ? 'font-normal' : 'font-medium')}>
-        {field.label.trim() ? displayText(field.label, language) : <En>Untitled question</En>}
-      </dt>
+    <dl
+      className="flex h-full flex-col gap-1.5"
+      data-question={field.id}
+      dir={place.dir}
+      lang={place.lang}
+      style={place.text}
+    >
+      {field.label.trim() ? (
+        <Heading as="dt" text={field.label} align={field.align} className="text-sm text-muted-foreground" latin="font-medium" thaana="font-normal" />
+      ) : (
+        <dt className="text-sm font-medium text-muted-foreground">
+          <En>Untitled question</En>
+        </dt>
+      )}
       <dd className={cn('min-w-0', field.width === 'half' && 'mt-auto')}>
         {skipped && showSkipped && isEmptyAnswer(data[field.id]) ? (
           <Line>
@@ -266,7 +323,7 @@ function ReadElements({ elements, data, scope }: { elements: Element[]; data: Da
 }
 
 function ReadElement({ el, data, scope }: { el: Element; data: Data; scope?: Scope }) {
-  const { language } = useContext(AnswerContext)
+  const { formAlign } = useContext(AnswerContext)
   switch (el.kind) {
     case 'field':
       return <Question field={el} data={data} scope={scope} />
@@ -274,18 +331,20 @@ function ReadElement({ el, data, scope }: { el: Element; data: Data; scope?: Sco
       if (el.contentType === 'divider') return <Separator className="my-2" />
       if (!el.text) return null
       return el.contentType === 'heading' ? (
-        <h3 className="text-xl font-semibold tracking-tight">{displayText(el.text, language)}</h3>
+        <Heading as="h3" text={el.text} align={el.align} className="text-xl tracking-tight" latin="font-semibold" thaana="font-normal" />
       ) : (
-        <Markdown text={el.text} className="max-w-xl text-base text-muted-foreground" rtl={language === 'dv'} />
+        <div {...textProps(el.text)} className={alignClass(el.align, formAlign, textDirection(el.text))}>
+          <Markdown
+            text={el.text}
+            className="max-w-xl text-base text-muted-foreground"
+            rtl={textDirection(el.text) === 'rtl'}
+          />
+        </div>
       )
     case 'section':
       return (
         <section className="flex flex-col gap-4">
-          {el.title && (
-            <h3 className={cn('text-lg', language === 'dv' ? 'font-normal' : 'font-semibold')}>
-              {displayText(el.title, language)}
-            </h3>
-          )}
+          {el.title && <Heading as="h3" text={el.title} align={el.align} className="text-lg" latin="font-semibold" thaana="font-normal" />}
           <div className="@min-[32rem]:border-s @min-[32rem]:ps-4">
             <ReadElements elements={el.elements ?? []} data={data} scope={scope} />
           </div>
@@ -295,9 +354,7 @@ function ReadElement({ el, data, scope }: { el: Element; data: Data; scope?: Sco
       const rows = Array.isArray(data[el.id]) ? (data[el.id] as Data[]) : []
       return (
         <section className="flex flex-col gap-3" data-question={el.id}>
-          <h3 className={cn('text-sm text-muted-foreground', language === 'dv' ? 'font-normal' : 'font-medium')}>
-            {displayText(el.label, language)}
-          </h3>
+          <Heading as="h3" text={el.label} align={el.align} className="text-sm text-muted-foreground" latin="font-medium" thaana="font-normal" />
           {rows.length ? (
             rows.map((row, i) => (
               <div key={i} className="flex break-inside-avoid flex-col gap-4 rounded-md border p-4">
@@ -329,7 +386,6 @@ export function Answers({
   importedFiles?: ImportedFile[]
   showSkipped?: boolean
 }) {
-  const language = formLanguage(form)
   const logic = useLogic(form, data)
   const imported = useMemo(() => importedByField(importedFiles), [importedFiles])
   // A page the respondent never reached is left out, unless it holds answers (imports).
@@ -337,7 +393,7 @@ export function Answers({
     .map((page, i) => ({ page, i }))
     .filter(({ page }) => !logic.skippedPages.has(page.id) || hasAnswers(page.elements ?? [], data))
   return (
-    <AnswerContext value={{ language, signatures, imported, showSkipped, isVisible: logic.isVisible }}>
+    <AnswerContext value={{ formAlign: form.settings.align, signatures, imported, showSkipped, isVisible: logic.isVisible }}>
       <div className="flex flex-col gap-[var(--df-space,2rem)]">
         {pages.map(({ page, i }, n) => (
           <Fragment key={page.id}>
@@ -346,13 +402,22 @@ export function Answers({
               className="flex flex-col gap-6"
               aria-labelledby={page.title || pages.length > 1 ? `page-${page.id}` : undefined}
             >
-              {(page.title || pages.length > 1) && (
-                <h2
+              {page.title ? (
+                <Heading
+                  as="h2"
                   id={`page-${page.id}`}
-                  className={cn('df-page-title text-xl', language === 'dv' ? 'font-bold' : 'font-[650] tracking-tight')}
-                >
-                  {page.title ? displayText(page.title, language) : <En>Page {i + 1}</En>}
-                </h2>
+                  text={page.title}
+                  align={page.align}
+                  className="df-page-title text-xl"
+                  latin="font-[650] tracking-tight"
+                  thaana="font-bold"
+                />
+              ) : (
+                pages.length > 1 && (
+                  <h2 id={`page-${page.id}`} className="df-page-title text-xl font-[650] tracking-tight">
+                    <En>Page {i + 1}</En>
+                  </h2>
+                )
               )}
               <ReadElements elements={page.elements ?? []} data={data} />
             </section>

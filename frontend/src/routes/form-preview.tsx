@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils'
 import type { Uploader } from '@/renderer/context'
 import { FormRenderer } from '@/renderer/form-view'
 import type { Form } from '@/schema'
-import { formLanguage } from '@/schema/language'
+import { textLang } from '@/schema/direction'
 
 import { NoEditAccess } from './form-layout'
 
@@ -45,7 +45,6 @@ function LogicTrace({ form, ev }: { form: Form; ev: Evaluation | null }) {
   const [open, setOpen] = useState(false)
   if (!ev) return null
   const index = buildIndex(form)
-  const lang = formLanguage(form)
   const pageNumbers = ev.path.map((id) => form.pages.findIndex((p) => p.id === id) + 1)
   const skipped = form.pages.map((p, i) => ({ p, i })).filter(({ p }) => !ev.path.includes(p.id))
   const hidden = ev.hidden
@@ -82,7 +81,7 @@ function LogicTrace({ form, ev }: { form: Form; ev: Evaluation | null }) {
           <ul className="flex list-disc flex-col gap-1 ps-5">
             {hidden.map((info) => (
               <li key={info!.id}>
-                <bdi dir="auto" lang={lang}>
+                <bdi dir="auto" lang={textLang(info!.element.kind === 'field' || info!.element.kind === 'repeater' ? info!.element.label : '')}>
                   {(info!.element.kind === 'field' || info!.element.kind === 'repeater' ? info!.element.label : info!.id) || info!.id}
                 </bdi>{' '}
                 is hidden: it shows only when <ConditionSentence cond={info!.element.visibleIf!} form={form} />.

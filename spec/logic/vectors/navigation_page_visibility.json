@@ -2,9 +2,8 @@
   "name": "navigation_page_visibility",
   "description": "Hidden first page, goto onto a hidden page lands on the next visible page",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

@@ -72,9 +72,9 @@ async def set_description(client: AsyncClient, form_id: str, text: str) -> None:
 # -- tags -------------------------------------------------------------------------------------
 
 
-def _preview(title: str, description: str = "", language: str = "en") -> sharing.Preview:
+def _preview(title: str, description: str = "") -> sharing.Preview:
     form = FormRecord(id=uuid.uuid4(), org_id=uuid.uuid4(), slug="intake", title=title, settings={})
-    schema = {"settings": {"title": title, "description": description, "language": language}}
+    schema = {"settings": {"title": title, "description": description}}
     return sharing.build(Settings(), None, form, schema)
 
 
@@ -88,7 +88,7 @@ def test_meta_escapes_user_text() -> None:
 
 
 def test_meta_writes_thaana_as_references() -> None:
-    head = meta.form_head(_preview(DV_TITLE, language="dv"), "https://forms.example.org")
+    head = meta.form_head(_preview(DV_TITLE), "https://forms.example.org")
     assert head.isascii()
     t = tags(head)
     assert t["og:title"] == DV_TITLE and t["og:locale"] == "dv_MV"
@@ -205,7 +205,7 @@ async def test_page_tags_for_a_published_form(
 async def test_page_tags_dhivehi_and_closed(
     client: AsyncClient, db: AsyncSession, settings: Settings, queue: RecordingQueue
 ) -> None:
-    _, pub = await _setup(client, db, settings, queue, title=DV_TITLE, language="dv")
+    _, pub = await _setup(client, db, settings, queue, title=DV_TITLE)
     slug = pub.form["slug"]
     t = tags(await page_head(client, f"/{slug}"))
     assert t["og:title"] == DV_TITLE and t["og:locale"] == "dv_MV"
@@ -222,7 +222,7 @@ async def test_unknown_and_unpublished_forms_get_site_tags(
     me = await admin_client(client, db, settings, queue)
     res = await client.post(
         f"/api/v1/orgs/{me['orgs'][0]['id']}/forms",
-        json={"title": "Secret draft title", "language": "en"},
+        json={"title": "Secret draft title"},
     )
     draft = res.json()
     for path in (f"/{draft['slug']}", "/no-such-form", "/", "/a/b"):
@@ -376,7 +376,7 @@ async def test_unpublished_form_studio_preview_uses_the_draft(
 ) -> None:
     me = await admin_client(client, db, settings, queue)
     res = await client.post(
-        f"/api/v1/orgs/{me['orgs'][0]['id']}/forms", json={"title": "Draft only", "language": "en"}
+        f"/api/v1/orgs/{me['orgs'][0]['id']}/forms", json={"title": "Draft only"}
     )
     form = res.json()
     got = (await client.get(f"/api/v1/forms/{form['id']}/sharing")).json()

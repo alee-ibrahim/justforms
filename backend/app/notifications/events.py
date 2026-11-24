@@ -466,7 +466,7 @@ async def latest_schema(db: AsyncSession, form: FormRecord) -> Form:
 def sample_answers(form: Form) -> list[emails.Answer]:
     """Stand-ins for the answers in a test email: each question's label in brackets."""
     return [
-        emails.Answer(el.label or key, f"[{el.label or key}]")
+        emails.Answer(el.label or key, f"[{el.label or key}]", align=emails.field_align(form, el))
         for key, el in emails.placeholder_fields(form).items()
     ]
 
@@ -662,7 +662,6 @@ async def _form_shared(
     sharer = None
     with contextlib.suppress(ValueError):
         sharer = await db.get(User, uuid.UUID(str(detail.get("by"))))
-    language = str((form.draft_schema.get("settings") or {}).get("language") or "en")
     page = "submissions" if perm.role == FormRole.VIEWER else "edit"
     note = detail.get("note")
     return emails.form_shared_message(
@@ -671,7 +670,6 @@ async def _form_shared(
         sharer=(sharer.display_name or sharer.email) if sharer else "",
         sharer_email=sharer.email if sharer else None,
         title=form.title,
-        language=language,
         role=perm.role.value,
         upgraded=bool(detail.get("upgraded")),
         note=note if isinstance(note, str) and note else None,

@@ -15,7 +15,7 @@ import {
   TriangleAlertIcon,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { type KeyboardEvent, type MouseEvent, type ReactNode, useContext, useMemo, useState } from 'react'
+import { type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode, useContext, useMemo, useState } from 'react'
 
 import { useAiController } from '@/components/ai/controller'
 import { Badge } from '@/components/ui/badge'
@@ -73,9 +73,9 @@ import { DESCRIPTION } from '@/renderer/elements'
 import { FormHeader } from '@/renderer/form-view'
 import { MSG } from '@/renderer/messages'
 import { Markdown } from '@/renderer/markdown'
-import { widthClass } from '@/renderer/util'
+import { elementText, placement, widthClass } from '@/renderer/util'
 import type { Element, Form } from '@/schema'
-import { contentProps, formLanguage } from '@/schema/language'
+import { formDirection, textLang } from '@/schema/direction'
 
 import {
   currentPageIndex,
@@ -146,7 +146,7 @@ function BlockMenuItems({
                 <Item key={p.id} onSelect={() => moveToPage(store, id, i)}>
                   {i + 1}.{' '}
                   {p.title ? (
-                    <bdi dir="auto" lang={formLanguage(store.get().schema)}>
+                    <bdi dir="auto" lang={textLang(p.title)}>
                       {p.title}
                     </bdi>
                   ) : (
@@ -235,6 +235,7 @@ interface TextOpts {
   display?: ReactNode
   className?: string
   block?: boolean
+  style?: CSSProperties
 }
 
 function Block({ el, loc, form }: { el: Element; loc: Location; form: Form }) {
@@ -252,7 +253,8 @@ function Block({ el, loc, form }: { el: Element; loc: Location; form: Form }) {
   const { setNodeRef: setDragHandle, setActivatorNodeRef, listeners, attributes, isDragging } = useBlockDrag(el.id)
   const { setNodeRef: setDropRef } = useBlockDrop(el.id, loc)
   const info = blockInfo(el)
-  const language = formLanguage(form)
+  // The block reads in its own text's direction (Thaana right to left, English left to right).
+  const place = placement(elementText(el), el.align, form.settings.align, formDirection(form))
   const activate = (edit?: string) => store.select({ type: 'element', id: el.id }, { edit })
   const labelText =
     el.kind === 'field' || el.kind === 'repeater' ? el.label : el.kind === 'section' ? (el.title ?? '') : ''
@@ -269,7 +271,7 @@ function Block({ el, loc, form }: { el: Element; loc: Location; form: Form }) {
     <InlineText
       editKey={textKey.element(el.id, p)}
       value={value}
-      language={language}
+      dir={place.dir}
       active={selected}
       activate={activate}
       onCommit={commit(p)}
@@ -283,7 +285,8 @@ function Block({ el, loc, form }: { el: Element; loc: Location; form: Form }) {
       prompt,
       block: true,
       className: DESCRIPTION,
-      display: value ? <Markdown text={value} rtl={language === 'dv'} /> : undefined,
+      style: place.block,
+      display: value ? <Markdown text={value} rtl={place.dir === 'rtl'} /> : undefined,
     })
   const indicators = editing ? null : <Indicators el={el} form={form} />
   const label =
@@ -336,7 +339,12 @@ function Block({ el, loc, form }: { el: Element; loc: Location; form: Form }) {
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
             {el.contentType === 'heading' ? (
-              <h3 className="text-xl font-semibold tracking-tight">
+              <h3
+                dir={place.dir}
+                lang={place.lang}
+                style={place.text}
+                className={cn('text-xl', place.lang === 'dv' ? 'font-normal' : 'font-semibold tracking-tight')}
+              >
                 {text('text', el.text ?? '', { name: 'heading', empty: 'Add text…' })}
               </h3>
             ) : el.contentType === 'paragraph' ? (
@@ -346,7 +354,8 @@ function Block({ el, loc, form }: { el: Element; loc: Location; form: Form }) {
                 block: true,
                 empty: 'Add text…',
                 className: 'max-w-[36em] text-base',
-                display: el.text ? <Markdown text={el.text} rtl={language === 'dv'} /> : undefined,
+                style: place.block,
+                display: el.text ? <Markdown text={el.text} rtl={place.dir === 'rtl'} /> : undefined,
               })
             ) : (
               <ContentView el={el} placeholder={<span className="text-muted-foreground">Empty text block</span>} />
@@ -558,7 +567,9 @@ function Block({ el, loc, form }: { el: Element; loc: Location; form: Form }) {
               </div>
               </div>
             )}
-            <div {...contentProps(language)}>{content}</div>
+            <div dir={place.dir} lang={place.lang}>
+              {content}
+            </div>
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent className="w-52">
@@ -634,10 +645,18 @@ export function Canvas() {
   const pageId = useBuilder((s) => s.pageId)
   const formSelected = useBuilder((s) => s.selection.type === 'form')
   const pageSelected = useBuilder((s) => s.selection.type === 'page' && s.selection.pageId === s.pageId)
-  const language = formLanguage(form)
+  // The sheet's own layout follows the form title's direction; blocks take their own.
+  const sheetDir = formDirection(form)
   const pageIndex = Math.max(0, form.pages.findIndex((p) => p.id === pageId))
   const page = form.pages[pageIndex]
   const elements = page.elements ?? []
+  const pagePlace = placement(page.title || page.description, page.align, form.settings.align, sheetDir)
+  const descPlace = placement(
+    form.settings.description,
+    form.settings.titleAlign,
+    form.settings.align,
+    formDirection(form),
+  )
   // The form's theme on the sheet (FORM-THEME-SCREENS 3.5): saved values, the form's colour mode.
   const summary = useContext(FormContext)
   const theme = useQuery({ ...formThemeQuery(summary?.id ?? ''), enabled: !!summary }).data?.preview
@@ -649,7 +668,7 @@ export function Canvas() {
   const ctx = useMemo<RendererContextValue>(
     () => ({
       form,
-      language,
+      dir: sheetDir,
       mode: 'canvas',
       convention: 'optional',
       getValue: NO_ANSWERS,
@@ -668,19 +687,20 @@ export function Canvas() {
       addRow: () => {},
       removeRow: () => {},
     }),
-    [form, language],
+    [form, sheetDir],
   )
 
   return (
     <RendererContext.Provider value={ctx}>
-      <DirectionProvider dir={contentProps(language).dir}>
+      <DirectionProvider dir={sheetDir}>
         <div
           {...scope}
           className={cn(
             scope.className,
             '@container mx-auto flex w-full max-w-[var(--df-sheet,40rem)] flex-col gap-6 rounded-md border bg-card p-5 text-foreground sm:p-10 sm:ps-12',
           )}
-          {...contentProps(language)}
+          dir={sheetDir}
+          lang={textLang(form.settings.title)}
           onClick={() => store.select({ type: 'page', pageId })}
         >
           <div
@@ -703,7 +723,7 @@ export function Canvas() {
                   editKey={textKey.settings('title')}
                   value={form.settings.title}
                   name="form title"
-                  language={language}
+                  dir={sheetDir}
                   active={formSelected}
                   activate={activateForm}
                   empty="Untitled form"
@@ -716,14 +736,19 @@ export function Canvas() {
                     editKey={textKey.settings('description')}
                     value={form.settings.description ?? ''}
                     name="form description"
-                    language={language}
+                    dir={descPlace.dir}
                     multiline
                     block
                     active={formSelected}
                     activate={activateForm}
                     prompt="Add a description…"
                     className="max-w-[36em] text-base text-muted-foreground"
-                    display={form.settings.description ? <Markdown text={form.settings.description} rtl={language === 'dv'} /> : undefined}
+                    style={descPlace.block}
+                    display={
+                      form.settings.description ? (
+                        <Markdown text={form.settings.description} rtl={descPlace.dir === 'rtl'} />
+                      ) : undefined
+                    }
                     onCommit={(text) => store.edit((f) => setSettingsText(f, 'description', text))}
                   />
                 ) : null
@@ -742,12 +767,17 @@ export function Canvas() {
               store.select({ type: 'page', pageId }, { inspect: true })
             }}
           >
-            <h2 className={cn('text-xl', language === 'dv' ? 'font-bold' : 'font-[650] tracking-tight')}>
+            <h2
+              dir={pagePlace.dir}
+              lang={pagePlace.lang}
+              style={pagePlace.text}
+              className={cn('text-xl', pagePlace.lang === 'dv' ? 'font-bold' : 'font-[650] tracking-tight')}
+            >
               <InlineText
                 editKey={textKey.page(pageId, 'title')}
                 value={page.title ?? ''}
                 name="page title"
-                language={language}
+                dir={pagePlace.dir}
                 active={pageSelected}
                 activate={activatePage}
                 empty={`Page ${pageIndex + 1}`}
@@ -760,14 +790,15 @@ export function Canvas() {
                 editKey={textKey.page(pageId, 'description')}
                 value={page.description ?? ''}
                 name="page description"
-                language={language}
+                dir={pagePlace.dir}
                 multiline
                 block
                 active={pageSelected}
                 activate={activatePage}
                 prompt="Add a description…"
                 className="max-w-[36em] text-base text-muted-foreground"
-                display={page.description ? <Markdown text={page.description} rtl={language === 'dv'} /> : undefined}
+                style={pagePlace.block}
+                display={page.description ? <Markdown text={page.description} rtl={pagePlace.dir === 'rtl'} /> : undefined}
                 onCommit={(text) => store.edit((f) => setPageText(f, pageId, 'description', text))}
               />
             )}
@@ -829,8 +860,8 @@ export function Canvas() {
               Add question
             </Button>
           )}
-          <NavPreview form={form} pageIndex={pageIndex} language={language} />
-          {pageIndex === form.pages.length - 1 && <SuccessPreview form={form} language={language} />}
+          <NavPreview form={form} pageIndex={pageIndex} dir={sheetDir} />
+          {pageIndex === form.pages.length - 1 && <SuccessPreview form={form} dir={sheetDir} />}
         </div>
       </DirectionProvider>
     </RendererContext.Provider>

@@ -1,5 +1,8 @@
 /** Pure helpers shared by the renderer components. */
+import type { CSSProperties } from 'react'
+
 import type { Element, FieldElement, FileField, RepeaterElement } from '@/schema'
+import { resolveAlign, textDirection, textLang, type TextAlign, type TextDirection } from '@/schema/direction'
 
 import { MSG } from './messages'
 
@@ -99,4 +102,52 @@ export function padToMinRows<A extends Record<string, unknown>>(
     out[el.id] = [...have, ...Array.from({ length: el.minRows - have.length }, () => ({}))]
   }
   return (out ?? answers) as A
+}
+
+/** The text an element is read by: its label, title or text (its direction is the block's). */
+export function elementText(el: Element): string {
+  switch (el.kind) {
+    case 'field':
+    case 'repeater':
+      return el.label ?? ''
+    case 'section':
+      return el.title || el.description || ''
+    case 'content':
+      return el.text ?? ''
+  }
+}
+
+export interface Placement {
+  /** The block's own direction and language (from its text). */
+  dir: TextDirection
+  lang: 'dv' | 'en'
+  /** Text alignment. Physical for left/right so nested runs in the other direction keep it;
+   * `start` for auto, so each nested paragraph starts at its own edge. */
+  text: CSSProperties
+  /** For width-capped blocks (help text, paragraphs): also moves the box to that side. */
+  block: CSSProperties
+}
+
+/**
+ * Where a block of form text sits: its direction from its own text (falling back to the
+ * sheet's), aligned by the element's `align`, else the form default (`settings.align`).
+ */
+export function placement(
+  text: string | null | undefined,
+  align: TextAlign | null | undefined,
+  formAlign: TextAlign | null | undefined,
+  fallback: TextDirection = 'ltr',
+): Placement {
+  const dir = textDirection(text, fallback)
+  const explicit = [align, formAlign].find((a) => a !== undefined && a !== null)
+  const side = resolveAlign(align, formAlign, dir)
+  const auto = explicit === undefined || explicit === 'auto'
+  const text_: CSSProperties = { textAlign: auto ? 'start' : side }
+  const block: CSSProperties =
+    side === 'center'
+      ? { ...text_, marginInline: 'auto' }
+      : auto
+        ? text_
+        : { ...text_, [side === 'left' ? 'marginRight' : 'marginLeft']: 'auto' }
+  return { dir, lang: textLang(text), text: text_, block }
 }

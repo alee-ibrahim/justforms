@@ -288,7 +288,6 @@ def _stream(
     mode: Any = (
         "import" if working.importing else ("create" if ai_svc.is_empty(working.schema) else "edit")
     )
-    language = str(working.schema["settings"].get("language", "en"))
 
     async def emit(event: str, data: dict[str, Any]) -> None:
         await queue.put((event, data))
@@ -370,7 +369,6 @@ def _stream(
                 provider,
                 working=working,
                 mode=mode,
-                language=language,
                 history=history,
                 request=request,
                 max_tool_calls=settings.ai_max_tool_calls,

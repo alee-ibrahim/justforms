@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 
-import type { Form, FormLanguage } from '@/schema'
+import type { Form, TextDirection } from '@/schema'
 
 import type { FileRef } from './validation'
 
@@ -25,7 +25,8 @@ export type Uploader = (
 
 export interface RendererContextValue {
   form: Form
-  language: FormLanguage
+  /** Direction of the sheet's own layout (the form title's); each block has its own. */
+  dir: TextDirection
   /** `canvas`: the builder's inert WYSIWYG view; `fill`: a respondent (or preview) fills it in. */
   mode: 'fill' | 'canvas'
   /** Which questions get a marker: "(optional)" on optional ones, or "(required)". */

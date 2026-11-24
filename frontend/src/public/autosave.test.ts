@@ -8,8 +8,8 @@ import { ago, openProgress, progressKey, restoredText, SAVE_DELAY } from './auto
 
 const form = (nameType = 'short_text'): Form =>
   ({
-    schemaVersion: '1',
-    settings: { title: 'Membership', language: 'en' },
+    schemaVersion: '2',
+    settings: { title: 'Membership' },
     pages: [
       {
         id: 'page_1',

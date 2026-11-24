@@ -26,7 +26,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { api, type ApprovalStepInfo, type StepState, type SubmissionDetail } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
 import { buildIndex } from '@/logic/form-index'
-import { formLanguage } from '@/schema/language'
+import { textLang } from '@/schema/direction'
 
 import { alreadyDecidedMessage, decidableStep } from './approval-lib'
 
@@ -90,7 +90,7 @@ function describe(s: ApprovalStepInfo, d: SubmissionDetail): React.ReactNode {
       return (
         <>
           No approver: the answer to “
-          <bdi dir="auto" lang={formLanguage(d.schema)}>
+          <bdi dir="auto" lang={textLang(label)}>
             {label}
           </bdi>
           ” is empty
@@ -148,7 +148,6 @@ function DecideDialog({
       toast.error("Couldn't save the decision. Try again.")
     },
   })
-  const language = formLanguage(d.schema)
   const consequence = reject
     ? `This ends the approval and the response is Rejected.${a.outcomeTo ? ' The respondent is emailed the outcome with your comment.' : ''}`
     : last
@@ -181,13 +180,13 @@ function DecideDialog({
               {!reject && !last && next && (
                 <>
                   ,{' '}
-                  <bdi dir="auto" lang={language}>
+                  <bdi dir="auto" lang={textLang(next.name)}>
                     {next.name}
                   </bdi>
                 </>
               )}
               {!reject && !last && '.'} You decide step {step.step} (
-              <bdi dir="auto" lang={language}>
+              <bdi dir="auto" lang={textLang(step.name)}>
                 {step.name}
               </bdi>
               ){step.source === 'editors' ? '.' : " in place of the approver. The emailed link will show it's done."}
@@ -247,7 +246,7 @@ export function ApprovalDecision({ d }: { d: SubmissionDetail }) {
       </Button>
       <p className="order-last basis-full text-sm text-muted-foreground">
         {d.approval!.total > 1 && <>Step {step.step} of {d.approval!.total}, </>}
-        <bdi dir="auto" lang={formLanguage(d.schema)}>
+        <bdi dir="auto" lang={textLang(step.name)}>
           {step.name}
         </bdi>
         :{' '}
@@ -344,7 +343,6 @@ export function ApprovalBlock({ d }: { d: SubmissionDetail }) {
   })
   if (!a) return null
   const running = a.state === 'pending'
-  const language = formLanguage(d.schema)
   const decidable = decidableStep(d)
   const progress = running
     ? `Step ${a.step} of ${a.total}`
@@ -374,7 +372,7 @@ export function ApprovalBlock({ d }: { d: SubmissionDetail }) {
                 <ItemTitle className="max-w-full">
                   <span>
                     <span className="tabular-nums">{s.step}.</span>{' '}
-                    <bdi dir="auto" lang={language}>
+                    <bdi dir="auto" lang={textLang(s.name)}>
                       {s.name}
                     </bdi>
                   </span>

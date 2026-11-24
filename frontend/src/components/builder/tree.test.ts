@@ -28,8 +28,8 @@ const field = (id: string, extra: object = {}): Element =>
   ({ kind: 'field', id, type: 'short_text', label: id, ...extra }) as Element
 
 const base: Form = {
-  schemaVersion: '1',
-  settings: { language: 'en', title: 'T' },
+  schemaVersion: '2',
+  settings: { title: 'T' },
   pages: [
     {
       id: 'page_1',

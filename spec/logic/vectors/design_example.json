@@ -2,9 +2,8 @@
   "name": "design_example",
   "description": "The DESIGN section 4.4 youth programme form",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "dv",
       "title": "ޒުވާނުންގެ ޕްރޮގްރާމަށް ހުށަހަޅާ ފޯމު",
       "submitLabel": "ހުށަހަޅާ",
       "successMessage": "ޝުކުރިއްޔާ!",
@@ -24,7 +23,6 @@
             "type": "short_text",
             "label": "ފުރިހަމަ ނަން",
             "required": true,
-            "inputScript": "auto",
             "maxLength": 120
           },
           {
@@ -35,7 +33,6 @@
             "required": true,
             "pattern": "^A[0-9]{6}$",
             "patternMessage": "ފޯމެޓް: A123456",
-            "inputScript": "latin",
             "sensitive": true
           },
           {

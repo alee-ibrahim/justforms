@@ -163,8 +163,8 @@ async def test_export_reads_old_slots_as_repeater_rows(
     assert res.json()["versionMappings"] == [MAPPING]
     sheets = await _export(client, db, settings, file_storage, pub.id)
     head = sheets["Submissions"][0]
-    assert head[6:] == ["Organisation (org)", "Date (version 1) (date)"]
-    assert [r[6:] for r in sheets["Submissions"][1:]] == [
+    assert head[5:] == ["Organisation (org)", "Date (version 1) (date)"]
+    assert [r[5:] for r in sheets["Submissions"][1:]] == [
         ["One", "2026-10-01"],
         ["Two", None],
         ["Three", None],

@@ -2,9 +2,8 @@
   "name": "navigation_no_visible_pages",
   "description": "If no page is visible the path is empty and nothing is kept",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

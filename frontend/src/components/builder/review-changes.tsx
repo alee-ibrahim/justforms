@@ -44,7 +44,7 @@ import {
   type PropertyChange,
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { contentProps, type FormLanguage } from '@/schema/language'
+import { textProps } from '@/schema/align'
 
 import { useBuilder, useStore } from './store'
 import { useDraftChanges } from './use-draft-changes'
@@ -67,13 +67,13 @@ function StatusBadge({ status }: { status: DiffStatus }) {
   )
 }
 
-/** A change's text: English words plus form-content pieces in the form's direction. */
-function Pieces({ pieces, lang }: { pieces: DiffPiece[]; lang: FormLanguage }) {
+/** A change's text: English words plus form-content pieces, each in its own direction. */
+function Pieces({ pieces }: { pieces: DiffPiece[] }) {
   return (
     <>
       {pieces.map((p, i) =>
         p.content ? (
-          <bdi key={i} {...contentProps(lang)}>
+          <bdi key={i} {...textProps(p.text)}>
             {p.text}
           </bdi>
         ) : (
@@ -84,8 +84,8 @@ function Pieces({ pieces, lang }: { pieces: DiffPiece[]; lang: FormLanguage }) {
   )
 }
 
-/** One before/after value, clamped when long. Pure form content takes the form's direction. */
-function Value({ pieces, lang, tone }: { pieces: DiffPiece[]; lang: FormLanguage; tone: 'before' | 'after' }) {
+/** One before/after value, clamped when long. Pure form content takes its own direction. */
+function Value({ pieces, tone }: { pieces: DiffPiece[]; tone: 'before' | 'after' }) {
   const [open, setOpen] = useState(false)
   const long = pieces.reduce((n, p) => n + p.text.length, 0) > LONG
   const onlyContent = pieces.length === 1 && pieces[0].content
@@ -105,9 +105,9 @@ function Value({ pieces, lang, tone }: { pieces: DiffPiece[]; lang: FormLanguage
       <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
         <p
           className={cn('w-full text-start break-words whitespace-pre-line', long && !open && 'line-clamp-3')}
-          {...(onlyContent ? contentProps(lang) : {})}
+          {...(onlyContent ? textProps(pieces[0].text) : {})}
         >
-          <Pieces pieces={pieces} lang={lang} />
+          <Pieces pieces={pieces} />
         </p>
         {long && (
           <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setOpen(!open)}>
@@ -119,7 +119,7 @@ function Value({ pieces, lang, tone }: { pieces: DiffPiece[]; lang: FormLanguage
   )
 }
 
-function OptionsDetail({ change, lang }: { change: PropertyChange; lang: FormLanguage }) {
+function OptionsDetail({ change }: { change: PropertyChange }) {
   const o = change.options!
   return (
     <ul className="flex flex-col gap-1 text-sm">
@@ -127,7 +127,7 @@ function OptionsDetail({ change, lang }: { change: PropertyChange; lang: FormLan
         <li key={`a-${x.value}`} className="flex items-start gap-2 rounded-md bg-added/10 px-2 py-1">
           <PlusIcon className="mt-0.5 size-4 shrink-0 text-added" aria-hidden />
           <span className="sr-only">Added option:</span>
-          <span className="min-w-0 flex-1 text-start break-words" {...contentProps(lang)}>
+          <span className="min-w-0 flex-1 text-start break-words" {...textProps(x.label)}>
             {x.label}
           </span>
         </li>
@@ -136,7 +136,7 @@ function OptionsDetail({ change, lang }: { change: PropertyChange; lang: FormLan
         <li key={`r-${x.value}`} className="flex items-start gap-2 rounded-md bg-destructive/8 px-2 py-1">
           <MinusIcon className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
           <span className="sr-only">Removed option:</span>
-          <span className="min-w-0 flex-1 text-start break-words" {...contentProps(lang)}>
+          <span className="min-w-0 flex-1 text-start break-words" {...textProps(x.label)}>
             {x.label}
           </span>
         </li>
@@ -144,11 +144,11 @@ function OptionsDetail({ change, lang }: { change: PropertyChange; lang: FormLan
       {o.renamed.map((x) => (
         <li key={`n-${x.value}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-2 py-1">
           <span className="sr-only">Renamed option:</span>
-          <bdi {...contentProps(lang)} className="text-muted-foreground line-through">
+          <bdi {...textProps(x.before)} className="text-muted-foreground line-through">
             {x.before}
           </bdi>
           <ArrowRightIcon className="size-3.5 shrink-0 text-muted-foreground rtl:rotate-180" aria-label="to" />
-          <bdi {...contentProps(lang)}>{x.after}</bdi>
+          <bdi {...textProps(x.after)}>{x.after}</bdi>
         </li>
       ))}
       {o.reordered && <li className="px-2 py-1 text-muted-foreground">Options reordered</li>}
@@ -184,25 +184,25 @@ function InlineValues({ change }: { change: PropertyChange }) {
   )
 }
 
-function PropertyRow({ change, lang }: { change: PropertyChange; lang: FormLanguage }) {
+function PropertyRow({ change }: { change: PropertyChange }) {
   return (
     <li className="flex flex-col gap-1">
       <span className="text-xs font-medium text-muted-foreground">{change.name}</span>
       {change.kind === 'options' ? (
-        <OptionsDetail change={change} lang={lang} />
+        <OptionsDetail change={change} />
       ) : isShort(change) ? (
         <InlineValues change={change} />
       ) : (
         <>
-          {change.before && <Value pieces={change.before} lang={lang} tone="before" />}
-          {change.after && <Value pieces={change.after} lang={lang} tone="after" />}
+          {change.before && <Value pieces={change.before} tone="before" />}
+          {change.after && <Value pieces={change.after} tone="after" />}
         </>
       )}
     </li>
   )
 }
 
-function ElementRow({ item, lang, compact }: { item: ElementChange; lang: FormLanguage; compact: boolean }) {
+function ElementRow({ item, compact }: { item: ElementChange; compact: boolean }) {
   const label = item.label.trim()
   return (
     <li className={cn('flex flex-col gap-2 rounded-md border border-s-4 bg-card p-3', STATUS[item.status].edge)}>
@@ -215,7 +215,7 @@ function ElementRow({ item, lang, compact }: { item: ElementChange; lang: FormLa
                 item.status === 'removed' && 'text-muted-foreground',
                 compact && 'line-clamp-2',
               )}
-              {...contentProps(lang)}
+              {...textProps(label)}
             >
               {label.length > LONG * 2 ? `${label.slice(0, LONG * 2)}…` : label}
             </span>
@@ -230,7 +230,7 @@ function ElementRow({ item, lang, compact }: { item: ElementChange; lang: FormLa
                 {item.within.map((w, i) => (
                   <span key={i}>
                     {i > 0 && ', '}
-                    <bdi {...contentProps(lang)}>{w}</bdi>
+                    <bdi {...textProps(w)}>{w}</bdi>
                   </span>
                 ))}
               </>
@@ -246,7 +246,7 @@ function ElementRow({ item, lang, compact }: { item: ElementChange; lang: FormLa
           {item.changes.length > 0 && (
             <ul className="flex flex-col gap-3">
               {item.changes.map((c) => (
-                <PropertyRow key={c.property} change={c} lang={lang} />
+                <PropertyRow key={c.property} change={c} />
               ))}
             </ul>
           )}
@@ -254,7 +254,7 @@ function ElementRow({ item, lang, compact }: { item: ElementChange; lang: FormLa
             <p className="text-xs text-muted-foreground">
               {item.movedFrom ? (
                 <>
-                  Moved from <Pieces pieces={item.movedFrom} lang={lang} />
+                  Moved from <Pieces pieces={item.movedFrom} />
                 </>
               ) : (
                 item.moveSummary
@@ -267,7 +267,7 @@ function ElementRow({ item, lang, compact }: { item: ElementChange; lang: FormLa
   )
 }
 
-function PageGroup({ page, lang, compact }: { page: PageChange; lang: FormLanguage; compact: boolean }) {
+function PageGroup({ page, compact }: { page: PageChange; compact: boolean }) {
   const title = page.title.trim()
   return (
     <section className="flex flex-col gap-2" aria-label={`Page ${page.number}`}>
@@ -277,7 +277,7 @@ function PageGroup({ page, lang, compact }: { page: PageChange; lang: FormLangua
           {title && title !== `Page ${page.number}` && (
             <span className="text-muted-foreground">
               ,{' '}
-              <bdi {...contentProps(lang)}>{title}</bdi>
+              <bdi {...textProps(title)}>{title}</bdi>
             </span>
           )}
         </h3>
@@ -287,14 +287,14 @@ function PageGroup({ page, lang, compact }: { page: PageChange; lang: FormLangua
       {!compact && page.changes.length > 0 && (
         <ul className="flex flex-col gap-3 rounded-md border border-s-4 border-s-primary bg-card p-3">
           {page.changes.map((c) => (
-            <PropertyRow key={c.property} change={c} lang={lang} />
+            <PropertyRow key={c.property} change={c} />
           ))}
         </ul>
       )}
       {page.elements.length > 0 ? (
         <ul className="flex flex-col gap-2">
           {page.elements.map((e) => (
-            <ElementRow key={e.id} item={e} lang={lang} compact={compact} />
+            <ElementRow key={e.id} item={e} compact={compact} />
           ))}
         </ul>
       ) : (
@@ -306,7 +306,6 @@ function PageGroup({ page, lang, compact }: { page: PageChange; lang: FormLangua
 
 /** Every change, grouped: form settings first, then pages in order. */
 export function ChangeList({ changes, compact = false }: { changes: DraftChanges; compact?: boolean }) {
-  const lang = changes.language
   return (
     <div className="flex flex-col gap-6">
       {changes.settings.length > 0 && (
@@ -320,14 +319,14 @@ export function ChangeList({ changes, compact = false }: { changes: DraftChanges
           ) : (
             <ul className="flex flex-col gap-3 rounded-md border border-s-4 border-s-primary bg-card p-3">
               {changes.settings.map((c) => (
-                <PropertyRow key={c.property} change={c} lang={lang} />
+                <PropertyRow key={c.property} change={c} />
               ))}
             </ul>
           )}
         </section>
       )}
       {changes.pages.map((p) => (
-        <PageGroup key={p.pageId} page={p} lang={lang} compact={compact} />
+        <PageGroup key={p.pageId} page={p} compact={compact} />
       ))}
     </div>
   )

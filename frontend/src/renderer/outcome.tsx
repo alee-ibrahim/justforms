@@ -8,6 +8,9 @@ import { useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import type { Form } from '@/schema'
+import { FormText } from '@/thaana/form-text'
+
+import { placement } from './util'
 
 import { MSG as msgs } from './messages'
 import { En } from './msg'
@@ -22,11 +25,18 @@ export function SuccessScreen({
   onAnother?: () => void
 }) {
   const [copied, setCopied] = useState(false)
+  const message = form.settings.successMessage?.trim()
+  const place = placement(message, null, form.settings.align)
   return (
     <div className="flex flex-col gap-6">
       <CheckIcon className="size-8 text-primary" aria-hidden />
-      <h1 className="text-2xl font-bold" tabIndex={-1} ref={(el) => el?.focus()}>
-        {form.settings.successMessage?.trim() || <En>{msgs.successDefault}</En>}
+      <h1
+        className="text-2xl font-bold"
+        tabIndex={-1}
+        ref={(el) => el?.focus()}
+        {...(message ? { dir: place.dir, lang: place.lang, style: place.text } : {})}
+      >
+        {message ? <FormText text={message} /> : <En>{msgs.successDefault}</En>}
       </h1>
       <div className="flex flex-col items-center gap-1 rounded-md border bg-background py-6 text-center">
         <p className="text-sm text-muted-foreground">

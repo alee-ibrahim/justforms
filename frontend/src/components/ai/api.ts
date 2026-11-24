@@ -3,7 +3,7 @@
  * POST, read with fetch) and apply / discard / stop.
  */
 import { ApiError, csrfToken, type Draft } from '@/lib/api'
-import type { Form, FormLanguage } from '@/schema'
+import type { Form } from '@/schema'
 
 export type ChangeKind = 'added' | 'changed' | 'removed' | 'moved'
 
@@ -29,7 +29,6 @@ export interface Proposal {
   schema: Form
   changes: Change[]
   flags: Flag[]
-  language: FormLanguage
 }
 
 export interface Step {

@@ -7,10 +7,10 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { SignatureInfo } from '@/lib/api'
 import { formatDateTimeSeconds, shortHash } from '@/lib/format'
-import type { FormLanguage } from '@/schema'
-import { contentProps } from '@/schema/language'
+import { textProps } from '@/schema/align'
+import { FormText } from '@/thaana/form-text'
 
-export function SignatureBlock({ sig, language }: { sig: SignatureInfo; language: FormLanguage }) {
+export function SignatureBlock({ sig }: { sig: SignatureInfo }) {
   const rows: [string, React.ReactNode][] = [
     ['Signed', sig.signedAt ? formatDateTimeSeconds(sig.signedAt) : 'Not reported'],
     ['Received', formatDateTimeSeconds(sig.receivedAt)],
@@ -51,8 +51,8 @@ export function SignatureBlock({ sig, language }: { sig: SignatureInfo; language
         </CardContent>
       </Card>
       {sig.attestation && (
-        <figcaption {...contentProps(language)} className="text-sm">
-          {sig.attestation}
+        <figcaption {...textProps(sig.attestation)} className="text-sm">
+          <FormText text={sig.attestation} />
         </figcaption>
       )}
       <dl lang="en" dir="ltr" className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-xs">

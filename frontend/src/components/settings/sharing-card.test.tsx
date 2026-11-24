@@ -34,7 +34,6 @@ const data: SharingOut = {
   defaultDescription: '',
   siteName: 'Forms',
   url: 'https://forms.example.org/volunteer',
-  language: 'en',
   imageUrl: '/preview.png',
   customImage: { width: 1200, height: 630 },
   published: true,

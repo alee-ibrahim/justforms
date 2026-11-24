@@ -93,7 +93,7 @@ def test_registration_reads_every_control() -> None:
 def test_registration_converts(registration: Any) -> None:
     doc = registration.form
     Form.model_validate(doc)
-    assert registration.language == "en"
+    assert "language" not in doc["settings"] and doc["schemaVersion"] == "2"
     assert doc["settings"]["title"] == "Community Network"
     assert doc["settings"]["description"] == "Volunteer Groups Network"
     assert "submitLabel" not in doc["settings"]
@@ -351,11 +351,12 @@ def test_controls_report_and_conditions(controls: Any) -> None:
     ]
 
 
-def test_dhivehi_form_is_detected() -> None:
+def test_dhivehi_form_keeps_its_text() -> None:
     conv = convert(read_html(fixture("dhivehi_form.html")))
-    assert conv.language == "dv" and conv.detected_language == "dv"
     doc = conv.form
-    assert doc["settings"]["language"] == "dv"
+    # Forms have no language (schemaVersion 2): the Thaana text is kept as it is.
+    assert "language" not in doc["settings"] and doc["schemaVersion"] == "2"
+    assert doc["settings"]["title"] == "ޒުވާނުންގެ ޕްރޮގްރާމަށް ހުށަހަޅާ ފޯމު"
     assert "submitLabel" not in doc["settings"]  # the default "submit" word
     # Thaana labels give type-based ids.
     assert [e["id"] for e in doc["pages"][0]["elements"]] == [
@@ -369,9 +370,7 @@ def test_dhivehi_form_is_detected() -> None:
         "option_1",
         "option_2",
     ]
-    forced = convert(read_html(fixture("dhivehi_form.html")), language="en")
-    assert forced.form["settings"]["language"] == "en"
-    assert forced.report.notes and "Dhivehi" in forced.report.notes[0]
+    assert not any("language" in n for n in conv.report.notes)
 
 
 def test_embed_code_is_not_the_source() -> None:
@@ -599,3 +598,26 @@ def test_parse_number_and_time() -> None:
     assert parse_time("12:30 AM") == "00:30"
     assert parse_time("09:15") == "09:15"
     assert parse_time("25:00") is None
+
+
+def test_bilingual_labels_are_kept_and_time_suffix_follows_the_label() -> None:
+    src = JfSource(
+        title="Registration / ރަޖިސްޓްރީ",
+        questions=[
+            JfQuestion("1", "control_textbox", label="Name / ނަން", name="name"),
+            JfQuestion("2", "control_textbox", label="ނަން", name="dv_name"),
+            JfQuestion(
+                "3", "control_datetime", label="Arrival / އަންނަ", name="arrival", props={"time": True}
+            ),
+            JfQuestion("4", "control_datetime", label="އަންނަ ދުވަސް", name="day", props={"time": True}),
+        ],
+    )
+    doc = convert(src).form
+    Form.model_validate(doc)
+    assert "language" not in doc["settings"] and doc["schemaVersion"] == "2"
+    assert doc["settings"]["title"] == "Registration / ރަޖިސްޓްރީ"
+    labels = [e["label"] for e in doc["pages"][0]["elements"]]
+    assert labels[:2] == ["Name / ނަން", "ނަން"]
+    # The English "(time)" suffix only follows a left-to-right label.
+    assert "Arrival / އަންނަ (time)" in labels
+    assert labels.count("އަންނަ ދުވަސް") == 2

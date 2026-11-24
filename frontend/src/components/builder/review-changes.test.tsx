@@ -14,13 +14,12 @@ import { BuilderStore } from './store'
 const w = (text: string) => ({ text, content: false })
 const c = (text: string) => ({ text, content: true })
 
-const changes = (language: 'en' | 'dv'): DraftChanges => ({
+const changes = (): DraftChanges => ({
   baseVersion: 2,
   revision: 9,
   hasChanges: true,
   summary: '1 page added, 1 question added, 1 question removed, 1 question changed, 1 form setting changed',
   counts: { added: 2, removed: 1, changed: 2, moved: 0 },
-  language,
   settings: [
     { property: 'title', name: 'Form title', kind: 'text', before: [c('Old')], after: [c('New')], summary: 'Form title changed' },
   ],
@@ -107,7 +106,7 @@ afterEach(() => {
 
 describe('ChangeList', () => {
   it('groups by page with status badges and before/after values', () => {
-    act(() => root.render(<ChangeList changes={changes('en')} />))
+    act(() => root.render(<ChangeList changes={changes()} />))
     const text = container.textContent ?? ''
     expect(text).toContain('Form settings')
     expect(text).toContain('Page 1')
@@ -121,8 +120,8 @@ describe('ChangeList', () => {
     expect(text).not.toContain('Page 2, Page 2')
   })
 
-  it('shows Dhivehi content right-to-left and English words left-to-right', () => {
-    act(() => root.render(<ChangeList changes={changes('dv')} />))
+  it('gives each piece of content its own direction: Dhivehi right-to-left, English left-to-right', () => {
+    act(() => root.render(<ChangeList changes={changes()} />))
     const label = [...container.querySelectorAll('bdi')].find((b) => b.textContent === 'ނަން')!
     expect(label.getAttribute('dir')).toBe('rtl')
     expect(label.getAttribute('lang')).toBe('dv')
@@ -133,10 +132,14 @@ describe('ChangeList', () => {
     const rule = [...container.querySelectorAll('p')].find((p) => p.textContent?.includes('is at least'))!
     expect(rule.getAttribute('dir')).toBeNull()
     expect(rule.querySelector('bdi')?.getAttribute('dir')).toBe('rtl')
+    // English content in the same form stays left-to-right with the Latin face.
+    const option = [...container.querySelectorAll('span')].find((s) => s.textContent === 'Yellow')!
+    expect(option.getAttribute('dir')).toBe('ltr')
+    expect(option.getAttribute('lang')).toBe('en')
   })
 
   it('compact: one line per change, no before/after', () => {
-    act(() => root.render(<ChangeList changes={changes('en')} compact />))
+    act(() => root.render(<ChangeList changes={changes()} compact />))
     const text = container.textContent ?? ''
     expect(text).toContain('Label changed')
     expect(text).not.toContain('Before:')
@@ -144,7 +147,7 @@ describe('ChangeList', () => {
   })
 
   it('clamps long text with Show all', () => {
-    const long = changes('en')
+    const long = changes()
     long.settings[0].after = [c('x'.repeat(300))]
     act(() => root.render(<ChangeList changes={long} />))
     const button = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Show all')!
@@ -155,7 +158,7 @@ describe('ChangeList', () => {
 })
 
 const form = (title: string): Form => ({
-  schemaVersion: '1',
+  schemaVersion: '2',
   settings: { title },
   pages: [{ id: 'page_1', elements: [] }],
 })

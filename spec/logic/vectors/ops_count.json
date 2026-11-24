@@ -2,9 +2,8 @@
   "name": "ops_count",
   "description": "count_eq/gte/lte on multi_choice, file and repeater arrays; missing is false",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

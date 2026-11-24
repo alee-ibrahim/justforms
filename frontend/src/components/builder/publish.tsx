@@ -17,7 +17,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Spinner } from '@/components/ui/spinner'
 import type { FormSummary } from '@/lib/api'
-import { formLanguage } from '@/schema/language'
+import { textLang } from '@/schema/direction'
 
 import { approvalChecks, useApprovalConfig } from './approval-problems'
 import { blockLabel } from './block-types'
@@ -40,7 +40,6 @@ export function PublishDialog({ form, mutation }: { form: FormSummary; mutation:
     ...checks.errors.map((message) => ({ target: null, pageIndex: null, message, settings: true })),
   ]
   const counts = formCounts(schema)
-  const lang = formLanguage(schema)
   const close = () => store.setPublishing(false)
   const republish = form.currentVersion !== null
   const changes = useDraftChanges(form, open && republish && !problems.length)
@@ -81,7 +80,7 @@ export function PublishDialog({ form, mutation }: { form: FormSummary; mutation:
                           {label && (
                             <>
                               ,{' '}
-                              <bdi dir="auto" lang={lang}>
+                              <bdi dir="auto" lang={textLang(label)}>
                                 {label}
                               </bdi>
                             </>

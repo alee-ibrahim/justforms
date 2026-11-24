@@ -15,8 +15,8 @@ import {
 } from './inline-edit'
 
 const form = (): Form => ({
-  schemaVersion: '1',
-  settings: { title: 'Registration', language: 'en' },
+  schemaVersion: '2',
+  settings: { title: 'Registration' },
   pages: [
     {
       id: 'page_1',

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from dataclasses import dataclass
 
 from app.importers.dom import HIDDEN_TEXT, Node, clean_space, parse_html
 
@@ -155,24 +154,3 @@ def option_values(labels: list[str]) -> list[str]:
         seen.add(value)
         out.append(value)
     return out
-
-
-# -- language ------------------------------------------------------------------------------
-
-THAANA = re.compile(r"[\u0780-\u07bf]")
-LATIN = re.compile(r"[A-Za-z]")
-
-
-@dataclass
-class ScriptCount:
-    thaana: int = 0
-    latin: int = 0
-
-    def add(self, text: str) -> None:
-        self.thaana += len(THAANA.findall(text))
-        self.latin += len(LATIN.findall(text))
-
-    @property
-    def language(self) -> str:
-        """``dv`` when most letters are Thaana."""
-        return "dv" if self.thaana > self.latin else "en"

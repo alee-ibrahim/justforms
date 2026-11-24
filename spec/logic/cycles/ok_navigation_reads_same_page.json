@@ -2,9 +2,8 @@
   "name": "ok_navigation_reads_same_page",
   "expect": "ok",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Cycle"
     },
     "pages": [

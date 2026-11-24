@@ -42,7 +42,7 @@ import {
   type ApproverSource,
   type FormSummary,
 } from '@/lib/api'
-import { contentProps } from '@/schema/language'
+import { textProps } from '@/schema/align'
 
 import { PLACEHOLDER_HELP } from './email-wording'
 
@@ -222,9 +222,9 @@ function StepEditor({
         <FieldLabel htmlFor={`${id}-name`}>Step name</FieldLabel>
         <Input
           id={`${id}-name`}
-          {...contentProps(a.language)}
+          {...textProps(step.name)}
           maxLength={60}
-          placeholder={a.language === 'en' ? 'Supervisor' : undefined}
+          placeholder="Supervisor"
           value={step.name}
           disabled={disabled}
           onChange={(e) => onChange({ ...step, name: e.target.value })}
@@ -261,7 +261,7 @@ function StepEditor({
                   aria-label={`Email question for step ${n}`}
                   value={step.fieldId ?? ''}
                   disabled={disabled}
-                  {...contentProps(a.language)}
+                  {...textProps(a.emailFields.find((f) => f.id === step.fieldId)?.label)}
                   onChange={(e) => onChange({ ...step, fieldId: e.target.value || null })}
                 >
                   {!step.fieldId && (
@@ -275,7 +275,7 @@ function StepEditor({
                     </NativeSelectOption>
                   )}
                   {a.emailFields.map((f) => (
-                    <NativeSelectOption key={f.id} value={f.id}>
+                    <NativeSelectOption key={f.id} value={f.id} {...textProps(f.label)}>
                       {f.label || f.id}
                     </NativeSelectOption>
                   ))}
@@ -610,7 +610,7 @@ export function ApprovalsCard({ form, canManage }: { form: FormSummary; canManag
                     id="approvals-outcome-to"
                     value={outcomeTarget}
                     disabled={disabled}
-                    {...contentProps(a.language)}
+                    {...textProps(a.emailFields.find((f) => f.id === outcomeTarget)?.label)}
                     onChange={(e) => set({ ...c, respondentEmailField: e.target.value === CONFIRMED ? null : e.target.value })}
                   >
                     {confirmedAvailable && (
@@ -619,7 +619,7 @@ export function ApprovalsCard({ form, canManage }: { form: FormSummary; canManag
                       </NativeSelectOption>
                     )}
                     {a.emailFields.map((f) => (
-                      <NativeSelectOption key={f.id} value={f.id}>
+                      <NativeSelectOption key={f.id} value={f.id} {...textProps(f.label)}>
                         {f.label || f.id}
                       </NativeSelectOption>
                     ))}

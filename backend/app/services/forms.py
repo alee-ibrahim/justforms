@@ -46,10 +46,10 @@ class PublishError(Exception):
         self.issues = issues
 
 
-def new_draft(title: str, language: str) -> dict[str, Any]:
+def new_draft(title: str) -> dict[str, Any]:
     draft = {
-        "schemaVersion": "1",
-        "settings": {"language": language, "title": title},
+        "schemaVersion": "2",
+        "settings": {"title": title},
         "pages": [{"id": "page_1", "elements": []}],
     }
     return Form.model_validate(draft).dump()
@@ -159,7 +159,12 @@ async def step_history(
     entry = await _history_entry(db, form, undone=redo)
     if entry is None:
         return False
-    ops = entry.patch if redo else entry.inverse_patch
+    # Entries recorded before the schemaVersion 2 upgrade may touch the removed form language.
+    ops = [
+        op
+        for op in (entry.patch if redo else entry.inverse_patch)
+        if not str(op.get("path", "")).startswith(("/settings/language", "/schemaVersion"))
+    ]
     try:
         new = jsonpatch.apply_patch(form.draft_schema, ops, in_place=False)
     except (jsonpatch.JsonPatchException, jsonpatch.JsonPointerException) as exc:

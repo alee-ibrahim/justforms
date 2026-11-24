@@ -38,7 +38,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ApiError, type Condition } from '@/lib/api'
 import { versionQuery } from '@/lib/queries'
-import { formLanguage } from '@/schema/language'
+import { textLang } from '@/schema/direction'
 
 import {
   askErrorText,
@@ -57,7 +57,6 @@ import { ListTable } from './list-table'
 
 const MAX = 2000
 
-const thaana = /[ހ-޿]/
 
 const OPS: Record<string, string> = {
   count: 'Count',
@@ -84,9 +83,6 @@ function rowLabel(label: string, labels: Map<string, string>): string {
 const count = (n: number) => n.toLocaleString('en')
 const plural = (n: number, one: string, many = `${one}s`) => `${count(n)} ${n === 1 ? one : many}`
 
-function langOf(text: string, language: string) {
-  return thaana.test(text) ? 'dv' : language === 'dv' ? 'dv' : 'en'
-}
 
 /** A list in a stored answer: the transcript keeps what was listed, the rows are read again
  * (with the person's access, deleted submissions left out) when it is shown. */
@@ -95,13 +91,11 @@ function StoredList({
   formId,
   messageId,
   index,
-  language,
 }: {
   chart: ChartSpec
   formId: string
   messageId: string
   index: number
-  language: string
 }) {
   const rows = useQuery({
     queryKey: ['ask-list', formId, messageId, index],
@@ -117,20 +111,18 @@ function StoredList({
       </p>
     )
   if (!rows.data) return <Skeleton className="h-24 w-full" />
-  return <ListTable chart={rows.data} formId={formId} language={language} />
+  return <ListTable chart={rows.data} formId={formId} />
 }
 
 function ResultChart({
   chart,
   labels,
-  language,
   formId,
   messageId,
   index = 0,
 }: {
   chart: ChartSpec
   labels: Map<string, string>
-  language: string
   formId: string
   /** The stored answer the chart belongs to (lists in it are read again). */
   messageId?: string
@@ -146,9 +138,9 @@ function ResultChart({
         </figcaption>
       )}
       {chart.display === 'list' && (chart.stored || chart.expired) && messageId ? (
-        <StoredList chart={chart} formId={formId} messageId={messageId} index={index} language={language} />
+        <StoredList chart={chart} formId={formId} messageId={messageId} index={index} />
       ) : chart.display === 'list' ? (
-        <ListTable chart={chart} formId={formId} language={language} />
+        <ListTable chart={chart} formId={formId} />
       ) : chart.display === 'bar' && numeric && chart.columns.length === 1 ? (
         <BarList
           data={chart.rows.map((r, i) => ({
@@ -157,7 +149,6 @@ function ResultChart({
             count: Number(r.values[first]),
             muted: r.label === 'Other',
           }))}
-          language={language}
           unit={chart.unit}
         />
       ) : (
@@ -176,7 +167,7 @@ function ResultChart({
             {chart.rows.map((r, i) => (
               <TableRow key={i}>
                 <TableCell className="whitespace-normal">
-                  <bdi dir="auto" lang={langOf(r.label, language)}>
+                  <bdi dir="auto" lang={textLang(r.label)}>
                     {rowLabel(r.label, labels)}
                   </bdi>
                 </TableCell>
@@ -343,7 +334,6 @@ function Answer({
   question,
   formId,
   labels,
-  language,
   readAnswers,
   busy,
   onRetry,
@@ -353,7 +343,6 @@ function Answer({
   question: string
   formId: string
   labels: Map<string, string>
-  language: string
   readAnswers: boolean
   busy: boolean
   onRetry: (question: string) => void
@@ -410,7 +399,6 @@ function Answer({
             key={i}
             chart={chart}
             labels={labels}
-            language={language}
             formId={formId}
             messageId={msg.id}
             index={i}
@@ -493,7 +481,6 @@ export function AskPanel({
   }, [data?.id])
   const messages = data?.messages ?? []
   const labels = fieldLabels(schema)
-  const language = schema ? formLanguage(schema) : 'en'
 
   // Follow new content while answering unless the person scrolled up; when an answer lands,
   // bring its question to the top so the answer reads from its start.
@@ -669,7 +656,7 @@ export function AskPanel({
                             className="h-auto max-w-full py-1.5 text-start font-normal whitespace-normal"
                             onClick={() => void send(idea)}
                           >
-                            <bdi dir="auto" lang={langOf(idea, language)}>
+                            <bdi dir="auto" lang={textLang(idea)}>
                               {idea}
                             </bdi>
                           </Button>
@@ -694,7 +681,6 @@ export function AskPanel({
                     question={q.content.text ?? ''}
                     formId={formId}
                     labels={labels}
-                    language={language}
                     readAnswers={!!data?.readAnswers}
                     busy={!!live}
                     onRetry={(question) => void send(question)}
@@ -714,7 +700,7 @@ export function AskPanel({
                       </p>
                     )}
                     {live.charts.map((chart, i) => (
-                      <ResultChart key={i} chart={chart} labels={labels} language={language} formId={formId} />
+                      <ResultChart key={i} chart={chart} labels={labels} formId={formId} />
                     ))}
                     <ul className="flex flex-col gap-1 text-sm text-muted-foreground">
                       {live.steps

@@ -24,9 +24,10 @@ from tests.helpers import field
 
 
 def _form(language: str, *elements: dict[str, Any]) -> Form:
+    """``language`` "dv" gives a Dhivehi form: its title and texts are Thaana."""
     return Form.model_validate(
         {
-            "settings": {"title": "Application", "language": language},
+            "settings": {"title": "ފޯމު" if language == "dv" else "Application"},
             "pages": [{"id": "p1", "elements": list(elements)}],
         }
     )
@@ -37,8 +38,8 @@ def test_phone_numbers_are_grouped_for_display_only() -> None:
     assert format_phone("+447700900123") == "+447700900123"
     assert format_phone("+96077712345") == "+96077712345"
     phone = _form("en", field("phone", "phone")).pages[0].elements[0]
-    assert answer_text(phone, "+9607771234", "en") == "+9607771234"  # type: ignore[arg-type]
-    assert answer_text(phone, "+9607771234", "en", display=True) == "+960 777 1234"  # type: ignore[arg-type]
+    assert answer_text(phone, "+9607771234") == "+9607771234"  # type: ignore[arg-type]
+    assert answer_text(phone, "+9607771234", display=True) == "+960 777 1234"  # type: ignore[arg-type]
 
 
 def test_footer_has_no_middle_dot() -> None:
@@ -80,7 +81,7 @@ def test_signature_stays_with_its_statement() -> None:
     for language in ("en", "dv"):
         # Room for everything: label, statement and image stay on page 1.
         doc = _signature_doc(language)
-        _signature(doc, "Signature", _sig())
+        _signature(doc, "Signature", _sig(), "left")
         assert doc.page_no() == 1
         # Near the bottom the statement would fit but the image would not: the page breaks
         # before the label, so the label, statement and image all land on page 2 together.
@@ -90,7 +91,7 @@ def test_signature_stays_with_its_statement() -> None:
         image_h = SIGNATURE_WIDTH * size[1] / size[0]
         doc = _signature_doc(language)
         doc.set_y(doc.page_break_trigger - 15)
-        _signature(doc, "Signature", sig)
+        _signature(doc, "Signature", sig, "left")
         assert doc.page_no() == 2
         # Page 2 holds more than the image and its baseline: the label and statement too.
         assert doc.get_y() > doc.t_margin + image_h + 5 + 8
@@ -98,8 +99,15 @@ def test_signature_stays_with_its_statement() -> None:
 
 def test_dhivehi_email_answers_use_the_thaana_face_and_scale() -> None:
     def html(language: str) -> str:
-        form = _form(language, field("name", label="Name"), field("phone", "phone", label="Phone"))
-        answers = answers_for_email(form, {"name": "Aminath", "phone": "+9607771234"})
+        dv = language == "dv"
+        form = _form(
+            language,
+            field("name", label="ނަން" if dv else "Name"),
+            field("phone", "phone", label="ފޯނު" if dv else "Phone"),
+        )
+        answers = answers_for_email(
+            form, {"name": "އާމިނަތު" if dv else "Aminath", "phone": "+9607771234"}
+        )
         return (
             receipt_message(
                 org_name="Example Office",
@@ -115,7 +123,7 @@ def test_dhivehi_email_answers_use_the_thaana_face_and_scale() -> None:
         )
 
     dv = html("dv")
-    assert '<td lang="dv"' in dv and "Noto Sans Thaana" in dv
+    assert '<div lang="dv" dir="rtl"' in dv and "Noto Sans Thaana" in dv
     assert "font-size:16px" in dv and "font-size:18px" in dv
     assert "+960 777 1234" in dv
     en = html("en")

@@ -8,9 +8,9 @@ import type { Form } from '@/schema'
 import { FormHeader } from './form-view'
 import { DEFAULT_THEME } from './theme'
 
-const form = (language: 'en' | 'dv' = 'en'): Form => ({
-  schemaVersion: '1',
-  settings: { title: 'Youth programme', language },
+const form = (title = 'Youth programme', extra: Partial<Form['settings']> = {}): Form => ({
+  schemaVersion: '2',
+  settings: { title, ...extra },
   pages: [{ id: 'page_1', elements: [] }],
 })
 

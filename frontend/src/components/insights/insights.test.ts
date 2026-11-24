@@ -57,7 +57,7 @@ describe('Insights helpers', () => {
 
 describe('Ask your submissions', () => {
   const schema = {
-    schemaVersion: '1',
+    schemaVersion: '2',
     settings: { title: 'CSO registration' },
     pages: [
       {

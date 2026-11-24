@@ -56,6 +56,24 @@
     "ContentElement": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Align"
+        },
         "contentType": {
           "enum": [
             "heading",
@@ -125,6 +143,24 @@
     "DateField": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Align"
+        },
         "description": {
           "anyOf": [
             {
@@ -264,6 +300,24 @@
     "EmailField": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Align"
+        },
         "description": {
           "anyOf": [
             {
@@ -410,6 +464,24 @@
           "title": "Accept",
           "type": "array"
         },
+        "align": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Align"
+        },
         "description": {
           "anyOf": [
             {
@@ -544,6 +616,24 @@
     "HiddenField": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Align"
+        },
         "description": {
           "anyOf": [
             {
@@ -654,19 +744,28 @@
       "title": "HiddenField",
       "type": "object"
     },
-    "InputScript": {
-      "enum": [
-        "auto",
-        "latin",
-        "thaana"
-      ],
-      "title": "InputScript",
-      "type": "string"
-    },
     "JsonValue": {},
     "LongTextField": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Align"
+        },
         "description": {
           "anyOf": [
             {
@@ -684,10 +783,6 @@
           "pattern": "^[a-z][a-z0-9_]{0,62}$",
           "title": "Id",
           "type": "string"
-        },
-        "inputScript": {
-          "$ref": "#/$defs/InputScript",
-          "default": "auto"
         },
         "kind": {
           "const": "field",
@@ -812,6 +907,24 @@
     "MultiChoiceField": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Align"
+        },
         "allowOther": {
           "default": false,
           "title": "Allowother",
@@ -999,6 +1112,24 @@
     "NumberField": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Align"
+        },
         "description": {
           "anyOf": [
             {
@@ -1197,6 +1328,24 @@
     "Page": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Align"
+        },
         "description": {
           "anyOf": [
             {
@@ -1411,6 +1560,24 @@
     "PhoneField": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Align"
+        },
         "defaultCountry": {
           "anyOf": [
             {
@@ -1537,6 +1704,24 @@
     "RatingField": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Align"
+        },
         "description": {
           "anyOf": [
             {
@@ -1669,6 +1854,24 @@
           ],
           "default": null,
           "title": "Addlabel"
+        },
+        "align": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Align"
         },
         "description": {
           "anyOf": [
@@ -1897,6 +2100,24 @@
     "SectionElement": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Align"
+        },
         "description": {
           "anyOf": [
             {
@@ -2110,6 +2331,17 @@
     "Settings": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "left",
+            "center",
+            "right"
+          ],
+          "title": "Align",
+          "type": "string"
+        },
         "backLabel": {
           "anyOf": [
             {
@@ -2135,15 +2367,6 @@
           ],
           "default": null,
           "title": "Description"
-        },
-        "language": {
-          "default": "en",
-          "enum": [
-            "en",
-            "dv"
-          ],
-          "title": "Language",
-          "type": "string"
         },
         "nextLabel": {
           "anyOf": [
@@ -2191,6 +2414,24 @@
           "maxLength": 10000,
           "title": "Title",
           "type": "string"
+        },
+        "titleAlign": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Titlealign"
         }
       },
       "required": [
@@ -2202,6 +2443,24 @@
     "ShortTextField": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Align"
+        },
         "description": {
           "anyOf": [
             {
@@ -2232,10 +2491,6 @@
           ],
           "default": null,
           "title": "Idpreset"
-        },
-        "inputScript": {
-          "$ref": "#/$defs/InputScript",
-          "default": "auto"
         },
         "kind": {
           "const": "field",
@@ -2372,6 +2627,24 @@
     "SignatureField": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Align"
+        },
         "attestation": {
           "anyOf": [
             {
@@ -2498,6 +2771,24 @@
     "SingleChoiceField": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Align"
+        },
         "allowOther": {
           "default": false,
           "title": "Allowother",
@@ -2668,6 +2959,24 @@
     "TimeField": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Align"
+        },
         "description": {
           "anyOf": [
             {
@@ -2781,6 +3090,24 @@
     "YesNoField": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Align"
+        },
         "description": {
           "anyOf": [
             {
@@ -2892,10 +3219,10 @@
       "type": "object"
     }
   },
-  "$id": "https://github.com/alee-ibrahim/justforms/blob/main/spec/form-schema.v1.json",
+  "$id": "https://github.com/alee-ibrahim/justforms/blob/main/spec/form-schema.v2.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "JustForms form document, schemaVersion 1. GENERATED from backend/app/schemas/form.py; do not edit by hand. Cross-element rules (unique ids, logic references, cycles) are enforced by the backend and are not expressible here.",
+  "description": "JustForms form document, schemaVersion 2. GENERATED from backend/app/schemas/form.py; do not edit by hand. Cross-element rules (unique ids, logic references, cycles) are enforced by the backend and are not expressible here.",
   "properties": {
     "pages": {
       "items": {
@@ -2907,8 +3234,8 @@
       "type": "array"
     },
     "schemaVersion": {
-      "const": "1",
-      "default": "1",
+      "const": "2",
+      "default": "2",
       "title": "Schemaversion",
       "type": "string"
     },

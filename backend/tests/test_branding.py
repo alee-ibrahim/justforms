@@ -165,9 +165,7 @@ def test_email_sender_and_brand_footer() -> None:
         custom=True,
         button_bg="#0F766E",
     )
-    msg = code_message(
-        org_name="x", title="T", language="en", code="123456", minutes=10, brand=brand
-    )
+    msg = code_message(org_name="x", title="T", code="123456", minutes=10, brand=brand)
     assert msg.from_name == "Example Office"
     assert (
         msg.html and 'src="http://testserver/api/v1/public/branding/default/logo?v=1"' in msg.html
@@ -311,7 +309,7 @@ def test_pdf_header_with_logo(logo: bytes | None) -> None:
 
     form = Form.model_validate(
         {
-            "settings": {"title": "Application", "language": "en"},
+            "settings": {"title": "Application"},
             "pages": [{"id": "p1", "elements": [field("name")]}],
         }
     )

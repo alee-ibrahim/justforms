@@ -19,9 +19,9 @@ import {
 import { api, type FormSummary, type SubmissionSummary } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import type { FieldElement, Form, FormLanguage } from '@/schema'
-import { contentProps, formLanguage } from '@/schema/language'
-import { hasThaana } from '@yashau/thaana-react'
+import type { FieldElement, Form } from '@/schema'
+import { textLang } from '@/schema/direction'
+import { textProps } from '@/schema/align'
 
 import { attachments, MAX_CARD_FIELDS } from './card-fields'
 import { answerText } from './format'
@@ -30,8 +30,8 @@ import { SubmissionStatusBadge } from './status-badge'
 
 const reference = (seq: number) => `#${String(seq).padStart(4, '0')}`
 
-function CardValue({ field, row, form }: { field: FieldElement; row: SubmissionSummary; form: Form }) {
-  const text = answerText(field, row.data[field.id], formLanguage(form))
+function CardValue({ field, row }: { field: FieldElement; row: SubmissionSummary }) {
+  const text = answerText(field, row.data[field.id])
   if (!text) return <span className="text-muted-foreground">-</span>
   if (field.sensitive)
     return (
@@ -44,8 +44,8 @@ function CardValue({ field, row, form }: { field: FieldElement; row: SubmissionS
   return (
     <bdi
       dir={latin ? 'ltr' : 'auto'}
-      // Latin answers in a dv form keep the Latin face (lang only marks Thaana text).
-      lang={!latin && hasThaana(text) ? 'dv' : 'en'}
+      // Each answer takes its own language: Thaana answers get the Thaana face.
+      lang={latin ? 'en' : textLang(text)}
       className={cn(latin && 'tabular-nums')}
     >
       {text}
@@ -78,7 +78,6 @@ export function SubmissionCards({
   search: SubmissionsSearch
   lastId: string | null
 }) {
-  const language = schema ? formLanguage(schema) : 'en'
   return (
     <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" aria-label="Submissions">
       {rows.map((row) => {
@@ -129,16 +128,15 @@ export function SubmissionCards({
               {schema && shown.length > 0 && (
                 <CardContent className="px-4">
                   <dl
-                    {...contentProps(language)}
                     className="grid grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-sm"
                   >
                     {shown.map((f) => (
                       <div key={f.id} className="contents">
-                        <dt className="truncate text-muted-foreground" title={f.label}>
+                        <dt {...textProps(f.label)} className="truncate text-muted-foreground" title={f.label}>
                           {f.label}
                         </dt>
                         <dd className={cn('min-w-0', f.type === 'long_text' ? 'line-clamp-2' : 'truncate')}>
-                          <CardValue field={f} row={row} form={schema} />
+                          <CardValue field={f} row={row} />
                         </dd>
                       </div>
                     ))}
@@ -179,12 +177,10 @@ export function CardFieldPicker({
   form,
   fields,
   shown,
-  language,
 }: {
   form: FormSummary
   fields: FieldElement[]
   shown: FieldElement[]
-  language: FormLanguage
 }) {
   const queryClient = useQueryClient()
   const save = useMutation({
@@ -228,7 +224,7 @@ export function CardFieldPicker({
                   save.mutate(fields.filter((x) => chosen.has(x.id)).map((x) => x.id))
                 }}
               >
-                <bdi lang={language} dir="auto" className="truncate">
+                <bdi {...textProps(f.label)} className="truncate">
                   {f.label}
                 </bdi>
               </DropdownMenuCheckboxItem>

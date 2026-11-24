@@ -1,5 +1,5 @@
 /**
- * Form schema types and structural validation, derived from spec/form-schema.v1.json
+ * Form schema types and structural validation, derived from spec/form-schema.v2.json
  * (which is exported from the canonical Pydantic models in backend/app/schemas/form.py).
  *
  * Structural validation only: cross-element rules (unique ids, references, cycles) are
@@ -15,7 +15,7 @@ import type {
   RepeaterElement,
   SectionElement,
 } from './generated/form'
-import spec from './generated/form-schema.v1.json'
+import spec from './generated/form-schema.v2.json'
 
 export type * from './generated/form'
 
@@ -26,7 +26,7 @@ export type FieldType = FieldElement['type']
 export type ContainerElement = SectionElement | RepeaterElement
 export type { Condition }
 
-export const SCHEMA_VERSION = '1'
+export const SCHEMA_VERSION = '2'
 export const ID_PATTERN = /^[a-z][a-z0-9_]{0,62}$/
 
 export const FIELD_TYPES = [
@@ -56,11 +56,14 @@ export function parseForm(data: unknown): { ok: true; form: Form } | { ok: false
     : { ok: false, error: result.error }
 }
 
+export { ALIGN_OPTIONS, alignClass, textProps } from './align'
 export {
-  contentProps,
-  FORM_LANGUAGES,
-  formLanguage,
-  isFormLanguage,
-  type FormLanguage,
+  formDirection,
+  hasThaana,
+  resolveAlign,
+  textDirection,
+  textLang,
+  type ContentLang,
+  type TextAlign,
   type TextDirection,
-} from './language'
+} from './direction'

@@ -10,7 +10,8 @@ import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { displayText } from '@/thaana/display'
+import { FormText } from '@/thaana/form-text'
+import { textDirection, textLang } from '@/schema/direction'
 import type {
   FieldElement,
   LongTextField,
@@ -31,7 +32,6 @@ const FileUpload = lazy(() => import('./file-upload'))
 const RatingControl = lazy(() => import('./rating'))
 const MultiChoiceControl = lazy(() => import('./multi-choice'))
 const PhoneControl = lazy(() => import('./phone'))
-const ThaanaInput = lazy(() => import('./thaana-input'))
 
 /** Comfortable public sizing, applied at the call site (components/ui stays untouched). */
 export const CONTROL = 'h-12 text-base md:text-base sm:h-11'
@@ -74,6 +74,7 @@ function autoComplete(id: string): string | undefined {
 
 // -- text ----------------------------------------------------------------------------------
 
+
 function TextControl({
   field,
   path,
@@ -81,14 +82,18 @@ function TextControl({
   describedBy,
 }: ControlProps & { field: ShortTextField | LongTextField }) {
   const { ctx, value, set, blur } = useAnswer(path)
-  // An ID number: Latin typing (never the Thaana keyboard), normalised as it is typed.
+  // An ID number: left to right, normalised as it is typed.
   const preset = idPresetOf(field)
-  const script = preset ? 'latin' : (field.inputScript ?? 'auto')
   const text = typeof value === 'string' ? value : ''
-  const dir = script === 'latin' ? 'ltr' : script === 'thaana' ? 'rtl' : undefined
+  // Answers switch direction as they are typed (first strong character): Dhivehi typed with
+  // the device's keyboard goes right to left in the Thaana face, English left to right. An
+  // empty box starts on the side of its placeholder or label.
+  const emptyDir = preset ? 'ltr' : textDirection(field.placeholder || field.label, ctx.dir)
+  const dir = preset ? 'ltr' : text ? textDirection(text, emptyDir) : emptyDir
   const common = {
     id: controlId(path),
     dir,
+    lang: preset ? 'en' : textLang(text || field.placeholder || field.label),
     value: text,
     placeholder: field.placeholder || preset?.placeholder || undefined,
     'aria-invalid': invalid || undefined,
@@ -107,40 +112,19 @@ function TextControl({
       </p>
     ) : null
 
-  if (script === 'latin' || (script === 'auto' && ctx.language !== 'dv')) {
-    return (
-      <>
-        {field.type === 'long_text' ? (
-          <Textarea {...common} rows={field.rows ?? 4} className="min-h-28 text-base md:text-base" />
-        ) : (
-          <Input
-            {...common}
-            {...(preset
-              ? { autoComplete: 'off', autoCapitalize: 'characters', autoCorrect: 'off', spellCheck: false }
-              : { autoComplete: autoComplete(field.id) })}
-            className={cn(CONTROL, preset && 'tabular-nums tracking-wide')}
-          />
-        )}
-        {counter}
-      </>
-    )
-  }
-  // Thaana input with the phonetic keyboard toggle: only Dhivehi forms need it (lazy chunk).
-  const long = field.type === 'long_text'
-  const rows = field.type === 'long_text' ? (field.rows ?? 4) : 4
   return (
     <>
-      <Suspense
-        fallback={
-          long ? (
-            <Textarea {...common} rows={rows} className="min-h-28 text-base md:text-base" />
-          ) : (
-            <Input {...common} className={CONTROL} />
-          )
-        }
-      >
-        <ThaanaInput common={common} long={long} rows={rows} canvas={ctx.mode === 'canvas'} />
-      </Suspense>
+      {field.type === 'long_text' ? (
+        <Textarea {...common} rows={field.rows ?? 4} className="min-h-28 text-base md:text-base" />
+      ) : (
+        <Input
+          {...common}
+          {...(preset
+            ? { autoComplete: 'off', autoCapitalize: 'characters', autoCorrect: 'off', spellCheck: false }
+            : { autoComplete: autoComplete(field.id) })}
+          className={cn(CONTROL, preset && 'tabular-nums tracking-wide')}
+        />
+      )}
       {counter}
     </>
   )
@@ -281,7 +265,7 @@ function SingleChoiceControl({
           {ltrRun(MSG.choose)}
         </NativeSelectOption>
         {field.options.map((o) => (
-          <NativeSelectOption key={o.value} value={o.value}>
+          <NativeSelectOption key={o.value} value={o.value} dir={textDirection(o.label)} lang={textLang(o.label)}>
             {o.label}
           </NativeSelectOption>
         ))}
@@ -311,7 +295,9 @@ function SingleChoiceControl({
             id={i === 0 ? base : `${base}-${i}`}
             control={<RadioGroupItem value={o.value} id={i === 0 ? base : `${base}-${i}`} />}
           >
-            {displayText(o.label, ctx.language)}
+            <bdi dir={textDirection(o.label)} lang={textLang(o.label)}>
+              <FormText text={o.label} />
+            </bdi>
           </ChoiceCard>
         ))}
         {field.allowOther && (

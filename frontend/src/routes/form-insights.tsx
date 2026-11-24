@@ -29,7 +29,7 @@ import { versionQuery, versionsQuery } from '@/lib/queries'
 import { useDelayed } from '@/lib/use-delayed'
 import { buildIndex } from '@/logic/form-index'
 import type { FieldElement } from '@/schema'
-import { formLanguage } from '@/schema/language'
+import { textLang } from '@/schema/direction'
 
 const TABS: Tab[] = ['all', 'new', 'in_review', 'approved', 'rejected']
 
@@ -37,7 +37,6 @@ function Grid({
   questions,
   of,
   unit,
-  language,
   formId,
   multipleVersions,
   onOpen,
@@ -45,7 +44,6 @@ function Grid({
   questions: QuestionSummary[]
   of: number
   unit: 'submissions' | 'rows'
-  language: string
   formId: string
   multipleVersions: boolean
   onOpen: (where: Condition[], label: string) => void
@@ -58,7 +56,6 @@ function Grid({
           q={q}
           of={of}
           unit={unit}
-          language={language}
           formId={formId}
           multipleVersions={multipleVersions}
           onOpen={onOpen}
@@ -94,7 +91,6 @@ export function FormInsightsPage() {
   })
   const showSkeleton = useDelayed(summary.isPending)
   const schema = live.data?.schema
-  const language = schema ? formLanguage(schema) : 'en'
   const fields = useMemo(
     () =>
       schema
@@ -179,7 +175,7 @@ export function FormInsightsPage() {
               ))}
             </SelectContent>
           </Select>
-          <AddFilter fields={fields} language={language} onAdd={(f) => setSearch({ fields: [...fieldFilters, f] })} />
+          <AddFilter fields={fields} onAdd={(f) => setSearch({ fields: [...fieldFilters, f] })} />
           <DateRangeFilter from={search.from} to={search.to} onChange={(r) => setSearch(r)} />
           <VersionFilter
             versions={(versions.data ?? []).map((v) => v.version).sort((a, b) => b - a)}
@@ -195,7 +191,6 @@ export function FormInsightsPage() {
             <FilterChips
               filters={fieldFilters}
               fields={fields}
-              language={language}
               onRemove={(i) => setSearch({ fields: fieldFilters.filter((_, j) => j !== i) })}
             />
             {conditions && (
@@ -211,9 +206,9 @@ export function FormInsightsPage() {
         )}
       </div>
 
-      <AskEntry schema={schema} language={language} />
+      <AskEntry schema={schema} />
 
-      <FrictionCard formId={form.id} schema={schema} language={language} />
+      <FrictionCard formId={form.id} schema={schema} />
 
       {summary.isError && (
         <Alert variant="destructive">
@@ -265,7 +260,6 @@ export function FormInsightsPage() {
               questions={data.questions}
               of={data.total}
               unit="submissions"
-              language={data.language}
               formId={form.id}
               multipleVersions={multipleVersions}
               onOpen={openList}
@@ -274,7 +268,7 @@ export function FormInsightsPage() {
               <section key={r.key} aria-labelledby={`rep-${r.key}`} className="flex flex-col gap-3 border-t pt-4">
                 <div className="flex flex-col gap-0.5">
                   <h2 id={`rep-${r.key}`} className="text-base font-medium">
-                    <bdi dir="auto" lang={data.language}>
+                    <bdi dir="auto" lang={textLang(r.label)}>
                       {r.label}
                     </bdi>
                   </h2>
@@ -288,7 +282,6 @@ export function FormInsightsPage() {
                   questions={r.questions}
                   of={r.rows}
                   unit="rows"
-                  language={data.language}
                   formId={form.id}
                   multipleVersions={multipleVersions}
                   onOpen={openList}

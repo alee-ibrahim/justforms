@@ -5,7 +5,7 @@
  */
 import type { Brand } from '@/lib/branding'
 import type { ServerError } from '@/renderer/form-view'
-import type { Form, FormLanguage } from '@/schema'
+import type { Form } from '@/schema'
 
 export type AccessMode = 'public' | 'otp' | 'staff'
 
@@ -31,7 +31,6 @@ export interface LiveForm {
   brand?: Brand
   accessMode: AccessMode
   title: string
-  language: FormLanguage
   /** Null until the respondent has confirmed their email (email-code forms). */
   schema: Form | null
   thaanaFontCssUrl: string

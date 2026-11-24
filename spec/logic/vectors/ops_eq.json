@@ -2,9 +2,8 @@
   "name": "ops_eq",
   "description": "eq/neq: deep JSON equality, no coercion, booleans are not numbers, NFC strings",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

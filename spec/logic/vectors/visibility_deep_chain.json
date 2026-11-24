@@ -2,9 +2,8 @@
   "name": "visibility_deep_chain",
   "description": "Each field is visible only if the previous one is visible and true",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

@@ -20,7 +20,6 @@ import {
   TriangleAlertIcon,
   Undo2Icon,
 } from 'lucide-react'
-import { useThaanaKeyboard } from '@yashau/thaana-react'
 import { type RefObject, useRef, useState } from 'react'
 
 import { useAi, useAiController } from '@/components/ai/controller'
@@ -55,7 +54,7 @@ import { useMenuTooltip } from '@/components/layout/use-menu-tooltip'
 import type { FormSummary } from '@/lib/api'
 import { MOD_KEY } from '@/lib/shortcuts'
 import { cn } from '@/lib/utils'
-import { contentProps, formLanguage } from '@/schema/language'
+import { textLang } from '@/schema/direction'
 
 import { activeNav, FORM_NAV as NAV, type NavItem } from './form-nav'
 import { LogicOverview } from './logic-overview'
@@ -237,15 +236,14 @@ function UndoRedo({ store }: { store: BuilderStore }) {
 function TitleCrumb({ store }: { store: BuilderStore }) {
   const schema = useBuilder((s) => s.schema)
   const [editing, setEditing] = useState<string | null>(null)
-  const keyboard = useThaanaKeyboard<HTMLInputElement>({ enabled: formLanguage(schema) === 'dv' })
   const title = schema.settings.title
   if (editing !== null)
     return (
       <Input
-        ref={keyboard}
         autoFocus
         aria-label="Form title"
-        {...contentProps(formLanguage(schema))}
+        dir="auto"
+        lang={textLang(editing || title)}
         value={editing}
         className="h-7 w-64"
         onChange={(e) => setEditing(e.target.value)}
@@ -269,7 +267,7 @@ function TitleCrumb({ store }: { store: BuilderStore }) {
         title="Rename"
       >
         {title ? (
-          <bdi dir="auto" lang={formLanguage(schema)}>
+          <bdi dir="auto" lang={textLang(title)}>
             {title}
           </bdi>
         ) : (
@@ -311,7 +309,7 @@ function DraftTitle() {
   const schema = useBuilder((s) => s.schema)
   const title = schema.settings.title
   return title ? (
-    <bdi dir="auto" lang={formLanguage(schema)}>
+    <bdi dir="auto" lang={textLang(title)}>
       {title}
     </bdi>
   ) : (

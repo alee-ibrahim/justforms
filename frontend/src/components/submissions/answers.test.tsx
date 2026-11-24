@@ -10,16 +10,25 @@ import { Answers } from './answers'
 
 const opts = (...values: string[]) => values.map((v) => ({ value: v, label: v[0].toUpperCase() + v.slice(1) }))
 
-const form = (language: 'en' | 'dv' = 'en'): Form =>
+type Variant = { dv?: boolean; align?: 'left' | 'center' | 'right'; nameAlign?: 'auto' | 'left' | 'center' | 'right' }
+
+const form = ({ dv = false, align, nameAlign }: Variant = {}): Form =>
   ({
-    schemaVersion: '1',
-    settings: { title: 'Application', language },
+    schemaVersion: '2',
+    settings: { title: 'Application', ...(align ? { align } : {}) },
     pages: [
       {
         id: 'about',
-        title: language === 'dv' ? 'ތަފްޞީލު' : 'About you',
+        title: dv ? 'ތަފްޞީލު' : 'About you',
         elements: [
-          { kind: 'field', id: 'name', type: 'short_text', label: language === 'dv' ? 'ނަން' : 'Full name', width: 'half' },
+          {
+            kind: 'field',
+            id: 'name',
+            type: 'short_text',
+            label: dv ? 'ނަން' : 'Full name',
+            width: 'half',
+            ...(nameAlign ? { align: nameAlign } : {}),
+          },
           { kind: 'field', id: 'dob', type: 'date', label: 'Date of birth', width: 'half' },
           { kind: 'field', id: 'email', type: 'email', label: 'Email' },
           { kind: 'field', id: 'phone', type: 'phone', label: 'Phone' },
@@ -94,11 +103,11 @@ const DATA = {
   sign: 'sig-1',
 }
 
-const render = (props: Partial<Parameters<typeof Answers>[0]> & { language?: 'en' | 'dv' } = {}) => {
-  const { language, ...rest } = props
+const render = (props: Partial<Parameters<typeof Answers>[0]> & Variant = {}) => {
+  const { dv, align, nameAlign, ...rest } = props
   return renderToStaticMarkup(
     <TooltipProvider>
-      <Answers form={form(language)} data={DATA} signatures={[SIG]} {...rest} />
+      <Answers form={form({ dv, align, nameAlign })} data={DATA} signatures={[SIG]} {...rest} />
     </TooltipProvider>,
   )
 }
@@ -156,8 +165,8 @@ describe('Answers (form view)', () => {
     expect(shown).toContain('Skipped (not shown to the respondent)')
   })
 
-  it('renders a Dhivehi form with Thaana labels and Latin data isolated left to right', () => {
-    const html = render({ language: 'dv' })
+  it('renders Thaana labels and Latin data isolated left to right', () => {
+    const html = render({ dv: true })
     expect(html).toContain('ނަން')
     expect(html).toContain('ތަފްޞީލު')
     expect(html).toMatch(/<bdi dir="ltr">\+960 777 1234<\/bdi>/)
@@ -165,5 +174,42 @@ describe('Answers (form view)', () => {
     // System words stay English runs inside the RTL sheet.
     expect(html).toMatch(/<bdi dir="ltr" lang="en">No<\/bdi>/)
     expect(html).toMatch(/<bdi dir="ltr" lang="en">Other:<\/bdi>/)
+  })
+  it('gives each label in a mixed English and Dhivehi form its own direction', () => {
+    const html = render({ dv: true })
+    // Dhivehi page title and label: right to left, Thaana, the lighter Thaana weight.
+    expect(html).toMatch(/<h2 id="page-about" lang="dv" dir="rtl" class="[^"]*font-bold[^"]*text-start/)
+    expect(html).toMatch(/<dt lang="dv" dir="rtl" class="[^"]*font-normal[^"]*text-start[^"]*">ނަން<\/dt>/)
+    // English labels on the same sheet stay left to right.
+    expect(html).toMatch(/<dt lang="en" dir="ltr" class="[^"]*font-medium[^"]*text-start[^"]*">Date of birth<\/dt>/)
+    expect(html).toMatch(/<h2 id="page-more" lang="en" dir="ltr"/)
+    // Answers take the direction of their own text.
+    expect(html).toMatch(/<bdi lang="en" dir="ltr">Aminath Ali<\/bdi>/)
+  })
+
+  it('marks the Dhivehi run inside a bilingual label', () => {
+    const bilingual = form()
+    const name = bilingual.pages[0].elements![0] as { label: string }
+    name.label = 'Name / ނަން'
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <Answers form={bilingual} data={DATA} signatures={[SIG]} />
+      </TooltipProvider>,
+    )
+    expect(html).toMatch(/<dt lang="en" dir="ltr" class="[^"]*">Name \/ <span lang="dv" dir="rtl"[^>]*>ނަން<\/span><\/dt>/)
+  })
+
+  it('aligns labels and headings: the element first, then the form default', () => {
+    const own = render({ nameAlign: 'center' })
+    expect(own).toMatch(/<dt lang="en" dir="ltr" class="[^"]*text-center[^"]*">Full name<\/dt>/)
+    // Form default "right": the end of an English label, the start of a Dhivehi one.
+    const right = render({ align: 'right', dv: true })
+    expect(right).toMatch(/<dt lang="en" dir="ltr" class="[^"]*text-end[^"]*">Date of birth<\/dt>/)
+    expect(right).toMatch(/<dt lang="dv" dir="rtl" class="[^"]*text-start[^"]*">ނަން<\/dt>/)
+    expect(right).toMatch(/<h3 lang="en" dir="ltr" class="[^"]*text-end[^"]*">Where you live<\/h3>/)
+    // An element's "auto" overrides the form default and follows its text.
+    const auto = render({ align: 'center', nameAlign: 'auto' })
+    expect(auto).toMatch(/<dt lang="en" dir="ltr" class="[^"]*text-start[^"]*">Full name<\/dt>/)
+    expect(auto).toMatch(/<dt lang="en" dir="ltr" class="[^"]*text-center[^"]*">Date of birth<\/dt>/)
   })
 })

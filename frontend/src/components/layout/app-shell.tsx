@@ -147,8 +147,8 @@ function HeaderBrand({ brand }: { brand: Brand | undefined }) {
 /** Pages inside one form (`/forms/{id}/...`), which carry the form bar. */
 const FORM_PAGE = /^\/forms\/(?!import\/)[^/]+\/./
 
-/** Studio chrome. The studio UI is English and left-to-right; only form content follows
- * the form's language (see `contentProps` in `@/schema`). On phones a form page shows one
+/** Studio chrome. The studio UI is English and left-to-right; only form content takes the
+ * direction of its own text (see `textProps` in `@/schema`). On phones a form page shows one
  * bar, the form bar, so this header steps aside there (STUDIO-HEADER 2). */
 export function AppShell() {
   const meta = useQuery(metaQuery)

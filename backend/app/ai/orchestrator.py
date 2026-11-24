@@ -52,7 +52,6 @@ async def run_request(
     *,
     working: WorkingCopy,
     mode: Mode,
-    language: str,
     history: list[ChatMessage],
     request: ChatMessage,
     max_tool_calls: int,
@@ -70,7 +69,7 @@ async def run_request(
     )
     outcome = TurnOutcome(status="ok", working=copy_)
     tools = tool_specs(importing=working.importing)
-    system = system_prompt(mode=mode, language=language, form_json=compact(copy_.schema))
+    system = system_prompt(mode=mode, form_json=compact(copy_.schema))
     messages = [*history, request]
     used = errors = 0
 

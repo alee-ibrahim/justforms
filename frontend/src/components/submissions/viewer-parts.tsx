@@ -6,9 +6,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import type { SubmissionDetail } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
 import type { Element, FieldElement } from '@/schema'
+import { textLang } from '@/schema/direction'
 
 import { FileCards } from './file-cards'
-import { formLanguage } from '@/schema/language'
 
 function walkFields(elements: Element[] | undefined, out: FieldElement[]): FieldElement[] {
   for (const el of elements ?? []) {
@@ -112,7 +112,6 @@ export function RespondentLine({ d }: { d: SubmissionDetail }) {
 export function HiddenValues({ d }: { d: SubmissionDetail }) {
   const hidden = allFields(d.schema).filter((f) => f.type === 'hidden' && d.data[f.id] !== undefined && d.data[f.id] !== '')
   if (!hidden.length) return null
-  const language = formLanguage(d.schema)
   return (
     <section aria-labelledby="hidden-values" className="flex flex-col gap-2">
       <h3 id="hidden-values" className="text-sm font-medium">
@@ -125,7 +124,7 @@ export function HiddenValues({ d }: { d: SubmissionDetail }) {
               {f.id}
             </dt>
             <dd className="min-w-0 break-words">
-              <bdi dir="auto" lang={language}>
+              <bdi dir="auto" lang={textLang(String(d.data[f.id]))}>
                 {String(d.data[f.id])}
               </bdi>
             </dd>
