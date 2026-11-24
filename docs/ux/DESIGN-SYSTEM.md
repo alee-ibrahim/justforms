@@ -134,7 +134,7 @@ fixed so every form remains legible and recognisably JustForms.
 |---|---|---|---|
 | Latin UI and form text | **Inter** (variable, 100–900) | A clean, neutral sans with a tall x-height that stays readable at 13–15px in dense studio tables and scales up well for form questions. Its default figures are plain: the zero has no slash or dot, `1`, `4` and `7` are unambiguous, and `tnum` gives equal-width figures for columns. Atkinson Hyperlegible Next (the v1 choice) read badly in practice: its slashed zero turned `40` into "4Ø" and reference numbers like `#0040` into a row of crossed circles. Geist and IBM Plex Sans were considered: Geist's figures are narrow and its small sizes light; Plex's squarish digits and flagged `1` feel technical next to form questions. | `@fontsource-variable/inter` (SIL OFL), weight axis only (`inter/wght.css`) |
 | Code-like values | **Atkinson Hyperlegible Mono** | Only for things that literally are code: field keys (`full_name`), hashes, embed snippets, version ids, env var names. Its slashed zero is right there (a hash must never be misread). Never for general small labels, references, dates or amounts. | `@fontsource-variable/atkinson-hyperlegible-mono` (SIL OFL) |
-| Thaana | `Faruma, "MV Faseyha", "Noto Sans Thaana", sans-serif` | Faruma is what Dhivehi readers expect on official forms. Noto Sans Thaana is the bundled fallback. Never commit Faruma or MV files. | runtime stylesheet `JUSTFORMS_THAANA_FONT_CSS_URL` (default: dvfonts CDN; or self-hosted `/fonts/...`; or empty), operator `/fonts/fonts.css`, `@fontsource/noto-sans-thaana` |
+| Thaana | `"MV Faseyha", Faruma, "Noto Sans Thaana", sans-serif` | MV Faseyha (regular and bold) is the default, loaded at runtime; Faruma is offered as a theme font. Noto Sans Thaana is the bundled fallback. Never commit Faruma or MV files. | runtime stylesheet `JUSTFORMS_THAANA_FONT_CSS_URL` (default: dvfonts CDN; or self-hosted `/fonts/...`; or empty), operator `/fonts/fonts.css`, `@fontsource/noto-sans-thaana` |
 
 Loading: Inter is self-hosted from the app's own assets (no font CDN). Its `@font-face` rules
 carry `unicode-range`, so a Latin page downloads only the Latin file (about 47 KB of woff2, a
@@ -159,14 +159,14 @@ Font variables:
 
 ```css
 @theme inline {
-  --font-sans: 'Inter Variable', 'Inter Fallback', Roboto, 'Segoe UI', 'Helvetica Neue', Arial, Faruma, 'MV Faseyha', 'Noto Sans Thaana', sans-serif;
+  --font-sans: 'Inter Variable', 'Inter Fallback', Roboto, 'Segoe UI', 'Helvetica Neue', Arial, 'MV Faseyha', Faruma, 'Noto Sans Thaana', sans-serif;
   --font-heading: var(--font-sans);
   --font-mono: 'Atkinson Hyperlegible Mono Variable', ui-monospace, monospace;
-  --font-thaana: Faruma, 'MV Faseyha', 'Noto Sans Thaana', sans-serif;
+  --font-thaana: 'MV Faseyha', Faruma, 'Noto Sans Thaana', sans-serif;
 }
 ```
 
-Because Latin comes first in `--font-sans`, Thaana characters fall through to Faruma via
+Because Latin comes first in `--font-sans`, Thaana characters fall through to the Thaana face via
 `unicode-range`, so mixed strings ("ID card ކާޑު") render correctly in either context.
 In a `dv` form root, put the Thaana stack first: `[lang=dv] { font-family: var(--font-thaana), var(--font-sans) }`
 so Thaana punctuation (`،` `؟`) and digits come from the Thaana face.
@@ -238,10 +238,15 @@ Rules:
   ```
 
   Never size Thaana per field or per component.
-- **Faruma has one weight.** Bold is synthesised by the browser and gets muddy below 20px.
-  In dv, hierarchy comes from size and colour: labels stay weight 400 (Ink, `text-lg`),
-  only page and form titles use 700 (synthetic bold is acceptable at that size). Noto Sans
-  Thaana has a real 700, so the same rule keeps both fonts looking alike.
+- **Never synthetic bold.** `:lang(dv)` sets `font-synthesis: none`: MV Faseyha and Noto Sans
+  Thaana use their real 700, a single-weight face (Faruma) stays regular instead of smearing.
+  In dv, hierarchy comes from size and colour: labels stay weight 400 (Ink, `text-lg`), only
+  page and form titles use 700. Labels and headings carry `df-label`, which sets the weight per
+  script run (Latin 600, Thaana 400), so a split bilingual label looks the same whichever
+  script has more words.
+- **Mixed sizes.** A Thaana run inside English text is 1.12em; a Latin run (and the English
+  requirement mark) inside Dhivehi text 1/1.12em; in a split bilingual text the part in the
+  other script is scaled the same way, so both parts read at one optical size.
 - **Underlines in Thaana** collide with below-base fili: links and error-summary links in a dv
   root use `underline-offset-[0.4em] decoration-1`.
 - **Numbers inside Dhivehi form text** (labels, titles, options, help text) are isolated at

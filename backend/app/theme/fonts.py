@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from urllib.parse import quote_plus, urlsplit
+from urllib.parse import parse_qs, quote_plus, urlsplit
 
 from app.config import DEFAULT_THAANA_FONTS, Settings
 
@@ -70,14 +70,26 @@ def _css2_base(settings: Settings) -> str | None:
     return f"{parts.scheme}://{parts.netloc}{parts.path}"
 
 
+def _configured_families(settings: Settings) -> set[str]:
+    """Families the configured stylesheet itself loads (``family=MV+Faseyha:wght@400;700``)."""
+    query = urlsplit(settings.thaana_font_css_url).query
+    return {f.split(":")[0].strip() for f in parse_qs(query).get("family", [])}
+
+
 def thaana_fonts(settings: Settings) -> dict[str, Font]:
     base = _css2_base(settings)
+    own = _configured_families(settings) if base else set()
     out: dict[str, Font] = {}
     for name in settings.thaana_fonts or list(DEFAULT_THAANA_FONTS):
         name = name.strip()[:80]
         if not name or not re.fullmatch(r"[A-Za-z0-9 ._-]+", name):
             continue
-        css = f"{base}?family={quote_plus(name)}&display=swap" if base else None
+        # A family the configured stylesheet loads keeps its URL (with its weights, already
+        # linked by every page); others get their own css2 request.
+        if name in own:
+            css: str | None = settings.thaana_font_css_url
+        else:
+            css = f"{base}?family={quote_plus(name)}&display=swap" if base else None
         out[font_id(name)] = Font(font_id(name), name, f"'{name}'", css)
     out[NOTO_THAANA.id] = NOTO_THAANA
     return out

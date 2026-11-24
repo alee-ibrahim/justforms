@@ -56,7 +56,7 @@ describe('FormText split', () => {
   it('shows a bilingual label as one row: English left, Dhivehi right', () => {
     const html = renderToStaticMarkup(<FormText text="Full name: ފުރިހަމަ ނަން" split />)
     expect(html).toBe(
-      '<span dir="ltr" data-slot="bilingual" class="flex w-full flex-wrap items-baseline gap-x-6">' +
+      '<span dir="ltr" data-slot="bilingual" class="flex w-full flex-wrap items-baseline gap-x-6 gap-y-1">' +
         '<span lang="en" dir="ltr" class="text-start" data-part="ltr">Full name:</span>' +
         '<span lang="dv" dir="rtl" class="me-auto text-start" data-part="rtl">ފުރިހަމަ ނަން</span></span>',
     )

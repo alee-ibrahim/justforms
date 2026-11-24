@@ -344,7 +344,7 @@ function ReadElement({ el, data, scope }: { el: Element; data: Data; scope?: Sco
       if (el.contentType === 'divider') return <Separator className="my-2" />
       if (!el.text) return null
       return el.contentType === 'heading' ? (
-        <Heading as="h3" text={el.text} align={el.align} className="text-xl tracking-tight" latin="font-semibold" thaana="font-normal" />
+        <Heading as="h3" text={el.text} align={el.align} className="text-xl tracking-tight" latin="df-label" thaana="df-label" />
       ) : (
         <div {...textProps(el.text)}>
           <Markdown
@@ -359,7 +359,7 @@ function ReadElement({ el, data, scope }: { el: Element; data: Data; scope?: Sco
     case 'section':
       return (
         <section className="flex flex-col gap-4">
-          {el.title && <Heading as="h3" text={el.title} align={el.align} className="text-lg" latin="font-semibold" thaana="font-normal" />}
+          {el.title && <Heading as="h3" text={el.title} align={el.align} className="text-lg" latin="df-label" thaana="df-label" />}
           <div className="@min-[32rem]:border-s @min-[32rem]:ps-4">
             <ReadElements elements={el.elements ?? []} data={data} scope={scope} />
           </div>

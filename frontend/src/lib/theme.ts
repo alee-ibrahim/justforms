@@ -82,7 +82,7 @@ export interface ThemeBase {
 export const JUSTFORMS_DEFAULTS: ThemeBase = {
   resolved: {
     latinFont: 'inter',
-    thaanaFont: 'faruma',
+    thaanaFont: 'mv-faseyha',
     textSize: 'm',
     headingScale: 'standard',
     radius: 'medium',

@@ -343,7 +343,7 @@ function Block({ el, loc, form }: { el: Element; loc: Location; form: Form }) {
                 dir={place.dir}
                 lang={place.lang}
                 style={place.text}
-                className={cn('text-xl', place.lang === 'dv' ? 'font-normal' : 'font-semibold tracking-tight')}
+                className={cn('df-label text-xl', place.lang !== 'dv' && 'tracking-tight')}
               >
                 {text('text', el.text ?? '', { name: 'heading', empty: 'Add text…' })}
               </h3>

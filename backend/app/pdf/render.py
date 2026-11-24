@@ -9,8 +9,9 @@ it stays in the studio, and the hashes that tie the file to its record travel in
 document metadata.
 
 Fonts are bundled under ``fonts/`` (SIL OFL): Inter for Latin (a subset, ``app.pdf.faces``) and
-Noto Sans Thaana for Thaana. Faruma is never bundled (licence unclear, DESIGN 16); an operator
-can supply a Thaana font for server rendering (``JUSTFORMS_THAANA_FONT_FILE``, ``app.pdf.faces``).
+Noto Sans Thaana for Thaana. MV Faseyha and Faruma are never bundled (licences unclear, DESIGN
+16); an operator can supply a Thaana font for server rendering (``JUSTFORMS_THAANA_FONT_FILE``,
+``app.pdf.faces``).
 
 Fixed labels (reference, submitted, approval record, footer, "No answer", "Yes"/"No") are
 English for every form. A form has no language (schemaVersion 2): every piece of form content

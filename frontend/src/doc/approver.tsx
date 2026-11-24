@@ -105,11 +105,10 @@ type Stage =
   | { kind: 'done'; approved: boolean }
 
 /**
- * A question label: ink, not muted, and never smaller than its answer. Inside a Dhivehi form the
- * `:lang(dv)` scale makes it Thaana `text-lg` at weight 400 (Faruma has one weight, synthetic bold
- * is muddy at this size); in English it is `text-base` semibold over a `text-base` answer.
+ * A question label: ink, not muted, and never smaller than its answer. In Dhivehi the `:lang(dv)`
+ * scale makes it Thaana `text-lg`; `df-label` sets Latin runs semibold and Thaana runs regular.
  */
-const LABEL = 'text-base font-semibold [&:lang(dv)]:text-lg [&:lang(dv)]:font-normal'
+const LABEL = 'df-label text-base [&:lang(dv)]:text-lg'
 
 /** A question's label: its own direction and language, aligned like on the form. */
 function Label({ text, align, formAlign }: { text: string; align: TextAlign | null | undefined; formAlign: TextAlign | null | undefined }) {

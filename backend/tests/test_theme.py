@@ -98,12 +98,12 @@ def _org() -> Organization:
 def test_resolve_defaults_and_overrides() -> None:
     settings = Settings(environment="test")
     plain = resolve(settings, _org(), FormTheme())
-    assert plain.resolved.latin_font == "inter" and plain.resolved.thaana_font == "faruma"
+    assert plain.resolved.latin_font == "inter" and plain.resolved.thaana_font == "mv-faseyha"
     assert plain.resolved.color_scheme == "light"
     assert plain.imports == []  # nothing beyond what every page loads
     assert plain.variables["--radius"] == "0.5rem"
 
-    org = FormTheme(latin_font="atkinson", thaana_font="mv-faseyha", text_size="l", radius="none")
+    org = FormTheme(latin_font="atkinson", thaana_font="faruma", text_size="l", radius="none")
     form = FormTheme(thaana_font="mv-a-waheed", page_width="wide", header_image="none")
     result = resolve(settings, _org(), org, form)
     assert result.variables["--df-font-latin"] == "'Atkinson Hyperlegible Next Variable'"
@@ -145,7 +145,11 @@ def test_font_catalogue_follows_settings() -> None:
     settings = Settings(environment="test")
     fonts = catalogue(settings)
     assert [f["id"] for f in fonts["latin"]][:2] == ["inter", "atkinson"]
-    assert fonts["thaana"][0]["name"] == "Faruma"
+    assert fonts["thaana"][0]["name"] == "MV Faseyha"
+    # The default family keeps the configured stylesheet (both weights); others get their own.
+    assert fonts["thaana"][0]["cssUrl"] == settings.thaana_font_css_url
+    assert "wght@400;700" in settings.thaana_font_css_url
+    assert fonts["thaana"][1]["cssUrl"] == "https://fonts.mv/css2?family=Faruma&display=swap"
     assert fonts["thaana"][-1]["id"] == "noto-sans-thaana"
     # A self-hosted stylesheet: families come from /fonts/fonts.css, no per-family URLs.
     local = Settings(environment="test", thaana_font_css_url="/fonts/faruma.css")

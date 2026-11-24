@@ -109,9 +109,12 @@ external secrets operator").
 
 ## Fonts
 
-- Thaana stack: `Faruma, "MV Faseyha", "Noto Sans Thaana", sans-serif`. Only Noto Sans Thaana (OFL)
-  is bundled. **Never commit Faruma/MV font files** — operators drop them into the fonts directory
-  served at `/fonts/` (see README).
+- Thaana stack: `"MV Faseyha", Faruma, "Noto Sans Thaana", sans-serif`. MV Faseyha (400/700) is the
+  default, loaded at runtime from `JUSTFORMS_THAANA_FONT_CSS_URL` (fonts.mv by default). Only Noto
+  Sans Thaana (OFL) is bundled. **Never commit Faruma/MV font files** (licences don't clearly allow
+  redistribution) — operators drop them into the fonts directory served at `/fonts/` (see README).
+- Thaana never gets synthetic bold (`font-synthesis: none`); form labels/headings use `df-label`
+  (Latin 600, Thaana 400 per run), never a weight chosen from the label's dominant script.
 - Latin UI and form text is Inter (`@fontsource-variable/inter`, self-hosted); Atkinson
   Hyperlegible Next is an optional form-theme font. Type scale and figures: docs/ux/DESIGN-SYSTEM.md 4.
 - The PDF renderer embeds TTFs from `backend/app/pdf/fonts/` (Inter, a Latin subset, and Noto

@@ -222,6 +222,12 @@ _LAST_SPACES = re.compile(r"\s+(?=\S*$)")
 _ENDING = re.compile(r"[)\]}:;,.!?\u061f\u060c\u061b\u2026]*")
 
 
+# Dhivehi suffixes and postpositions written as their own word after an English name
+# ("Microsoft Teams އިން ބައްދަލުވުން ބާއްވާނެ"): English followed by one of these is part of a
+# Dhivehi sentence, not a label in two languages. Twin of SUFFIX in runs.ts.
+_SUFFIX = re.compile(r"(?:ގެ|އިން|އަށް|ގައި|އާއި|އަކީ|އެއް|ތައް)(?![\u0780-\u07bf])")
+
+
 def _words(text: str) -> int:
     count = 0
     in_word = False
@@ -238,7 +244,9 @@ def bilingual_parts(text: str | None) -> BilingualParts | None:
     order, "Full name: ފުރިހަމަ ނަން") into its two parts, each with the punctuation that ends
     it and the brackets that enclose it, the divider between them dropped; ``None`` otherwise:
     multi-line text, one script, more than two script blocks (an acronym inside a Dhivehi
-    sentence), two blocks with only spaces between them ("PPY ގެ ބައިވެރިން"), and, unless "/"
+    sentence), two blocks with only spaces between them unless both have two or more words and
+    the Dhivehi one doesn't start with a suffix ("PPY ގެ ބައިވެރިން", "Microsoft Teams އިން
+    ބައްދަލުވުން"; "Current Age މިހާރުގެ އުމުރު" is split), and, unless "/"
     or "|" divides them, a lone capitalised acronym or a short run tacked onto a long sentence
     (the shorter part needs two words or half the longer's). Rendered as one row, English at
     the left and Dhivehi at the right. Twin of ``bilingualParts``
@@ -251,14 +259,16 @@ def bilingual_parts(text: str | None) -> BilingualParts | None:
         return None
     a, b = letters
     gap = runs[a + 1][1] if b > a + 1 else ""
-    # Something other than spaces (and figures) must mark the break between the two parts.
-    if not re.search(r"[^\s\d]", gap):
-        return None
     latin_first = runs[a][0] == "latin"
     latin, thaana = (runs[a][1], runs[b][1]) if latin_first else (runs[b][1], runs[a][1])
     latin_words = _words(latin)
     short = min(latin_words, _words(thaana))
     long = max(latin_words, _words(thaana))
+    # Only spaces (and figures) between the parts: split two clear blocks of two or more words
+    # each ("Current Age މިހާރުގެ އުމުރު"), never English followed by a Dhivehi suffix
+    # ("Microsoft Teams އިން ...") or a lone acronym ("PPY ގެ ބައިވެރިން ކޮބާ؟").
+    if not re.search(r"[^\s\d]", gap) and (short < 2 or (latin_first and _SUFFIX.match(thaana))):
+        return None
     acronym = latin_words == 1 and not any(unicodedata.category(c) == "Ll" for c in latin)
     if not _STRONG.search(gap) and (acronym or (short < 2 and short * 2 < long)):
         return None

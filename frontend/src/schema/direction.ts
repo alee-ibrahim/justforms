@@ -106,7 +106,7 @@ export const PER_LINE = '[unicode-bidi:plaintext] text-start'
 /**
  * `lang` for a box where (possibly multi-line) form text is typed: one `lang` covers every
  * line, so it is `dv` only when every line with letters is Dhivehi. An English line keeps the
- * Latin face (Thaana still renders from the font stack) instead of Faruma's serif Latin.
+ * Latin face (Thaana still renders from the font stack) instead of the Thaana face's Latin glyphs.
  */
 export function boxLang(text: string | null | undefined): ContentLang {
   if (!isMultiline(text)) return textLang(text)

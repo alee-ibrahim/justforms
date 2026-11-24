@@ -27,7 +27,7 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # name the DNS server answers for (on Kubernetes: the fully qualified service name).
 ENV BACKEND_URL=http://backend:8000 \
     NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1 \
-    JUSTFORMS_THAANA_FONT_CSS_URL="https://dvfonts.yashau.com/css2?family=Faruma&display=swap" \
+    JUSTFORMS_THAANA_FONT_CSS_URL="https://fonts.mv/css2?family=MV+Faseyha:wght@400;700&display=swap" \
     JUSTFORMS_CAPTCHA_PROVIDER=none \
     JUSTFORMS_REAL_IP_FROM="" \
     JUSTFORMS_REAL_IP_HEADER=X-Forwarded-For \

@@ -199,26 +199,39 @@ Optional. With no provider every AI feature is hidden. See [Features](features.m
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `JUSTFORMS_THAANA_FONT_CSS_URL` | the public [dvfonts](https://dvfonts.yashau.com) CDN (Faruma) | Stylesheet for Faruma. `/fonts/faruma.css` to self-host, empty to disable |
-| `JUSTFORMS_THAANA_FONTS` | a built-in list (Faruma, MV Faseyha, MV A Waheed, ...) | Thaana fonts form themes can choose; each loads from the font service above when a form uses it |
+| `JUSTFORMS_THAANA_FONT_CSS_URL` | `https://fonts.mv/css2?family=MV+Faseyha:wght@400;700&display=swap` (the public [fonts.mv](https://fonts.mv) service) | Stylesheet for the default Thaana face, MV Faseyha (regular and bold). `/fonts/faseyha.css` to self-host, empty to disable |
+| `JUSTFORMS_THAANA_FONTS` | a built-in list (MV Faseyha, Faruma, MV A Waheed, ...) | Thaana fonts form themes can choose; each loads from the font service above when a form uses it |
 | `JUSTFORMS_FONTS_DIR` | `./fonts` | Compose only: directory (relative to `deploy/compose/`) served at `/fonts/` |
 | `JUSTFORMS_THAANA_FONT_FILE` | empty (bundled Noto Sans Thaana) | Path to a Thaana TTF/OTF inside the API and worker containers, used for server rendering: signed PDFs and link-preview images |
 | `JUSTFORMS_THAANA_FONT_BOLD_FILE` | empty (the regular file) | Optional bold face for the same |
 
-The Thaana stack is `Faruma, "MV Faseyha", "Noto Sans Thaana", sans-serif`. Only Noto Sans
+The Thaana stack is `"MV Faseyha", Faruma, "Noto Sans Thaana", sans-serif`. Only Noto Sans
 Thaana (SIL OFL) is bundled. Faruma and MV fonts are never shipped in the repository or the
-images because their licence is unclear.
+images because their licences don't clearly allow redistribution (MV Faseyha's author terms say
+only "may be used for all legitimate purposes"; Faruma is listed as "Unspecified").
 
-By default Faruma loads from the public dvfonts CDN, which then sees the IP address of everyone
+MV Faseyha has a real bold, so Thaana labels and titles are set in it; Thaana text never gets
+synthetic (smeared) bold: with a single-weight face such as Faruma, bold Thaana falls back to the
+regular weight.
+
+By default MV Faseyha loads from the public fonts.mv service, which then sees the IP address of everyone
 who opens a Dhivehi form or the studio. To avoid that, self-host: put the font files and a
 `fonts.css` in `deploy/compose/fonts/` (git-ignored; or set `JUSTFORMS_FONTS_DIR`), and set
-`JUSTFORMS_THAANA_FONT_CSS_URL=/fonts/faruma.css`. The app always loads `/fonts/fonts.css` as
+`JUSTFORMS_THAANA_FONT_CSS_URL=/fonts/faseyha.css`. The app always loads `/fonts/fonts.css` as
 well. For example:
 
 ```css
 @font-face {
-  font-family: "Faruma";
-  src: url("/fonts/Faruma.woff2") format("woff2"), url("/fonts/Faruma.ttf") format("truetype");
+  font-family: "MV Faseyha";
+  font-weight: 400;
+  src: url("/fonts/mv-faseyha-400.woff2") format("woff2");
+  font-display: swap;
+  unicode-range: U+0780-07BF, U+060C, U+061B, U+061F, U+FDF2;
+}
+@font-face {
+  font-family: "MV Faseyha";
+  font-weight: 700;
+  src: url("/fonts/mv-faseyha-700.woff2") format("woff2");
   font-display: swap;
   unicode-range: U+0780-07BF, U+060C, U+061B, U+061F, U+FDF2;
 }
@@ -232,7 +245,8 @@ fonts you are licensed to embed on the web.
 Signed PDFs and generated link-preview images are drawn on the server, so they cannot use the
 browser's fonts. They use the bundled Noto Sans Thaana unless `JUSTFORMS_THAANA_FONT_FILE`
 points at a TrueType/OpenType Thaana font (for example the same face the web uses, if your
-licence allows embedding it). With compose, mount the file into the `backend` and `worker`
+licence allows embedding it: MV Faseyha's TTFs, `faseyha-reg-hinted-v2.ttf` and
+`faseyha-bld-hinted-v2.ttf` for `_BOLD_FILE`, allow editable embedding). With compose, mount the file into the `backend` and `worker`
 services (e.g. `./fonts/Thaana-Regular.ttf:/etc/justforms/fonts/Thaana-Regular.ttf:ro`) and set
 the variable; with Helm use `fonts.server.*` (see the chart README).
 
