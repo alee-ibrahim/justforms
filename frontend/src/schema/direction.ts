@@ -14,7 +14,7 @@ import type { CSSProperties } from 'react'
 import type { JustFormsForm as Form } from './generated/form'
 
 export type TextDirection = 'ltr' | 'rtl'
-export type TextAlign = 'auto' | 'left' | 'center' | 'right'
+export type TextAlign = 'auto' | 'left' | 'center' | 'right' | 'justify'
 export type ContentLang = 'dv' | 'en'
 
 const THAANA = /[\u0780-\u07BF]/
@@ -103,21 +103,33 @@ export function textLines(text: string | null | undefined, fallback: TextDirecti
  */
 export const PER_LINE = '[unicode-bidi:plaintext] text-start'
 
+/**
+ * `lang` for a box where (possibly multi-line) form text is typed: one `lang` covers every
+ * line, so it is `dv` only when every line with letters is Dhivehi. An English line keeps the
+ * Latin face (Thaana still renders from the font stack) instead of Faruma's serif Latin.
+ */
+export function boxLang(text: string | null | undefined): ContentLang {
+  if (!isMultiline(text)) return textLang(text)
+  const lines = textLines(text).filter((l) => LETTER.test(l.text))
+  return lines.length && lines.every((l) => l.lang === 'dv') ? 'dv' : 'en'
+}
+
 /** True when `text` holds a line break (render it with per-line direction). */
 export function isMultiline(text: string | null | undefined): boolean {
   return !!text && /[\r\n]/.test(text)
 }
 
 /**
- * The explicit left/center/right a text resolves to (the element's own, then the form
- * default), or `null` for `auto`: each paragraph then aligns to its own direction.
+ * The explicit left/center/right/justify a text resolves to (the element's own, then the form
+ * default), or `null` for `auto`: each paragraph then aligns to its own direction. `justify` is
+ * relative to each paragraph's direction too (its last line sits at the start edge).
  */
 export function explicitAlign(
   align: TextAlign | null | undefined,
   fallback: TextAlign | null | undefined,
-): 'left' | 'center' | 'right' | null {
+): 'left' | 'center' | 'right' | 'justify' | null {
   for (const value of [align, fallback]) {
-    if (value === 'left' || value === 'center' || value === 'right') return value
+    if (value === 'left' || value === 'center' || value === 'right' || value === 'justify') return value
     if (value === 'auto') break
   }
   return null
@@ -125,14 +137,18 @@ export function explicitAlign(
 
 /**
  * Physical alignment of a text: an explicit left/center/right wins (the element's own, then
- * the form default); `auto` (or nothing) follows the text's direction.
+ * the form default); `auto` (or nothing) follows the text's direction, and so does `justify`
+ * (a single line, or the last line of a justified paragraph, sits at its start edge).
  */
 export function resolveAlign(
   align: TextAlign | null | undefined,
   fallback: TextAlign | null | undefined,
   dir: TextDirection,
 ): 'left' | 'center' | 'right' {
-  return explicitAlign(align, fallback) ?? (dir === 'rtl' ? 'right' : 'left')
+  const side = explicitAlign(align, fallback)
+  if (side && side !== 'justify') return side
+  // auto, and justify for a single line: the text's start edge.
+  return dir === 'rtl' ? 'right' : 'left'
 }
 
 /**
@@ -142,6 +158,12 @@ export function resolveAlign(
  * (for `auto`, the end margin of its own direction).
  */
 export function paragraphStyle(align: TextAlign, measure = false): CSSProperties {
+  // Justify follows each paragraph's direction: its last line ends at the paragraph's start
+  // edge (right for Dhivehi, left for English), so short lines never get stretched gaps.
+  if (align === 'justify')
+    return measure
+      ? { textAlign: 'justify', textAlignLast: 'start', marginInlineEnd: 'auto' }
+      : { textAlign: 'justify', textAlignLast: 'start' }
   if (align === 'auto') return measure ? { textAlign: 'start', marginInlineEnd: 'auto' } : { textAlign: 'start' }
   if (!measure) return { textAlign: align }
   if (align === 'center') return { textAlign: align, marginInline: 'auto' }

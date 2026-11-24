@@ -143,7 +143,9 @@ export function placement(
   const dir = textDirection(text, fallback)
   const explicit = [align, formAlign].find((a) => a !== undefined && a !== null)
   const side = resolveAlign(align, formAlign, dir)
-  const auto = explicit === undefined || explicit === 'auto'
+  // Justify sits at the start edge like auto for one-line texts (labels, titles); paragraphs
+  // (Markdown, FormLines) justify their wrapped lines from `align`.
+  const auto = explicit === undefined || explicit === 'auto' || explicit === 'justify'
   const text_: CSSProperties = { textAlign: auto ? 'start' : side }
   const block: CSSProperties =
     side === 'center'
@@ -151,5 +153,6 @@ export function placement(
       : auto
         ? text_
         : { ...text_, [side === 'left' ? 'marginRight' : 'marginLeft']: 'auto' }
-  return { dir, lang: textLang(text), align: auto ? 'auto' : side, text: text_, block }
+  const mode: TextAlign = explicit === 'justify' ? 'justify' : auto ? 'auto' : side
+  return { dir, lang: textLang(text), align: mode, text: text_, block }
 }

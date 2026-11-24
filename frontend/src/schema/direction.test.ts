@@ -10,6 +10,7 @@ import { isolateRuns } from '@/thaana/runs'
 import { parseForm } from '.'
 import { alignClass } from './align'
 import {
+  boxLang,
   explicitAlign,
   formDirection,
   resolveAlign,
@@ -98,5 +99,13 @@ describe('schemaVersion 2', () => {
   it('lays the sheet out in the title direction', () => {
     expect(formDirection({ settings: { title: 'ފޯމު' } })).toBe('rtl')
     expect(formDirection({ settings: { title: 'Form / ފޯމު' } })).toBe('ltr')
+  })
+})
+
+describe('boxLang', () => {
+  it('is dv only when every line with letters is Dhivehi', () => {
+    expect(boxLang('ނަން')).toBe('dv')
+    expect(boxLang('ނަން\n\n2026\nއަހަރު')).toBe('dv')
+    expect(boxLang('We will clean the beach.\nއަހަރުމެން ސާފުކުރާނަން. ކޮންމެ މަހަކު ގޮނޑުދޮށް')).toBe('en')
   })
 })

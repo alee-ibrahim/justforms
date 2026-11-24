@@ -81,7 +81,10 @@ def test_align_round_trips() -> None:
     plain = Form.model_validate(form(fld("a"))).dump()
     assert "align" not in plain["pages"][0] and "align" not in plain["pages"][0]["elements"][0]
     assert "align" not in plain["settings"]
-    data = form(fld("a", align="justify"))
+    justified = Form.model_validate(form(fld("a", align="justify"), align="justify")).dump()
+    assert justified["pages"][0]["align"] == "justify"
+    assert justified["pages"][0]["elements"][0]["align"] == "justify"
+    data = form(fld("a", align="start"))
     assert "literal_error" in codes(data)
 
 

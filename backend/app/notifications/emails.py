@@ -391,7 +391,7 @@ class Answer:
     @property
     def value_lines(self) -> Markup | None:
         """A multi-line answer, one block per line in its own direction (None: one line)."""
-        if self.ltr or not _multiline(self.value):
+        if self.ltr or not (_multiline(self.value) or self.explicit == "justify"):
             return None
         return paragraphs_html(self.value, self.explicit, px=("15", "18"))
 
@@ -499,12 +499,15 @@ def paragraphs_html(
 ) -> Markup:
     """Multi-line form content (a long answer, the success message, a custom message) as one
     ``<div>`` per line: each line break-separated paragraph has its own ``lang``/``dir`` from
-    its first strong character, so an English paragraph followed by Dhivehi ones reads left to
-    right, then right to left. ``align`` (explicit left/center/right) applies to every line;
-    ``None`` (auto) aligns each line to its own direction. ``px``: Latin and Thaana sizes."""
+    its dominant script, so an English paragraph followed by Dhivehi ones reads left to right,
+    then right to left. ``align`` (explicit left/center/right) applies to every line; ``None``
+    (auto) aligns each line to its own direction; ``justify`` justifies each paragraph's
+    wrapped lines with its last line at its own start edge. ``px``: Latin and Thaana sizes."""
     out = []
     for line in text_lines(text):
-        side = align or ("right" if line["dir"] == "rtl" else "left")
+        own = "right" if line["dir"] == "rtl" else "left"
+        side = own if align in (None, "justify") else align
+        css = f"justify;text-align-last:{own}" if align == "justify" else side
         thaana = has_thaana(line["text"])
         size = f";font-size:{px[1] if thaana else px[0]}px" if px else ""
         out.append(
@@ -512,7 +515,7 @@ def paragraphs_html(
                 line["lang"],
                 line["dir"],
                 side,
-                side,
+                css,
                 size,
                 Markup(THAANA_FONT if thaana else ""),
                 runs_html(line["text"], line["dir"]) if line["text"].strip() else Markup("&nbsp;"),
@@ -564,7 +567,7 @@ def _success(form: Form) -> dict[str, str]:
 
 def _success_lines(form: Form) -> Markup | None:
     text = form.settings.success_message or ""
-    if not _multiline(text):
+    if not (_multiline(text) or (text and form.settings.align == "justify")):
         return None
     return paragraphs_html(text, explicit_align(None, form.settings.align))
 

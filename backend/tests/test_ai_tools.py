@@ -338,7 +338,7 @@ def test_update_settings() -> None:
     assert w.run("update_settings", {"align": "center", "titleAlign": "right"}).ok
     assert w.schema["settings"]["align"] == "center"
     assert w.schema["settings"]["titleAlign"] == "right"
-    assert not w.run("update_settings", {"align": "justify"}).ok
+    assert not w.run("update_settings", {"align": "start"}).ok
     assert w.run("update_page", {"pageId": "page_2", "align": "left"}).ok
     assert w.schema["pages"][1]["align"] == "left"
     assert w.run("update_field", {"id": "name", "changes": {"align": "right"}}).ok

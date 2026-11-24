@@ -218,6 +218,15 @@ class _Doc(FPDF):
 
     # -- text helpers -------------------------------------------------------------------
 
+    # The last line of a justified paragraph: fpdf2 always sets it left; a right-to-left
+    # paragraph ends at its start edge (the right) instead.
+    _justify_last: Align | None = None
+
+    def _render_styled_text_line(self, text_line: Any, *args: Any, **kwargs: Any) -> Any:
+        if self._justify_last is not None and text_line.align == Align.L:
+            text_line = text_line._replace(align=self._justify_last)
+        return super()._render_styled_text_line(text_line, *args, **kwargs)
+
     def _font(
         self,
         text: str | None,
@@ -327,6 +336,11 @@ class _Doc(FPDF):
         self.set_text_color(*color)
         if align is None:
             align = ("right" if direction == "rtl" else "left") if content else self.start_align()
+        justify = align == "justify"
+        if justify:
+            # Justified in its own direction: wrapped lines stretched, the last line (and a
+            # paragraph that fits on one line) at the start edge, never stretched.
+            align = "right" if direction == "rtl" else "left"
         cell_align = {"left": Align.L, "center": Align.C, "right": Align.R}[align]
         line_h = line or size * (0.62 if thaana else 0.5)
         if dry_run:
@@ -335,6 +349,14 @@ class _Doc(FPDF):
             )
             assert isinstance(height, float | int)
             return float(height) + gap
+        if justify:
+            self._justify_last = cell_align
+            try:
+                self.multi_cell(0, line_h, text, align=Align.J, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            finally:
+                self._justify_last = None
+            self.ln(gap)
+            return 0.0
         self.multi_cell(0, line_h, text, align=cell_align, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         self.ln(gap)
         return 0.0
@@ -480,12 +502,13 @@ def _answer(doc: _Doc, fld: FieldElement, value: Any, src: PdfInput) -> None:
     if not text:
         doc.text_block(no_answer, latin=True, color=MUTED, gap=3, align=align)
     else:
+        explicit = explicit_align(getattr(fld, "align", None), src.form.settings.align)
         doc.text_block(
             text,
             latin=isinstance(fld, LATIN_ONLY),
             gap=3,
-            align=align,
-            per_line=explicit_align(getattr(fld, "align", None), src.form.settings.align) is None,
+            align="justify" if explicit == "justify" else align,
+            per_line=explicit is None,
         )
 
 

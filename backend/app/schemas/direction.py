@@ -85,11 +85,13 @@ def text_lines(text: str | None, default: Direction = "ltr") -> list[TextLine]:
 
 def explicit_align(
     align: str | None, default: str | None
-) -> Literal["left", "center", "right"] | None:
-    """The explicit ``left``/``center``/``right`` an element resolves to (its own, then the
-    form default), or ``None`` for ``auto``: each paragraph then aligns to its own direction."""
+) -> Literal["left", "center", "right", "justify"] | None:
+    """The explicit ``left``/``center``/``right``/``justify`` an element resolves to (its own,
+    then the form default), or ``None`` for ``auto``: each paragraph then aligns to its own
+    direction. ``justify`` is relative to each paragraph's direction too: wrapped lines are
+    justified, the last line sits at the paragraph's start edge."""
     for value in (align, default):
-        if value in ("left", "center", "right"):
+        if value in ("left", "center", "right", "justify"):
             return value  # type: ignore[return-value]
         if value == "auto":
             break
@@ -100,8 +102,13 @@ def resolve_align(
     align: str | None, default: str | None, direction: Direction
 ) -> Literal["left", "center", "right"]:
     """Physical alignment of a text: an explicit ``left``/``center``/``right`` wins (element,
-    then form default); ``auto`` (or nothing) follows the text's direction."""
-    return explicit_align(align, default) or ("right" if direction == "rtl" else "left")
+    then form default); ``auto`` (or nothing) follows the text's direction, and so does
+    ``justify`` (a single line, or the last line of a justified paragraph, sits at its start)."""
+    side = explicit_align(align, default)
+    if side is not None and side != "justify":
+        return side
+    # auto, and justify for a single line: the text's start edge.
+    return "right" if direction == "rtl" else "left"
 
 
 def _script(ch: str) -> Literal["thaana", "latin", "neutral"]:

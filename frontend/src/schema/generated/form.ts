@@ -50,7 +50,7 @@ export interface JustFormsForm {
  * via the `definition` "Page".
  */
 export interface Page {
-  align?: ('auto' | 'left' | 'center' | 'right') | null
+  align?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
   description?: string | null
   elements?: (
     | (
@@ -83,7 +83,7 @@ export interface Page {
  * via the `definition` "ShortTextField".
  */
 export interface ShortTextField {
-  align?: ('auto' | 'left' | 'center' | 'right') | null
+  align?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
   description?: string | null
   id: string
   idPreset?: string | null
@@ -144,7 +144,7 @@ export interface FieldCondition {
  * via the `definition` "LongTextField".
  */
 export interface LongTextField {
-  align?: ('auto' | 'left' | 'center' | 'right') | null
+  align?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
   description?: string | null
   id: string
   kind: 'field'
@@ -165,7 +165,7 @@ export interface LongTextField {
  * via the `definition` "EmailField".
  */
 export interface EmailField {
-  align?: ('auto' | 'left' | 'center' | 'right') | null
+  align?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
   description?: string | null
   id: string
   kind: 'field'
@@ -184,7 +184,7 @@ export interface EmailField {
  * via the `definition` "PhoneField".
  */
 export interface PhoneField {
-  align?: ('auto' | 'left' | 'center' | 'right') | null
+  align?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
   defaultCountry?: string | null
   description?: string | null
   id: string
@@ -204,7 +204,7 @@ export interface PhoneField {
  * via the `definition` "NumberField".
  */
 export interface NumberField {
-  align?: ('auto' | 'left' | 'center' | 'right') | null
+  align?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
   description?: string | null
   id: string
   integer?: boolean
@@ -227,7 +227,7 @@ export interface NumberField {
  * via the `definition` "DateField".
  */
 export interface DateField {
-  align?: ('auto' | 'left' | 'center' | 'right') | null
+  align?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
   description?: string | null
   id: string
   kind: 'field'
@@ -248,7 +248,7 @@ export interface DateField {
  * via the `definition` "TimeField".
  */
 export interface TimeField {
-  align?: ('auto' | 'left' | 'center' | 'right') | null
+  align?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
   description?: string | null
   id: string
   kind: 'field'
@@ -267,7 +267,7 @@ export interface TimeField {
  * via the `definition` "SingleChoiceField".
  */
 export interface SingleChoiceField {
-  align?: ('auto' | 'left' | 'center' | 'right') | null
+  align?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
   allowOther?: boolean
   description?: string | null
   display?: 'radio' | 'dropdown'
@@ -301,7 +301,7 @@ export interface Option {
  * via the `definition` "MultiChoiceField".
  */
 export interface MultiChoiceField {
-  align?: ('auto' | 'left' | 'center' | 'right') | null
+  align?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
   allowOther?: boolean
   description?: string | null
   id: string
@@ -328,7 +328,7 @@ export interface MultiChoiceField {
  * via the `definition` "YesNoField".
  */
 export interface YesNoField {
-  align?: ('auto' | 'left' | 'center' | 'right') | null
+  align?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
   description?: string | null
   id: string
   kind: 'field'
@@ -347,7 +347,7 @@ export interface YesNoField {
  * via the `definition` "RatingField".
  */
 export interface RatingField {
-  align?: ('auto' | 'left' | 'center' | 'right') | null
+  align?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
   description?: string | null
   id: string
   kind: 'field'
@@ -368,7 +368,7 @@ export interface RatingField {
  */
 export interface FileField {
   accept?: string[]
-  align?: ('auto' | 'left' | 'center' | 'right') | null
+  align?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
   description?: string | null
   id: string
   kind: 'field'
@@ -389,7 +389,7 @@ export interface FileField {
  * via the `definition` "SignatureField".
  */
 export interface SignatureField {
-  align?: ('auto' | 'left' | 'center' | 'right') | null
+  align?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
   attestation?: string | null
   description?: string | null
   id: string
@@ -409,7 +409,7 @@ export interface SignatureField {
  * via the `definition` "HiddenField".
  */
 export interface HiddenField {
-  align?: ('auto' | 'left' | 'center' | 'right') | null
+  align?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
   description?: string | null
   id: string
   kind: 'field'
@@ -428,7 +428,7 @@ export interface HiddenField {
  * via the `definition` "ContentElement".
  */
 export interface ContentElement {
-  align?: ('auto' | 'left' | 'center' | 'right') | null
+  align?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
   contentType: 'heading' | 'paragraph' | 'divider' | 'image'
   id: string
   imageFileId?: string | null
@@ -441,7 +441,7 @@ export interface ContentElement {
  * via the `definition` "SectionElement".
  */
 export interface SectionElement {
-  align?: ('auto' | 'left' | 'center' | 'right') | null
+  align?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
   description?: string | null
   elements?: (
     | (
@@ -475,7 +475,7 @@ export interface SectionElement {
  */
 export interface RepeaterElement {
   addLabel?: string | null
-  align?: ('auto' | 'left' | 'center' | 'right') | null
+  align?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
   description?: string | null
   elements?: (
     | (
@@ -520,7 +520,7 @@ export interface NavigationRule {
  * via the `definition` "Settings".
  */
 export interface Settings {
-  align?: 'auto' | 'left' | 'center' | 'right'
+  align?: 'auto' | 'left' | 'center' | 'right' | 'justify'
   backLabel?: string | null
   description?: string | null
   nextLabel?: string | null
@@ -528,7 +528,7 @@ export interface Settings {
   successMessage?: string | null
   theme?: Theme
   title: string
-  titleAlign?: ('auto' | 'left' | 'center' | 'right') | null
+  titleAlign?: ('auto' | 'left' | 'center' | 'right' | 'justify') | null
 }
 /**
  * This interface was referenced by `JustFormsForm`'s JSON-Schema

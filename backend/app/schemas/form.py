@@ -58,8 +58,9 @@ class SchemaModel(BaseModel):
 Text = Annotated[str, StringConstraints(max_length=10_000)]
 """User-facing form text: English, Dhivehi or both. Its direction comes from its content."""
 
-Align = Literal["auto", "left", "center", "right"]
-"""Text alignment. ``auto`` follows the text's own direction (start edge)."""
+Align = Literal["auto", "left", "center", "right", "justify"]
+"""Text alignment. ``auto`` follows the text's own direction (start edge); ``justify`` justifies
+wrapped paragraph lines, the last line (and single-line texts) at the start edge."""
 
 
 # --------------------------------------------------------------------------------------

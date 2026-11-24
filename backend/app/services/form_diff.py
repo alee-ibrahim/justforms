@@ -108,7 +108,13 @@ SETTINGS_PROPS: dict[str, tuple[str, str]] = {
     "theme.logoFileId": ("Logo in the form", "image"),
 }
 
-ALIGN_WORDS = {"auto": "Automatic", "left": "Left", "center": "Center", "right": "Right"}
+ALIGN_WORDS = {
+    "auto": "Automatic",
+    "left": "Left",
+    "center": "Center",
+    "right": "Right",
+    "justify": "Justify",
+}
 
 OP_WORDS: dict[str, str] = {
     "eq": "is",
