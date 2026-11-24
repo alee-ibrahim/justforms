@@ -102,7 +102,7 @@ export function RepeaterFrame({
         lang={place.lang}
         style={place.text}
         className={cn(
-          'df-label mb-0 w-full text-lg data-[variant=legend]:text-lg',
+          'df-label mb-3 w-full text-lg data-[variant=legend]:text-lg',
         )}
       >
         {label ?? <FormText text={el.label} split={place.align === 'auto'} />}
