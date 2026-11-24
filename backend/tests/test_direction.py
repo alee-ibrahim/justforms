@@ -13,6 +13,7 @@ from app.schemas.direction import (
     explicit_align,
     has_thaana,
     is_rtl,
+    isolate_runs,
     resolve_align,
     text_direction,
     text_lang,
@@ -52,3 +53,9 @@ def test_lines_vectors(case: dict[str, Any]) -> None:
 def test_helpers() -> None:
     assert has_thaana("Name / ނަން") and not has_thaana("Name") and not has_thaana(None)
     assert is_rtl("ނަން / Name") and not is_rtl("Name / ނަން")
+
+
+@pytest.mark.parametrize("case", VECTORS["isolate"], ids=lambda c: repr(c["text"])[:30])
+def test_isolate_vectors(case: dict[str, Any]) -> None:
+    got = isolate_runs(case["text"], case.get("dir"))
+    assert [[t, d] for t, d in got] == case["runs"]

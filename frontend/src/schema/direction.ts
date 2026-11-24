@@ -3,8 +3,9 @@
  * public renderer bundle can import it cheaply.
  *
  * A form has no language: English and Dhivehi can sit side by side, even in one label. Each
- * piece of text takes its direction from its first strong character (Unicode bidi rule P2):
- * Thaana reads right to left, Latin left to right. Alignment is an optional override
+ * piece of text (each line of multi-line text) takes its direction from its dominant script
+ * (more Thaana or more Latin words; a tie goes to the first strong character): Thaana reads
+ * right to left, Latin left to right. Alignment is an optional override
  * (`align` on elements and pages, `settings.align` as the form default). Twin of
  * backend/app/schemas/direction.py; both run spec/direction/vectors.json.
  */
@@ -25,13 +26,37 @@ export function hasThaana(text: string | null | undefined): boolean {
   return !!text && THAANA.test(text)
 }
 
-/** Direction of `text` from its first strong character; `fallback` when it has none. */
+const MARK = /\p{M}/u
+
+/**
+ * Direction of `text` from its **dominant script**: the script with more words (runs of strong
+ * letters, combining marks included) wins, so a Dhivehi line that starts with a Latin acronym
+ * or a number ("PPY ގެ ބައިވެރިން ކޮބާ؟", "2026 ވަނަ އަހަރު.") still reads right to left and an
+ * English line that starts with a Thaana word reads left to right. Words, not characters, are
+ * counted: Thaana vowels are separate marks and English words are longer, so character counts
+ * would skew bilingual labels. A tie ("Name / ނަން") goes to the first strong character
+ * (Unicode bidi rule P2); `fallback` when the text has no letters.
+ */
 export function textDirection(text: string | null | undefined, fallback: TextDirection = 'ltr'): TextDirection {
+  let first: TextDirection | null = null
+  let rtl = 0
+  let ltr = 0
+  let run: TextDirection | null = null
   for (const ch of text ?? '') {
-    if (!LETTER.test(ch)) continue
-    return RTL_LETTER.test(ch) ? 'rtl' : 'ltr'
+    if (LETTER.test(ch)) {
+      const dir: TextDirection = RTL_LETTER.test(ch) ? 'rtl' : 'ltr'
+      first ??= dir
+      if (dir !== run) {
+        if (dir === 'rtl') rtl++
+        else ltr++
+        run = dir
+      }
+    } else if (!MARK.test(ch)) {
+      run = null
+    }
   }
-  return fallback
+  if (rtl !== ltr) return rtl > ltr ? 'rtl' : 'ltr'
+  return first ?? fallback
 }
 
 /** `lang` for a piece of form text: `dv` when it reads right to left in Thaana. */
@@ -55,9 +80,8 @@ export interface TextLine {
 
 /**
  * Multi-line text (descriptions, paragraphs, long answers) line by line: each line
- * break-separated paragraph takes its own direction from its first strong character, so an
- * English paragraph followed by Dhivehi ones reads left to right, then right to left (as CSS
- * `unicode-bidi: plaintext`). A line with no strong character (blank, figures) takes the
+ * break-separated paragraph takes its own direction from its dominant script, so an
+ * English paragraph followed by Dhivehi ones reads left to right, then right to left. A line with no strong character (blank, figures) takes the
  * direction of the whole text.
  */
 export function textLines(text: string | null | undefined, fallback: TextDirection = 'ltr'): TextLine[] {
@@ -73,7 +97,9 @@ export function textLines(text: string | null | undefined, fallback: TextDirecti
  * Class for boxes where multi-line form text is typed (textareas): each line break-separated
  * paragraph takes its direction from its own first strong character (`unicode-bidi:
  * plaintext`) and `text-align: start` resolves per paragraph, so an English line and the
- * Dhivehi lines after it each start at their own edge while typing.
+ * Dhivehi lines after it each start at their own edge while typing. The browser picks each
+ * typed line's direction by its first strong character (it can't count words); the saved text
+ * is shown by the dominant-script rule.
  */
 export const PER_LINE = '[unicode-bidi:plaintext] text-start'
 

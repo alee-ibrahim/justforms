@@ -28,6 +28,7 @@ from app.schemas.direction import (
     explicit_align,
     has_thaana,
     is_rtl,
+    isolate_runs,
     resolve_align,
     text_direction,
     text_lang,
@@ -111,14 +112,14 @@ _TEMPLATES = {
 {% for a in answers %}
 {% set l = a.label_block %}{% set v = a.value_block %}
 <tr><td style="padding:8px 0;border-top:1px solid #DCE0EA;text-align:{{ a.cell_align }}" align="{{ a.cell_align }}">
-<div lang="{{ l.lang }}" dir="{{ l.dir }}" align="{{ l.align }}" style="color:#3A425E;font-size:{{ l.px }}px;line-height:1.75;text-align:{{ l.align }}{{ l.font }}">{{ a.label }}</div>
-{% if a.value_lines %}<div style="white-space:pre-wrap;font-size:{{ v.px }}px;line-height:1.75">{{ a.value_lines }}</div></td></tr>{% else %}<div lang="{{ v.lang }}" dir="{{ v.dir }}" align="{{ v.align }}" style="white-space:pre-wrap;font-size:{{ v.px }}px;line-height:1.75;text-align:{{ v.align }}{{ v.font }}">{% if a.ltr %}<bdi dir="ltr" style="font-family:Inter,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">{{ a.value }}</bdi>{% else %}{{ a.value }}{% endif %}</div></td></tr>{% endif %}
+<div lang="{{ l.lang }}" dir="{{ l.dir }}" align="{{ l.align }}" style="color:#3A425E;font-size:{{ l.px }}px;line-height:1.75;text-align:{{ l.align }}{{ l.font }}">{{ a.label|runs(l.dir) }}</div>
+{% if a.value_lines %}<div style="white-space:pre-wrap;font-size:{{ v.px }}px;line-height:1.75">{{ a.value_lines }}</div></td></tr>{% else %}<div lang="{{ v.lang }}" dir="{{ v.dir }}" align="{{ v.align }}" style="white-space:pre-wrap;font-size:{{ v.px }}px;line-height:1.75;text-align:{{ v.align }}{{ v.font }}">{% if a.ltr %}<bdi dir="ltr" style="font-family:Inter,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">{{ a.value }}</bdi>{% else %}{{ a.value|runs(v.dir) }}{% endif %}</div></td></tr>{% endif %}
 {% endfor %}
 </table>
 {% endif %}""",
     "owner.html": """{% extends "layout.html" %}{% block body %}
 <p style="margin:0 0 4px;color:#5A6380">New response</p>
-<h1 style="margin:0 0 16px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
+<h1 style="margin:0 0 16px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
 {% if message %}<div style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message|paragraphs }}</div>
 {% endif %}<p style="margin:0 0 16px">Reference <strong>{{ reference }}</strong>, submitted {{ submitted }}{% if respondent %} by <bdi>{{ respondent }}</bdi>{% endif %}.</p>
 <p style="margin:0 0 20px"><a href="{{ url }}" style="display:inline-block;background:{{ brand.button_bg }};color:{{ brand.button_fg }};text-decoration:none;padding:10px 16px;border-radius:6px">Open the submission</a></p>
@@ -139,10 +140,10 @@ Open the submission: {{ url }}
 Answers are not included in this email.
 {% endif %}""",
     "receipt.html": """{% extends "layout.html" %}{% block body %}
-<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
 {% if message %}<div style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message|paragraphs }}</div>
 {% elif success_lines %}<div style="margin:0 0 16px;white-space:pre-wrap">{{ success_lines }}</div>
-{% elif success %}<p style="margin:0 0 16px;white-space:pre-wrap;text-align:{{ s.align }}{{ s.font }}" lang="{{ s.lang }}" dir="{{ s.dir }}" align="{{ s.align }}">{{ success }}</p>
+{% elif success %}<p style="margin:0 0 16px;white-space:pre-wrap;text-align:{{ s.align }}{{ s.font }}" lang="{{ s.lang }}" dir="{{ s.dir }}" align="{{ s.align }}">{{ success|runs(s.dir) }}</p>
 {% else %}<p style="margin:0 0 16px">{{ w.receipt_intro }}</p>
 {% endif %}
 <p style="margin:0 0 4px">{{ w.reference }}: <strong>{{ reference }}</strong></p>
@@ -165,7 +166,7 @@ Answers are not included in this email.
 {{ a.value }}
 {% endfor %}{% endif %}""",
     "code.html": """{% extends "layout.html" %}{% block body %}
-<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
 <p style="margin:0 0 12px">{{ body }}</p>
 <p style="margin:0 0 16px;font-size:28px;letter-spacing:4px;font-family:Inter,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-variant-numeric:tabular-nums">{{ code }}</p>
 <p style="margin:0;color:#5A6380">{{ w.code_ignore }}</p>
@@ -178,7 +179,7 @@ Answers are not included in this email.
 """,
     "approval_request.html": """{% extends "layout.html" %}{% block body %}
 <p style="margin:0 0 4px;color:#5A6380">{{ kicker }}</p>
-<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
 {% if message %}<div style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message|paragraphs }}</div>
 {% endif %}<p style="margin:0 0 {{ '8' if step_of else '20' }}px">{{ body }}</p>
 {% if step_of %}<p style="margin:0 0 20px;color:#5A6380">{{ step_of }}</p>
@@ -212,7 +213,7 @@ Answers are not included in this email.
 """,
     "approval_notice.html": """{% extends "layout.html" %}{% block body %}
 <p style="margin:0 0 4px;color:#5A6380">{{ kicker }}</p>
-<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
 {% if message %}<div style="margin:0 0 12px;white-space:pre-wrap" dir="auto">{{ message|paragraphs }}</div>
 <p style="margin:0 0 {{ '8' if step_of else '20' }}px">{{ w.reference }} <strong>{{ reference }}</strong></p>
 {% else %}<p style="margin:0 0 {{ '8' if step_of else '20' }}px">{{ body }}</p>
@@ -241,7 +242,7 @@ Answers are not included in this email.
 {{ note }}
 """,
     "outcome.html": """{% extends "layout.html" %}{% block body %}
-<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
 {% if message %}<div style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message|paragraphs }}</div>
 <p style="margin:0 0 16px">{{ w.outcome_reference }}: <strong>{{ reference }}</strong></p>
 {% else %}<p style="margin:0 0 16px">{{ body }}</p>
@@ -266,7 +267,7 @@ Answers are not included in this email.
 <h1 style="margin:0 0 12px;font-size:20px">Join <bdi dir="auto">{{ org_name }}</bdi></h1>
 <p style="margin:0 0 16px">{{ intro }}</p>
 {% if forms %}<p style="margin:0 0 4px">They shared these forms with you:</p>
-{% for f in forms %}<p lang="{{ f.lang }}" dir="{{ f.dir }}" align="{{ f.align }}" style="margin:0 0 4px;font-weight:bold;text-align:{{ f.align }}{{ f.font }}">{{ f.title }}</p>
+{% for f in forms %}<p lang="{{ f.lang }}" dir="{{ f.dir }}" align="{{ f.align }}" style="margin:0 0 4px;font-weight:bold;text-align:{{ f.align }}{{ f.font }}">{{ f.title|runs(f.dir) }}</p>
 {% endfor %}<div style="height:12px"></div>
 {% endif %}
 <p style="margin:0 0 20px"><a href="{{ url }}" style="display:inline-block;background:{{ brand.button_bg }};color:{{ brand.button_fg }};text-decoration:none;padding:10px 16px;border-radius:6px">Accept the invitation</a></p>
@@ -288,10 +289,10 @@ The link works until {{ until }}. If you weren't expecting this, you can ignore 
 """,
     "form_shared.html": """{% extends "layout.html" %}{% block body %}
 <p style="margin:0 0 4px;color:#5A6380">{{ kicker }}</p>
-<h1 style="margin:0 0 16px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
+<h1 style="margin:0 0 16px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
 <p style="margin:0 0 16px">{{ body }}</p>
 {% if note %}<p style="margin:0 0 4px;color:#5A6380"><bdi dir="auto">{{ sharer }}</bdi> wrote:</p>
-<div style="margin:0 0 20px;padding:4px 0 4px 12px;border-left:3px solid #DCE0EA;white-space:pre-wrap" dir="auto">{{ note|paragraphs }}</div>
+<p style="margin:0 0 20px;padding:4px 0 4px 12px;border-left:3px solid #DCE0EA;white-space:pre-wrap" dir="auto">{{ note }}</p>
 {% endif %}<p style="margin:0 0 20px"><a href="{{ url }}" style="display:inline-block;background:{{ brand.button_bg }};color:{{ brand.button_fg }};text-decoration:none;padding:10px 16px;border-radius:6px">{{ button }}</a></p>
 <p style="margin:0;color:#5A6380">You're getting this email because <bdi dir="auto">{{ sharer }}</bdi> changed who has access to this form. Replies go to them.</p>
 {% endblock %}""",
@@ -514,10 +515,24 @@ def paragraphs_html(
                 side,
                 size,
                 Markup(THAANA_FONT if thaana else ""),
-                line["text"] if line["text"].strip() else Markup("&nbsp;"),
+                runs_html(line["text"], line["dir"]) if line["text"].strip() else Markup("&nbsp;"),
             )
         )
     return Markup("").join(out)
+
+
+def runs_html(text: Any, direction: str | None = None) -> Markup:
+    """Form content for HTML, escaped, with runs of the other script isolated in ``<bdi>``
+    in their own direction and language (``isolate_runs``), so brackets and punctuation next
+    to them stay on the side of the surrounding text ("(PPY)" inside Dhivehi)."""
+    text = "" if text is None else str(text)
+    base = direction if direction in ("ltr", "rtl") else None
+    return Markup("").join(
+        Markup('<bdi dir="{}" lang="{}">{}</bdi>').format(d, "dv" if d == "rtl" else "en", chunk)
+        if d
+        else escape(chunk)
+        for chunk, d in isolate_runs(text, base)  # type: ignore[arg-type]
+    )
 
 
 def _paragraphs_filter(text: Any) -> Markup | str:
@@ -528,6 +543,7 @@ def _paragraphs_filter(text: Any) -> Markup | str:
 
 
 _env.filters["paragraphs"] = _paragraphs_filter
+_env.filters["runs"] = runs_html
 
 
 def _title(title: str, form: Form | None = None) -> dict[str, str]:

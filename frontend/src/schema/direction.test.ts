@@ -5,6 +5,8 @@ import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { isolateRuns } from '@/thaana/runs'
+
 import { parseForm } from '.'
 import { alignClass } from './align'
 import {
@@ -27,6 +29,7 @@ interface Vectors {
     result: string
     explicit: string | null
   }[]
+  isolate: { text: string; dir?: TextDirection; runs: [string, TextDirection | null][] }[]
   lines: { text: string; fallback?: TextDirection; lines: { dir: TextDirection; lang: 'dv' | 'en' }[] }[]
 }
 
@@ -47,6 +50,13 @@ describe('resolveAlign (shared vectors)', () => {
     it(`${v.align} / ${v.default} / ${v.dir}`, () => {
       expect(resolveAlign(v.align, v.default, v.dir)).toBe(v.result)
       expect(explicitAlign(v.align, v.default)).toBe(v.explicit)
+    })
+})
+
+describe('isolateRuns (shared vectors)', () => {
+  for (const v of vectors.isolate)
+    it(JSON.stringify(v.text), () => {
+      expect(isolateRuns(v.text, v.dir ?? textDirection(v.text)).map((r) => [r.text, r.dir])).toEqual(v.runs)
     })
 })
 

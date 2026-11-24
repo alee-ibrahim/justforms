@@ -9,16 +9,24 @@ import { Fragment, type ReactNode } from 'react'
 import { isMultiline, paragraphStyle, textDirection, textLines, type TextAlign, type TextDirection } from '@/schema/direction'
 
 import { displayText } from './display'
-import { isMixed, scriptRuns } from './runs'
+import { isMixed, isolateRuns } from './runs'
 
-export function FormText({ text }: { text: string }): ReactNode {
+export function FormText({ text, dir }: { text: string; dir?: TextDirection }): ReactNode {
   const shown = displayText(text)
   if (!isMixed(text)) return shown
-  const rtl = textDirection(text) === 'rtl'
-  const minority = rtl ? 'latin' : 'thaana'
-  return scriptRuns(shown).map((run, i) => {
-    if (run.script !== minority) return <Fragment key={i}>{run.text}</Fragment>
-    return run.script === 'thaana' ? (
+  return <Isolated text={shown} dir={dir ?? textDirection(text)} />
+}
+
+/**
+ * `text` (already prepared for display) in a block whose direction is `dir`: runs of the other
+ * script are isolated in their own direction and language (`isolateRuns`), so brackets and
+ * punctuation next to them stay on the side of the surrounding text.
+ */
+export function Isolated({ text, dir }: { text: string; dir: TextDirection }): ReactNode {
+  return isolateRuns(text, dir).map((run, i) =>
+    run.dir === null ? (
+      <Fragment key={i}>{run.text}</Fragment>
+    ) : run.dir === 'rtl' ? (
       <span key={i} lang="dv" dir="rtl" className="df-run">
         {run.text}
       </span>
@@ -26,8 +34,8 @@ export function FormText({ text }: { text: string }): ReactNode {
       <span key={i} lang="en" dir="ltr">
         {run.text}
       </span>
-    )
-  })
+    ),
+  )
 }
 
 /**

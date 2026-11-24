@@ -2,10 +2,11 @@
  * Restricted Markdown for help text and text blocks: **bold**, _italic_ / *italic*,
  * [links](https://...) and "- " lists. Produces React nodes, never HTML strings.
  */
-import type { CSSProperties, ReactNode } from 'react'
+import { Fragment, type CSSProperties, type ReactNode } from 'react'
 
 import { paragraphStyle, textDirection, textLang, type TextAlign, type TextDirection } from '@/schema/direction'
 import { isolateNumbers } from '@/thaana/display'
+import { Isolated } from '@/thaana/form-text'
 
 const INLINE = /(\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_|\[[^\]]+\]\([^)\s]+\))/g
 const ITEM = /^\s*[-*]\s+/
@@ -15,7 +16,8 @@ function safeHref(href: string): string | null {
 }
 
 function inline(text: string, key: string, rtl = false): ReactNode[] {
-  const show = (s: string) => (rtl ? isolateNumbers(s) : s)
+  // Numbers in right-to-left lines and runs of the other script are isolated (display only).
+  const show = (s: string): ReactNode => <Isolated text={rtl ? isolateNumbers(s) : s} dir={rtl ? 'rtl' : 'ltr'} />
   return text.split(INLINE).map((part, i) => {
     const k = `${key}-${i}`
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4)
@@ -43,7 +45,7 @@ function inline(text: string, key: string, rtl = false): ReactNode[] {
         link[1]
       )
     }
-    return show(part)
+    return <Fragment key={k}>{show(part)}</Fragment>
   })
 }
 

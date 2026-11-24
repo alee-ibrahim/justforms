@@ -1,5 +1,5 @@
 {
-  "description": "Text direction of form content: first strong character (Unicode bidi P2). Thaana is rtl, Latin ltr; text with no strong character takes the fallback. lang is dv when the direction is rtl and the text holds Thaana. Run by backend (app/schemas/direction.py) and frontend (src/schema/direction.ts). lines: multi-line text split at every line break (\n, \r\n, \r); each line takes its own direction, and a line with no strong character the whole text's (its first strong character, else the fallback). explicit: the left/center/right an align resolves to, or null for auto (each paragraph then aligns to its own direction).",
+  "description": "Text direction of form content: the dominant script (more words, i.e. runs of strong letters with their marks, of Thaana or of Latin; a tie goes to the first strong character, Unicode bidi P2). Thaana is rtl, Latin ltr; text with no strong character takes the fallback. lang is dv when the direction is rtl and the text holds Thaana. Run by backend (app/schemas/direction.py) and frontend (src/schema/direction.ts). lines: multi-line text split at every line break (\n, \r\n, \r); each line takes its own direction, and a line with no strong character the whole text's (its first strong character, else the fallback). explicit: the left/center/right an align resolves to, or null for auto (each paragraph then aligns to its own direction). isolate: the text split into runs, the runs of the minority script (the one opposite the text's direction) carrying the direction they are isolated in (<bdi>, or LRI/RLI…PDI in the PDF), so brackets and punctuation around them stay put.",
   "direction": [
     {
       "text": "Full name",
@@ -56,6 +56,51 @@
       "text": "Ünïcödé",
       "dir": "ltr",
       "lang": "en"
+    },
+    {
+      "text": "PPY ގެ ބައިވެރިން ކޮބާ؟",
+      "dir": "rtl",
+      "lang": "dv"
+    },
+    {
+      "text": "2026 ވަނަ އަހަރު.",
+      "dir": "rtl",
+      "lang": "dv"
+    },
+    {
+      "text": "ރާއްޖެ is a country in the Indian Ocean.",
+      "dir": "ltr",
+      "lang": "en"
+    },
+    {
+      "text": "ބައިވެރިވުމަށް (PPY) ފޯމު ފުރުއްވާ.",
+      "dir": "rtl",
+      "lang": "dv"
+    },
+    {
+      "text": "Is PPY ready? ތައްޔާރު",
+      "dir": "ltr",
+      "lang": "en"
+    },
+    {
+      "text": "Full name / ފުރިހަމަ ނަން",
+      "dir": "ltr",
+      "lang": "en"
+    },
+    {
+      "text": "ފުރިހަމަ ނަން / Full name",
+      "dir": "rtl",
+      "lang": "dv"
+    },
+    {
+      "text": "Applicant name / ހުށަހަޅާ ފަރާތުގެ ނަން",
+      "dir": "rtl",
+      "lang": "dv"
+    },
+    {
+      "text": "Microsoft Teams އިން ބައްދަލުވުން ބާއްވާނެ",
+      "dir": "rtl",
+      "lang": "dv"
     }
   ],
   "align": [
@@ -138,7 +183,7 @@
           "lang": "en"
         },
         {
-          "dir": "ltr",
+          "dir": "rtl",
           "lang": "en"
         },
         {
@@ -159,7 +204,7 @@
           "lang": "dv"
         },
         {
-          "dir": "rtl",
+          "dir": "ltr",
           "lang": "en"
         },
         {
@@ -228,6 +273,125 @@
           "dir": "rtl",
           "lang": "dv"
         }
+      ]
+    },
+    {
+      "text": "Welcome to PPY.\nPPY ގެ ބައިވެރިން ކޮބާ؟\n2026 ވަނަ އަހަރު.\n(ނޯޓް) Read the notes first.",
+      "lines": [
+        {
+          "dir": "ltr",
+          "lang": "en"
+        },
+        {
+          "dir": "rtl",
+          "lang": "dv"
+        },
+        {
+          "dir": "rtl",
+          "lang": "dv"
+        },
+        {
+          "dir": "ltr",
+          "lang": "en"
+        }
+      ]
+    }
+  ],
+  "isolate": [
+    {
+      "text": "Full name",
+      "runs": [
+        [
+          "Full name",
+          null
+        ]
+      ]
+    },
+    {
+      "text": "PPY ގެ ބައިވެރިން ކޮބާ؟",
+      "runs": [
+        [
+          "PPY",
+          "ltr"
+        ],
+        [
+          " ގެ ބައިވެރިން ކޮބާ؟",
+          null
+        ]
+      ]
+    },
+    {
+      "text": "ބައިވެރިވުމަށް (PPY) ފޯމު ފުރުއްވާ.",
+      "runs": [
+        [
+          "ބައިވެރިވުމަށް (",
+          null
+        ],
+        [
+          "PPY",
+          "ltr"
+        ],
+        [
+          ") ފޯމު ފުރުއްވާ.",
+          null
+        ]
+      ]
+    },
+    {
+      "text": "Microsoft Teams އިން ބައްދަލުވުން ބާއްވާނެ",
+      "runs": [
+        [
+          "Microsoft Teams",
+          "ltr"
+        ],
+        [
+          " އިން ބައްދަލުވުން ބާއްވާނެ",
+          null
+        ]
+      ]
+    },
+    {
+      "text": "Name / ނަން",
+      "runs": [
+        [
+          "Name / ",
+          null
+        ],
+        [
+          "ނަން",
+          "rtl"
+        ]
+      ]
+    },
+    {
+      "text": "Is PPY ready? ތައްޔާރު.",
+      "runs": [
+        [
+          "Is PPY ready? ",
+          null
+        ],
+        [
+          "ތައްޔާރު",
+          "rtl"
+        ],
+        [
+          ".",
+          null
+        ]
+      ]
+    },
+    {
+      "text": "Name / ނަން",
+      "dir": "rtl",
+      "runs": [
+        [
+          "Name",
+          "ltr"
+        ],
+        [
+          " / ނަން",
+          null
+        ]
       ]
     }
   ]

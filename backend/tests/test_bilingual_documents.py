@@ -42,7 +42,7 @@ def _mixed_form(**settings: Any) -> Form:
             "label": "ކުލަ",
             "options": [{"value": "a", "label": "ރަތް"}, {"value": "b", "label": "ނޫ"}],
         },
-        title="Application / ހުށަހަޅާ ފޯމު",
+        title="Application form / ހުށަހަޅާ ފޯމު",
         **settings,
     )
 
@@ -198,7 +198,7 @@ def test_email_gives_every_text_its_own_direction_and_alignment() -> None:
     # Centred English question.
     assert 'align="center"' in _div(html, "Email")
     # The title (English first) and the Dhivehi success message each take their own direction.
-    title = _div(html, "Application / ")
+    title = _div(html, "Application form / ")
     assert 'dir="ltr"' in title and 'align="left"' in title
     success = _div(html, "ޝުކުރިއްޔާ")
     assert 'dir="rtl"' in success and 'align="right"' in success
@@ -208,7 +208,7 @@ def test_email_gives_every_text_its_own_direction_and_alignment() -> None:
 
 def test_email_title_alignment_and_isolation() -> None:
     form = _mixed_form(titleAlign="center")
-    assert 'align="center"' in _div(_receipt(form), "Application / ")
+    assert 'align="center"' in _div(_receipt(form), "Application form / ")
     dv = _form(field("a", label="A"), title="ފޯމު")
     msg = emails.receipt_message(
         org_name="Example Office",

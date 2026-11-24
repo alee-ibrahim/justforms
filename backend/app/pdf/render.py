@@ -45,6 +45,7 @@ from app.schemas.direction import (
     Direction,
     explicit_align,
     has_thaana,
+    isolate_runs,
     resolve_align,
     text_direction,
     text_lines,
@@ -176,6 +177,19 @@ def reference(seq: int) -> str:
     return f"#{seq:04d}"
 
 
+def isolate_text(text: str, direction: Direction) -> str:
+    """Mixed text for the shaper: runs of the other script wrapped in LRI/RLI ... PDI (the PDF
+    equivalent of ``<bdi>``), so brackets and punctuation next to them stay on the side of the
+    surrounding text ("(PPY)" inside Dhivehi)."""
+    return "".join(
+        f"{LRI if d == 'ltr' else RLI}{chunk}{PDI}" if d else chunk
+        for chunk, d in isolate_runs(text, direction)
+    )
+
+
+LRI, RLI, PDI = "\u2066", "\u2067", "\u2069"
+
+
 class _Doc(FPDF):
     def __init__(self, src: PdfInput, total_pages: int | None) -> None:
         super().__init__(format="A4", unit="mm")
@@ -217,6 +231,14 @@ class _Doc(FPDF):
         Text with Thaana uses the Thaana face a step larger (Latin falls back to Inter), shaped
         in its own direction; a mixed text is split into runs by the bidi algorithm. Returns the
         size used. ``tabular``: figures of equal width (references, dates, page numbers)."""
+        d = direction or (text_direction(text) if text is not None else "ltr")
+        if text is not None and has_thaana(text) and d == "ltr":
+            # English-dominant mixed text: the Latin face leads so its punctuation (", ?") keeps
+            # Latin shapes; the Thaana words come from the fallback face.
+            self.set_font("latin", "B" if bold else "", size)
+            self.set_fallback_fonts(["thaana"], exact_match=False)
+            self.set_text_shaping(True, direction="ltr")
+            return size
         if text is not None and has_thaana(text):
             size *= THAANA_SCALE
             self.set_font("thaana", "B" if bold else "", size)
@@ -300,6 +322,8 @@ class _Doc(FPDF):
         direction: Direction = text_direction(text, self.sheet_dir) if content else "ltr"
         thaana = content and has_thaana(text)
         self._font(text if content else None, size, bold, direction=direction)
+        if content and has_thaana(text) and any(ch.isascii() and ch.isalpha() for ch in text):
+            text = isolate_text(text, direction)
         self.set_text_color(*color)
         if align is None:
             align = ("right" if direction == "rtl" else "left") if content else self.start_align()
