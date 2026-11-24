@@ -88,8 +88,7 @@ export function QuestionView({
   // right), aligned by its own `align` or the form default.
   const place = placement(field.label, field.align, ctx.form.settings.align, ctx.dir)
   const labelClass = cn(
-    'text-lg leading-snug',
-    place.lang === 'dv' ? 'font-normal' : 'font-semibold',
+    'df-label text-lg leading-snug',
     invalid && 'text-destructive',
   )
   // Half-width pairs: the control sits at the bottom of the cell so a neighbour's help text or
@@ -199,7 +198,7 @@ export function ContentView({ el, placeholder }: { el: ContentElement; placehold
           dir={place.dir}
           lang={place.lang}
           style={place.text}
-          className={cn('text-xl', place.lang === 'dv' ? 'font-normal' : 'font-semibold tracking-tight')}
+          className={cn('df-label text-xl', place.lang !== 'dv' && 'tracking-tight')}
         >
           {el.text ? <FormText text={el.text} split={place.align === 'auto'} /> : placeholder}
         </h3>
@@ -244,8 +243,7 @@ export function SectionFrame({
           lang={place.lang}
           style={place.text}
           className={cn(
-            'mb-0 w-full text-lg data-[variant=legend]:text-lg',
-            place.lang === 'dv' ? 'font-normal' : 'font-semibold',
+            'df-label mb-0 w-full text-lg data-[variant=legend]:text-lg',
           )}
         >
           {title ?? <FormText text={el.title ?? ''} split={place.align === 'auto'} />}

@@ -64,11 +64,12 @@ maxUploadMb: 25
 # when it is shorter.
 trash:
   days: 30
-# JUSTFORMS_THAANA_FONT_CSS_URL: stylesheet that provides Faruma. Default: the public dvfonts CDN
-# (a third party that sees visitors' IP addresses). "/fonts/faruma.css" with
+# JUSTFORMS_THAANA_FONT_CSS_URL: stylesheet that provides the default Thaana face, MV Faseyha
+# (regular and bold). Default: the public fonts.mv service (a third party that sees visitors' IP
+# addresses). "/fonts/faseyha.css" with
 # frontend.fontsConfigMap self-hosts it; "" relies on the bundled Noto Sans Thaana only.
 # Also passed to the frontend, which allows its origin in the CSP.
-thaanaFontCssUrl: "https://dvfonts.yashau.com/css2?family=Faruma&display=swap"
+thaanaFontCssUrl: "https://fonts.mv/css2?family=MV+Faseyha:wght@400;700&display=swap"
 # JUSTFORMS_THAANA_FONTS: Thaana fonts a form theme can choose (family names; the first is the
 # default). Empty: the built-in list. With a self-hosted stylesheet, list only what it provides.
 thaanaFonts: []
@@ -404,7 +405,7 @@ frontend:
   affinity: {}
   topologySpreadConstraints: []
   priorityClassName: ""
-  # Operator-supplied fonts (e.g. licensed Faruma) served at /fonts/. Point this at a
+  # Operator-supplied fonts (e.g. MV Faseyha or Faruma) served at /fonts/. Point this at a
   # ConfigMap holding fonts.css and the font files (binaryData), e.g.
   #   kubectl create configmap justforms-fonts --from-file=fonts.css --from-file=Faruma.woff2
   fontsConfigMap: ""

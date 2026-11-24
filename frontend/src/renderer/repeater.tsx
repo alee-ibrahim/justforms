@@ -102,8 +102,7 @@ export function RepeaterFrame({
         lang={place.lang}
         style={place.text}
         className={cn(
-          'mb-0 w-full text-lg data-[variant=legend]:text-lg',
-          place.lang === 'dv' ? 'font-normal' : 'font-semibold',
+          'df-label mb-0 w-full text-lg data-[variant=legend]:text-lg',
         )}
       >
         {label ?? <FormText text={el.label} split={place.align === 'auto'} />}
@@ -129,7 +128,7 @@ export function RepeaterFrame({
                 tabIndex={-1}
                 dir={custom ? textDirection(custom, place.dir) : undefined}
                 lang={custom ? textLang(custom) : undefined}
-                className={cn('text-base outline-none', custom && textLang(custom) === 'dv' ? 'font-normal' : 'font-semibold')}
+                className="df-label text-base outline-none"
               >
                 {custom ? <FormText text={custom} /> : <En>{title}</En>}
               </CardTitle>

@@ -34,7 +34,7 @@ phones, in English (LTR) or Dhivehi (Thaana, RTL).
 - **Studio UI is English only.** Dhivehi appears in form content and in respondent-facing
   system strings (buttons, progress, validation), which follow the form's language.
 - **RTL/Thaana is first-class.** dv forms render RTL with the Thaana stack
-  `Faruma, "MV Faseyha", "Noto Sans Thaana", sans-serif`, larger size and line-height than
+  `"MV Faseyha", Faruma, "Noto Sans Thaana", sans-serif`, larger size and line-height than
   Latin. Logical Tailwind properties only.
 - **Never mention any specific deploying organisation**, its domains or internal tools, in
   anything you write. Use neutral sample data (`example.org`, generic names).

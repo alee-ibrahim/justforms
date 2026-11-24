@@ -1,6 +1,6 @@
 /**
- * Loads the configured Thaana font stylesheet (JUSTFORMS_THAANA_FONT_CSS_URL, Faruma by default)
- * once. Faruma files are never bundled; Noto Sans Thaana is the bundled fallback.
+ * Loads the configured Thaana font stylesheet (JUSTFORMS_THAANA_FONT_CSS_URL, MV Faseyha by
+ * default) once. MV and Faruma files are never bundled; Noto Sans Thaana is the bundled fallback.
  */
 export function loadThaanaFont(url: string | null | undefined): void {
   if (!url || document.getElementById('justforms-thaana-font')) return

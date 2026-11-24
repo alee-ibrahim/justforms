@@ -7,8 +7,9 @@
    theme fonts are /theme-fonts/*.css, fetched only by forms that choose them. */
 @import "@fontsource-variable/inter/wght.css";
 @import "@fontsource-variable/atkinson-hyperlegible-mono";
-/* Noto Sans Thaana (SIL OFL) is bundled as the Thaana fallback. Faruma / MV Faseyha are used
-   when installed locally or supplied by the operator via /fonts/fonts.css (see docs/DESIGN.md). */
+/* Noto Sans Thaana (SIL OFL) is bundled as the Thaana fallback. MV Faseyha (the default) and Faruma
+   come from the runtime stylesheet (JUSTFORMS_THAANA_FONT_CSS_URL), the device, or the operator's
+   /fonts/fonts.css (see docs/DESIGN.md 16). */
 @import "@fontsource/noto-sans-thaana/400.css";
 @import "@fontsource/noto-sans-thaana/700.css";
 
@@ -62,10 +63,10 @@
 @theme inline {
     /* Named Latin fallbacks sit before the Thaana faces: while a Latin web font loads, Latin text
        must fall back to a Latin face, never to Faruma's serif Latin glyphs (DESIGN-SYSTEM 4.1). */
-    --font-sans: 'Inter Variable', 'Inter Fallback', Roboto, 'Segoe UI', 'Helvetica Neue', Arial, Faruma, 'MV Faseyha', 'Noto Sans Thaana', sans-serif;
+    --font-sans: 'Inter Variable', 'Inter Fallback', Roboto, 'Segoe UI', 'Helvetica Neue', Arial, 'MV Faseyha', Faruma, 'Noto Sans Thaana', sans-serif;
     --font-heading: var(--font-sans);
     --font-mono: 'Atkinson Hyperlegible Mono Variable', ui-monospace, monospace;
-    --font-thaana: Faruma, 'MV Faseyha', 'Noto Sans Thaana', sans-serif;
+    --font-thaana: 'MV Faseyha', Faruma, 'Noto Sans Thaana', sans-serif;
     /* Project tokens (docs/ux/DESIGN-SYSTEM.md 3.2). Use at call sites, never in components/ui. */
     --color-marker: var(--marker);
     --color-marker-edge: var(--marker-edge);
@@ -216,7 +217,7 @@
      text size and, on desktops, by --df-fit (DESIGN-SYSTEM 4.2, 6). Thaana sizes below scale
      the same way. */
   [data-df-theme] {
-    font-family: var(--df-font-latin, 'Inter Variable'), 'Inter Fallback', Roboto, 'Segoe UI', 'Helvetica Neue', Arial, Faruma, 'MV Faseyha',
+    font-family: var(--df-font-latin, 'Inter Variable'), 'Inter Fallback', Roboto, 'Segoe UI', 'Helvetica Neue', Arial, 'MV Faseyha', Faruma,
       'Noto Sans Thaana', sans-serif;
     --df-fit: 1;
     --df-k: calc(var(--df-text-scale, 1) * var(--df-fit));
@@ -279,19 +280,21 @@
     --text-2xl--line-height: calc(3rem * var(--df-k, 1));
     --text-3xl: calc(2.3125rem * var(--df-k, 1));
     --text-3xl--line-height: calc(3.5rem * var(--df-k, 1));
-    font-family: var(--df-font-thaana, Faruma), Faruma, 'MV Faseyha', 'Noto Sans Thaana',
+    font-family: var(--df-font-thaana, 'MV Faseyha'), 'MV Faseyha', Faruma, 'Noto Sans Thaana',
       var(--df-font-latin, 'Inter Variable'), 'Inter Fallback', sans-serif;
-    font-synthesis-style: none;
+    /* Never synthetic bold or italic: smeared Thaana. A face with a bold (MV Faseyha, Noto Sans
+       Thaana) uses it; a single-weight face (Faruma) stays regular. */
+    font-synthesis: none;
     letter-spacing: 0;
   }
   /* Latin data typed inside a dv form (emails, phone numbers, IDs) and English runs marked
      lang="en" (the organisation name) keep the Latin face; otherwise they inherit the Thaana
-     stack and pick up Faruma's serif Latin glyphs. */
+     stack and pick up the Thaana face's Latin glyphs. */
   :lang(dv) [dir='ltr'],
   :lang(dv) [dir='ltr'] *,
   :lang(dv) [lang='en'],
   :lang(dv) [lang='en'] * {
-    font-family: var(--df-font-latin, 'Inter Variable'), 'Inter Fallback', Roboto, 'Segoe UI', 'Helvetica Neue', Arial, Faruma, 'MV Faseyha',
+    font-family: var(--df-font-latin, 'Inter Variable'), 'Inter Fallback', Roboto, 'Segoe UI', 'Helvetica Neue', Arial, 'MV Faseyha', Faruma,
       'Noto Sans Thaana', sans-serif;
   }
   /* A form's own accent replaces primary and ring inside the form root only (light mode; the
@@ -318,10 +321,43 @@
   :not(:lang(dv)) > .df-run:lang(dv) {
     font-size: 1.12em;
   }
+  /* A split bilingual text (Bilingual: English part, Dhivehi part) takes its size from the text's
+     dominant script, so each part is scaled to its own script: the Dhivehi part of an English
+     text up, the English part of a Dhivehi text down, by the same 1.12 as Thaana runs. Both
+     parts then read at the same optical size whichever script has more words. */
+  [data-slot='bilingual']:not(:lang(dv)) > [data-part='rtl'] {
+    font-size: 1.12em;
+  }
+  [data-slot='bilingual']:lang(dv) > [data-part='ltr'] {
+    font-size: calc(1em / 1.12);
+  }
+  /* The reverse: a Latin run inside Dhivehi text ("PPY ގެ ...") and the English requirement mark
+     after a Dhivehi label are set back to the Latin size, so they don't loom over the Thaana. */
+  :lang(dv) > span[lang='en'][dir='ltr'],
+  [data-slot='requirement-mark']:lang(dv) {
+    font-size: calc(1em / 1.12);
+  }
   /* Thaana underlines sit below the lower vowel signs. */
   :lang(dv) a {
     text-underline-offset: 0.4em;
     text-decoration-thickness: 1px;
+  }
+}
+
+/* Labels and headings of form content (question labels, section and repeater titles, headings):
+   Latin semibold, Thaana regular, decided per script run, not by the label's dominant script, so a
+   split bilingual label ("Atoll/Island: ... | ...") looks the same whichever script has more
+   words. Thaana labels are told apart by their larger :lang(dv) size; MV Faseyha's bold is kept
+   for titles. A layer below utilities, so an explicit font-* class inside (the requirement
+   mark) still wins. */
+@layer components {
+  .df-label,
+  .df-label :lang(en) {
+    font-weight: 600;
+  }
+  .df-label:lang(dv),
+  .df-label :lang(dv) {
+    font-weight: 400;
   }
 }
 

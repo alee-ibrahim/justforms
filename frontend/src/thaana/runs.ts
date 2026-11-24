@@ -131,6 +131,11 @@ const LAST_SPACES = /\s+(?=\S*$)/
 // Without spaces: the closers and punctuation that end the first part (Dhivehi "؟", "،", "؛").
 const ENDING = /^[)\]}:;,.!?؟،؛…]*/
 
+// Dhivehi suffixes and postpositions written as their own word after an English name
+// ("Microsoft Teams އިން ބައްދަލުވުން ބާއްވާނެ"): English followed by one of these is part of a
+// Dhivehi sentence, not a label in two languages. Twin of _SUFFIX in direction.py.
+const SUFFIX = /^(?:ގެ|އިން|އަށް|ގައި|އާއި|އަކީ|އެއް|ތައް)(?![\u0780-\u07bf])/
+
 /** Words of one script run: runs of letters (marks included). */
 function words(text: string): number {
   return text.split(/[^\p{L}\p{M}]+/u).filter(Boolean).length
@@ -140,7 +145,9 @@ function words(text: string): number {
  * Splits a one-line text that is **one English block and one Dhivehi block** (either order) into
  * its two parts, or `null`: multi-line text, text in one script, text with more than two script
  * blocks (an acronym inside a Dhivehi sentence: "ބައިވެރިވުމަށް (PPY) ފޯމު ފުރުއްވާ."), two
- * blocks with only spaces between them ("PPY ގެ ބައިވެރިން"), and, unless "/" or "|" divides
+ * blocks with only spaces between them unless both have two or more words and the Dhivehi one
+ * doesn't start with a suffix ("PPY ގެ ބައިވެރިން", "Microsoft Teams އިން ބައްދަލުވުން"; "Current
+ * Age މިހާރުގެ އުމުރު" is split), and, unless "/" or "|" divides
  * them, a lone capitalised acronym ("ބައިވެރިވުމަށް (PPY)") or a short run tacked onto a long
  * sentence ("Is PPY ready? ތައްޔާރު": the shorter part needs two words or half the longer's).
  * Twin of `bilingual_parts` (backend/app/schemas/direction.py); vectors `bilingual`.
@@ -153,13 +160,17 @@ export function bilingualParts(text: string | null | undefined): BilingualParts 
   const a = runs.indexOf(letters[0])
   const b = runs.indexOf(letters[1])
   const gap = b > a + 1 ? runs[a + 1].text : ''
-  // Something other than spaces (and figures) must mark the break between the two parts.
-  if (!/[^\s\d]/.test(gap)) return null
   const latinFirst = letters[0].script === 'latin'
   const latin = letters[latinFirst ? 0 : 1].text
+  const thaana = letters[latinFirst ? 1 : 0].text
   const latinWords = words(latin)
-  const thaanaWords = words(letters[latinFirst ? 1 : 0].text)
+  const thaanaWords = words(thaana)
   const short = Math.min(latinWords, thaanaWords)
+  // Only spaces (and figures) between the parts: split two clear blocks of two or more words each
+  // ("Current Age މިހާރުގެ އުމުރު"), never English followed by a Dhivehi suffix ("Microsoft Teams
+  // އިން ...") or a lone acronym ("PPY ގެ ބައިވެރިން ކޮބާ؟").
+  if (!/[^\s\d]/.test(gap) && (short < 2 || (latinFirst && SUFFIX.test(thaana))))
+    return null
   if (!STRONG.test(gap) && ((latinWords === 1 && !/\p{Ll}/u.test(latin)) || (short < 2 && short * 2 < latinWords + thaanaWords - short)))
     return null
   // The first part keeps what ends it (":", "?", its closing brackets), the second what opens it.

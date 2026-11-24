@@ -474,7 +474,7 @@ def one_line(text: str, limit: int = 250) -> str:
 
 
 # Thaana face for Dhivehi answers (CLAUDE.md "Fonts"); mail clients without it fall back.
-THAANA_FONT = ";font-family:Faruma,'MV Faseyha','Noto Sans Thaana',sans-serif"
+THAANA_FONT = ";font-family:'MV Faseyha',Faruma,'Noto Sans Thaana',sans-serif"
 
 
 def _block(text: str, align: str | None = None, *, label: bool = False) -> dict[str, str]:

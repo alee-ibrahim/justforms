@@ -18,8 +18,6 @@ export const MSG = {
   chooseOption: 'Choose an option',
   chooseAtLeast: 'Choose at least {n}',
   chooseAtMost: 'Choose no more than {n}',
-  chooseUpTo: 'Choose up to {n}',
-  chooseAtLeastHint: 'Choose at least {n}',
   maxReached: 'You chose {n}, the most allowed. Clear one to pick another.',
   email: 'Enter an email address like name@example.com',
   phoneMv: 'Enter a phone number with 7 digits, like 7771234',
@@ -31,7 +29,6 @@ export const MSG = {
   between: 'Enter a number between {min} and {max}',
   atLeast: 'Enter a number of {min} or more',
   atMost: 'Enter a number of {max} or less',
-  betweenHint: 'Between {min} and {max}',
   checkFormat: 'Check the format',
   tooLong: 'Use {max} characters or fewer',
   charCount: '{n} of {max}',
@@ -57,7 +54,6 @@ export const MSG = {
   filesMaxed: "You've added {n} files, the most allowed. Remove one to add another.",
   fileTooLarge: '“{name}” is larger than {size} MB. Choose a smaller file.',
   fileType: '“{name}” isn\'t allowed. Upload {types}.',
-  uploadFailed: "Couldn't upload.",
   uploading: 'Uploading',
   retry: 'Retry',
   remove: 'Remove',
@@ -95,7 +91,6 @@ export const MSG = {
   notFoundBody: 'Check the link. It may have been mistyped or the form may have been removed.',
   loadFailedTitle: "Couldn't open this form",
   loadFailedBody: 'Check your connection and try again.',
-  tryAgain: 'Try again',
   submitFailed:
     "Couldn't send your answers. Check your connection and try again. Your answers are still here.",
   versionChanged:
@@ -103,7 +98,6 @@ export const MSG = {
   moreQuestions: '{n} more questions',
   oneMoreQuestion: '1 more question',
   madeWith: 'Made with JustForms',
-  previewReference: 'Preview',
 }
 
 export type MessageKey = keyof typeof MSG

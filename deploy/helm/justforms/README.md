@@ -253,7 +253,7 @@ unless noted.
 | `trustedProxies` | private ranges | `JUSTFORMS_TRUSTED_PROXIES` (comma-joined): the frontend pods, whose `X-Forwarded-For` the API trusts. Narrow it to your pod CIDR; see [Client IP address](#frontend-nginx) |
 | `maxUploadMb` | `25` | `JUSTFORMS_MAX_UPLOAD_MB` |
 | `trash.days` | `30` | `JUSTFORMS_TRASH_DAYS`: days deleted forms and submissions stay restorable before the worker erases them |
-| `thaanaFontCssUrl` | dvfonts CDN | `JUSTFORMS_THAANA_FONT_CSS_URL` (also on the frontend) |
+| `thaanaFontCssUrl` | fonts.mv (MV Faseyha 400/700) | `JUSTFORMS_THAANA_FONT_CSS_URL` (also on the frontend) |
 | `thaanaFonts` | `[]` (built-in list) | `JUSTFORMS_THAANA_FONTS` (comma-joined): Thaana fonts form themes can choose |
 | `fonts.server.configMap` / `.secret` | `""` | ConfigMap (`binaryData`) or Secret holding a Thaana TTF/OTF for server rendering (signed PDFs, link-preview images), mounted read-only at `fonts.server.mountPath` (`/etc/justforms/fonts`) in the API, worker and migration job. Empty: the bundled Noto Sans Thaana |
 | `fonts.server.thaanaKey` / `.thaanaBoldKey` | `""` | Keys (file names) in it; set `JUSTFORMS_THAANA_FONT_FILE` / `JUSTFORMS_THAANA_FONT_BOLD_FILE`. Bold is optional (the regular file is used for bold) |

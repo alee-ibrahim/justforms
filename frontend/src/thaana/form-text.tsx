@@ -51,7 +51,7 @@ export function Bilingual({
     <span
       dir="ltr"
       data-slot="bilingual"
-      className={inline ? 'inline-flex flex-wrap items-baseline gap-x-2' : 'flex w-full flex-wrap items-baseline gap-x-6'}
+      className={inline ? 'inline-flex flex-wrap items-baseline gap-x-2' : 'flex w-full flex-wrap items-baseline gap-x-6 gap-y-1'}
     >
       <span lang="en" dir="ltr" className="text-start" data-part="ltr">
         <FormText text={parts.ltr} />

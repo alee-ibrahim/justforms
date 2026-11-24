@@ -630,6 +630,38 @@
       }
     },
     {
+      "text": "Current Age މިހާރުގެ އުމުރު",
+      "parts": {
+        "ltr": "Current Age",
+        "rtl": "މިހާރުގެ އުމުރު",
+        "first": "ltr"
+      }
+    },
+    {
+      "text": "މިހާރުގެ އުމުރު Current Age",
+      "parts": {
+        "ltr": "Current Age",
+        "rtl": "މިހާރުގެ އުމުރު",
+        "first": "rtl"
+      }
+    },
+    {
+      "text": "Atoll/Island: ނިސްބަތްވާ އަތޮޅު/ރަށް:",
+      "parts": {
+        "ltr": "Atoll/Island:",
+        "rtl": "ނިސްބަތްވާ އަތޮޅު/ރަށް:",
+        "first": "ltr"
+      }
+    },
+    {
+      "text": "Practice Parliament ގެ ބައިވެރިން ކޮބާ؟",
+      "parts": null
+    },
+    {
+      "text": "Current Age އުމުރު",
+      "parts": null
+    },
+    {
       "text": "PPY ގެ ބައިވެރިން ކޮބާ؟",
       "parts": null
     },

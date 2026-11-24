@@ -32,8 +32,8 @@ CsvList = Annotated[list[str], NoDecode]
 
 # Thaana fonts a form theme offers by default (JUSTFORMS_THAANA_FONTS).
 DEFAULT_THAANA_FONTS = (
-    "Faruma",
     "MV Faseyha",
+    "Faruma",
     "MV A Waheed",
     "MV Typewriter",
     "MV Lhohi",
@@ -242,19 +242,20 @@ class Settings(BaseSettings):
     pdf_signer_name: str = "JustForms document signing"
 
     # -- fonts ------------------------------------------------------------------------------
-    # Stylesheet that provides Faruma (the Thaana face Dhivehi readers expect). Loaded at
-    # runtime by the studio and the public form; Faruma files are never shipped with JustForms.
-    # Default: the public dvfonts CDN (a third party sees respondents' IP addresses). Set it to
-    # a self-hosted copy (e.g. /fonts/faruma.css) or to an empty string to disable; Noto Sans
-    # Thaana (bundled) is always the fallback.
-    thaana_font_css_url: str = "https://dvfonts.yashau.com/css2?family=Faruma&display=swap"
+    # Stylesheet that provides the default Thaana face, MV Faseyha (regular and bold). Loaded at
+    # runtime by the studio and the public form; MV and Faruma font files are never shipped with
+    # JustForms (their licences don't clearly allow redistribution). Default: the public fonts.mv
+    # css2 service (a third party sees respondents' IP addresses). Set it to a self-hosted copy
+    # (e.g. /fonts/faseyha.css) or to an empty string to disable; Noto Sans Thaana (bundled) is
+    # always the fallback.
+    thaana_font_css_url: str = "https://fonts.mv/css2?family=MV+Faseyha:wght@400;700&display=swap"
     # Thaana fonts a form theme can choose (family names; the first is the default). With a
     # css2-style font service as JUSTFORMS_THAANA_FONT_CSS_URL (the default) each family loads
     # from it when a form uses it; with a self-hosted stylesheet, list only families your
     # /fonts/fonts.css provides. Noto Sans Thaana (bundled) is always offered.
     thaana_fonts: CsvList = Field(default_factory=lambda: list(DEFAULT_THAANA_FONTS))
     # Thaana TrueType/OpenType font for server-side rendering (signed PDFs, link-preview
-    # images), e.g. a licensed Faruma mounted into the container. Empty: the bundled Noto Sans
+    # images), e.g. MV Faseyha or Faruma mounted into the container. Empty: the bundled Noto Sans
     # Thaana. Checked at first use (Thaana coverage; for PDFs, embedding permissions); an
     # unusable file falls back to the bundled face with a warning. The bold file is optional
     # (the regular one is used for bold text when it is not set).

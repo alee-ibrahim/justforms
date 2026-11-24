@@ -34,8 +34,8 @@ builder, the public form, the submissions view, emails and the signed PDF all fo
 Everything around the form (the studio, the public form's buttons and messages, emails, the
 verify page and the PDF's labels) is English.
 
-The Thaana font stack is `Faruma, "MV Faseyha", "Noto Sans Thaana", sans-serif`. Only Noto Sans
-Thaana (SIL OFL) is bundled; Faruma loads from a font service by default and can be self-hosted
+The Thaana font stack is `"MV Faseyha", Faruma, "Noto Sans Thaana", sans-serif`. Only Noto Sans
+Thaana (SIL OFL) is bundled; MV Faseyha loads from a font service (fonts.mv) by default and can be self-hosted
 (see [Thaana fonts](configuration.md#thaana-fonts)).
 
 <p align="center">

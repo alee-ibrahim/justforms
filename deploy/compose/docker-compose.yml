@@ -93,8 +93,8 @@ x-backend-env: &backend-env
   JUSTFORMS_BRAND_LOGO_DARK_FILE: ${JUSTFORMS_BRAND_LOGO_DARK_FILE:-}
   JUSTFORMS_BRAND_ICON_FILE: ${JUSTFORMS_BRAND_ICON_FILE:-}
   JUSTFORMS_BRAND_POWERED_BY: ${JUSTFORMS_BRAND_POWERED_BY:-optional}
-  # Faruma stylesheet (default: dvfonts CDN). Empty disables; /fonts/... uses a self-hosted copy.
-  JUSTFORMS_THAANA_FONT_CSS_URL: "${JUSTFORMS_THAANA_FONT_CSS_URL-https://dvfonts.yashau.com/css2?family=Faruma&display=swap}"
+  # Thaana font stylesheet (default: MV Faseyha from fonts.mv). Empty disables; /fonts/... self-hosts.
+  JUSTFORMS_THAANA_FONT_CSS_URL: "${JUSTFORMS_THAANA_FONT_CSS_URL-https://fonts.mv/css2?family=MV+Faseyha:wght@400;700&display=swap}"
   # Thaana fonts a form theme can choose (comma-separated family names). Empty: the built-in list.
   JUSTFORMS_THAANA_FONTS: ${JUSTFORMS_THAANA_FONTS:-}
   # Thaana font for server rendering (signed PDFs, link-preview images): a path inside the
@@ -184,7 +184,7 @@ services:
     environment:
       BACKEND_URL: http://backend:8000
       # Used to build the Content-Security-Policy (font and CAPTCHA origins, S3 bucket).
-      JUSTFORMS_THAANA_FONT_CSS_URL: "${JUSTFORMS_THAANA_FONT_CSS_URL-https://dvfonts.yashau.com/css2?family=Faruma&display=swap}"
+      JUSTFORMS_THAANA_FONT_CSS_URL: "${JUSTFORMS_THAANA_FONT_CSS_URL-https://fonts.mv/css2?family=MV+Faseyha:wght@400;700&display=swap}"
       JUSTFORMS_CAPTCHA_PROVIDER: ${JUSTFORMS_CAPTCHA_PROVIDER:-none}
       JUSTFORMS_CSP_EXTRA_CONNECT_SRC: ${JUSTFORMS_CSP_EXTRA_CONNECT_SRC:-}
       # Client address: empty = the peer (browsers connect straight to this container). Behind
@@ -194,7 +194,7 @@ services:
       # Strict-Transport-Security: auto (when X-Forwarded-Proto is https), off, or a value.
       JUSTFORMS_HSTS: ${JUSTFORMS_HSTS:-auto}
     volumes:
-      # Optional operator fonts (e.g. licensed Faruma) served at /fonts/;
+      # Optional operator fonts (e.g. MV Faseyha or Faruma) served at /fonts/;
       # see "Thaana fonts" in the README. The directory may be empty.
       - ${JUSTFORMS_FONTS_DIR:-./fonts}:/srv/fonts:ro
     ports:
