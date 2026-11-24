@@ -57,8 +57,10 @@ external secrets operator").
   text) takes its direction from its dominant script (more Thaana or more Latin words; a tie
   goes to the first strong character; Thaana → RTL, Latin → LTR): use the twins
   `frontend/src/schema/direction.ts` / `backend/app/schemas/direction.py` (`textDirection`,
-  `textLang`, `textProps`, `resolveAlign`, `textLines`, `isolateRuns`; shared vectors in
-  `spec/direction/vectors.json`). Multi-line text goes through `Markdown` / `FormLines` (one
+  `textLang`, `textProps`, `resolveAlign`, `textLines`, `isolateRuns`, `bilingualParts`; shared
+  vectors in `spec/direction/vectors.json`). With `auto` alignment a one-line text that is one
+  English and one Dhivehi block is split (`FormText split`, `Bilingual`): English left, Dhivehi
+  right. Multi-line text goes through `Markdown` / `FormLines` (one
   block per line, each in its own direction); textareas use `PER_LINE`.
   Wherever form text is edited or shown, set `lang`/`dir` from **that text** (`textProps(text)`,
   or the renderer's `placement()` for blocks), render it with `<FormText text>` (marks the

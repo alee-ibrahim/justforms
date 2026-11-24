@@ -9,12 +9,59 @@ import { Fragment, type ReactNode } from 'react'
 import { isMultiline, paragraphStyle, textDirection, textLines, type TextAlign, type TextDirection } from '@/schema/direction'
 
 import { displayText } from './display'
-import { isMixed, isolateRuns } from './runs'
+import { bilingualParts, isMixed, isolateRuns, type BilingualParts } from './runs'
 
-export function FormText({ text, dir }: { text: string; dir?: TextDirection }): ReactNode {
+/**
+ * `split`: a bilingual one-line text ("Full name: ފުރިހަމަ ނަން", `bilingualParts`) is shown as
+ * its two parts in one row, English at the left and Dhivehi at the right (`Bilingual`). Only for
+ * `auto` alignment; explicit left/center/right/justify keep the text in one piece.
+ */
+export function FormText({
+  text,
+  dir,
+  split,
+}: {
+  text: string
+  dir?: TextDirection
+  split?: boolean | 'inline'
+}): ReactNode {
+  const parts = split ? bilingualParts(text) : null
+  if (parts) return <Bilingual parts={parts} inline={split === 'inline'} />
   const shown = displayText(text)
   if (!isMixed(text)) return shown
   return <Isolated text={shown} dir={dir ?? textDirection(text)} />
+}
+
+/**
+ * A bilingual text as two parts in one row: the English part left to right at the left, the
+ * Dhivehi part right to left at the right (pushed there by its end margin, the left one in its own
+ * direction, so it stays at the right when the row wraps to two lines on narrow widths). `end` follows the English part (the
+ * question's requirement mark). `inline`: a row as wide as its parts (buttons, chips).
+ */
+export function Bilingual({
+  parts,
+  end,
+  inline,
+}: {
+  parts: BilingualParts
+  end?: ReactNode
+  inline?: boolean
+}): ReactNode {
+  return (
+    <span
+      dir="ltr"
+      data-slot="bilingual"
+      className={inline ? 'inline-flex flex-wrap items-baseline gap-x-2' : 'flex w-full flex-wrap items-baseline gap-x-6'}
+    >
+      <span lang="en" dir="ltr" className="text-start" data-part="ltr">
+        <FormText text={parts.ltr} />
+        {end}
+      </span>
+      <span lang="dv" dir="rtl" className={inline ? 'text-start' : 'me-auto text-start'} data-part="rtl">
+        <FormText text={parts.rtl} />
+      </span>
+    </span>
+  )
 }
 
 /**

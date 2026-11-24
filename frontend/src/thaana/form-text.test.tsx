@@ -51,3 +51,34 @@ describe('FormLines', () => {
     expect(renderToStaticMarkup(<FormLines text="Full name" />)).toBe('Full name')
   })
 })
+
+describe('FormText split', () => {
+  it('shows a bilingual label as one row: English left, Dhivehi right', () => {
+    const html = renderToStaticMarkup(<FormText text="Full name: ފުރިހަމަ ނަން" split />)
+    expect(html).toBe(
+      '<span dir="ltr" data-slot="bilingual" class="flex w-full flex-wrap items-baseline gap-x-6">' +
+        '<span lang="en" dir="ltr" class="text-start" data-part="ltr">Full name:</span>' +
+        '<span lang="dv" dir="rtl" class="me-auto text-start" data-part="rtl">ފުރިހަމަ ނަން</span></span>',
+    )
+  })
+
+  it('puts the English part first even when the text starts in Dhivehi, brackets paired', () => {
+    const html = renderToStaticMarkup(
+      <FormText text="ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި) (Practice Parliament for Youth (PPY))" split />,
+    )
+    expect(html).toContain('data-part="ltr">(Practice Parliament for Youth (PPY))</span>')
+    expect(html).toContain('data-part="rtl">ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި)</span>')
+    expect(html.indexOf('data-part="ltr"')).toBeLessThan(html.indexOf('data-part="rtl"'))
+  })
+
+  it('keeps text with an embedded run whole, and does not split without `split`', () => {
+    expect(renderToStaticMarkup(<FormText text="PPY ގެ ބައިވެރިން ކޮބާ؟" split />)).not.toContain('bilingual')
+    expect(renderToStaticMarkup(<FormText text="Full name: ފުރިހަމަ ނަން" />)).not.toContain('bilingual')
+  })
+
+  it('isolates a bracketed English run inside Dhivehi with its brackets', () => {
+    expect(renderToStaticMarkup(<FormText text="ބައިވެރިވުމަށް (PPY) ފޯމު ފުރުއްވާ." />)).toBe(
+      'ބައިވެރިވުމަށް <span lang="en" dir="ltr">(PPY)</span> ފޯމު ފުރުއްވާ.',
+    )
+  })
+})

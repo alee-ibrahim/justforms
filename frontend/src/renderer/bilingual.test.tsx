@@ -224,7 +224,9 @@ describe('punctuation and the dominant script', () => {
     const h3 = render(f).querySelector('h3')!
     expect(h3.getAttribute('dir')).toBe('rtl')
     expect(h3.style.textAlign).toBe('start')
-    expect(h3.innerHTML).toBe('ބައިވެރިވުމަށް (<span lang="en" dir="ltr">PPY</span>) ފޯމު ފުރުއްވާ.')
+    // Not a two-block bilingual text (an acronym inside a sentence): one piece, the bracket
+    // pair isolated with the run it encloses.
+    expect(h3.innerHTML).toBe('ބައިވެރިވުމަށް <span lang="en" dir="ltr">(PPY)</span> ފޯމު ފުރުއްވާ.')
   })
 
   it('isolates Latin runs inside Dhivehi paragraphs (Markdown)', () => {
@@ -235,5 +237,57 @@ describe('punctuation and the dominant script', () => {
     const p = render(f).querySelector('p')!
     expect(p.getAttribute('dir')).toBe('rtl')
     expect(p.querySelector('span[dir="ltr"]')?.textContent).toBe('PPY')
+  })
+})
+
+describe('bilingual one-line texts (auto alignment)', () => {
+  const PPY = 'ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި) (Practice Parliament for Youth (PPY))'
+  const split: Form = {
+    ...form,
+    pages: [
+      {
+        id: 'page_1',
+        elements: [
+          { kind: 'field', id: 'name', type: 'short_text', label: 'Full name: ފުރިހަމަ ނަން' },
+          {
+            kind: 'field',
+            id: 'program',
+            type: 'single_choice',
+            label: 'Which program did you participate in? ބައިވެރިވި ޕްރޮގްރާމަކީ:',
+            options: [{ value: 'ppy', label: PPY }],
+          },
+        ],
+      },
+    ],
+  }
+
+  it('shows the English part at the left and the Dhivehi part at the right, the marker after English', () => {
+    const host = render(split)
+    const row = host.querySelector('label [data-slot="bilingual"]')!
+    expect(row.getAttribute('dir')).toBe('ltr')
+    const en = row.querySelector('[data-part="ltr"]')!
+    const dv = row.querySelector('[data-part="rtl"]')!
+    expect(en.textContent).toBe('Full name: (optional)')
+    expect(en.querySelector('[data-slot="requirement-mark"]')).not.toBeNull()
+    expect(dv.textContent).toBe('ފުރިހަމަ ނަން')
+    expect(dv.getAttribute('dir')).toBe('rtl')
+    expect(dv.className).toContain('me-auto')
+  })
+
+  it('splits question labels with trailing punctuation and options with brackets', () => {
+    const host = render(split)
+    const legend = host.querySelectorAll('[data-slot="bilingual"]')[1]
+    expect(legend.querySelector('[data-part="ltr"]')!.textContent).toBe('Which program did you participate in? (optional)')
+    expect(legend.querySelector('[data-part="rtl"]')!.textContent).toBe('ބައިވެރިވި ޕްރޮގްރާމަކީ:')
+    const option = host.querySelectorAll('[data-slot="bilingual"]')[2]
+    expect(option.querySelector('[data-part="ltr"]')!.textContent).toBe('(Practice Parliament for Youth (PPY))')
+    expect(option.querySelector('[data-part="rtl"]')!.textContent).toBe('ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި)')
+  })
+
+  it('keeps the text whole with an explicit alignment (left/center/right/justify)', () => {
+    for (const align of ['left', 'center', 'right', 'justify'] as const) {
+      const host = render({ ...split, settings: { ...split.settings, align } })
+      expect(host.querySelector('[data-slot="bilingual"]')).toBeNull()
+    }
   })
 })

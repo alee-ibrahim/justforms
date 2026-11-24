@@ -42,7 +42,9 @@ from app.logic.engine import evaluate
 from app.logic.index import FormIndex
 from app.pdf.faces import BUNDLED, LATIN_BOLD, LATIN_REGULAR, ThaanaFace
 from app.schemas.direction import (
+    BilingualParts,
     Direction,
+    bilingual_parts,
     explicit_align,
     has_thaana,
     isolate_runs,
@@ -58,11 +60,13 @@ from app.schemas.form import (
     FileField,
     Form,
     HiddenField,
+    MultiChoiceField,
     NumberField,
     PhoneField,
     RepeaterElement,
     SectionElement,
     SignatureField,
+    SingleChoiceField,
     TimeField,
     YesNoField,
 )
@@ -188,6 +192,8 @@ def isolate_text(text: str, direction: Direction) -> str:
 
 
 LRI, RLI, PDI = "\u2066", "\u2067", "\u2069"
+# Space (mm) kept between the English and the Dhivehi part of a bilingual text on one row.
+BILINGUAL_GAP = 6.0
 
 
 class _Doc(FPDF):
@@ -287,6 +293,7 @@ class _Doc(FPDF):
         dry_run: bool = False,
         align: str | None = None,
         per_line: bool = False,
+        split: bool = False,
     ) -> float:
         """A paragraph. ``content`` text is shaped in its own direction and face (``_font``);
         ``latin`` (Latin-only answers, English labels) is shaped left to right. ``align`` is
@@ -296,9 +303,18 @@ class _Doc(FPDF):
 
         Multi-line ``content`` text is laid out line by line: each line break-separated
         paragraph is shaped in its own direction (an English paragraph, then Dhivehi ones),
-        aligned by ``align`` when ``per_line`` is false, else each to its own direction."""
+        aligned by ``align`` when ``per_line`` is false, else each to its own direction.
+
+        ``split`` (auto alignment): a bilingual one-line text ("Full name: ފުރިހަމަ ނަން",
+        ``bilingual_parts``) is laid out as one row, the English part at the left and the
+        Dhivehi part at the right; two lines (English left, Dhivehi right) when they don't fit."""
         if not text:
             return 0.0
+        parts = bilingual_parts(text) if split and content and not latin else None
+        if parts is not None:
+            return self._bilingual(
+                parts, size=size, bold=bold, color=color, gap=gap, line=line, dry_run=dry_run
+            )
         if content and not latin and ("\n" in text or "\r" in text):
             total = 0.0
             lines = text_lines(text, text_direction(text, self.sheet_dir))
@@ -321,6 +337,7 @@ class _Doc(FPDF):
                     line=line,
                     dry_run=dry_run,
                     align=own if per_line or align is None else align,
+                    split=split,
                 )
             if not lines[-1]["text"].strip():
                 total += gap
@@ -361,12 +378,84 @@ class _Doc(FPDF):
         self.ln(gap)
         return 0.0
 
+    def _bilingual(
+        self,
+        parts: BilingualParts,
+        *,
+        size: float,
+        bold: bool,
+        color: tuple[int, int, int],
+        gap: float,
+        line: float | None,
+        dry_run: bool,
+    ) -> float:
+        """The two parts of a bilingual text in one row: English left, Dhivehi right; stacked
+        (the English line at the left, then the Dhivehi line at the right) when they don't
+        fit side by side."""
+        ltr, rtl = parts["ltr"], parts["rtl"]
+        mixed = any(c.isascii() and c.isalpha() for c in rtl)
+        shown_rtl = isolate_text(rtl, "rtl") if mixed else rtl
+        self._font(rtl, size, bold, direction="rtl")
+        rtl_w = self.get_string_width(shown_rtl)
+        self._font(ltr, size, bold, direction="ltr")
+        ltr_w = self.get_string_width(ltr)
+        if ltr_w + rtl_w + BILINGUAL_GAP > self.w - self.l_margin - self.r_margin:
+            first = self.text_block(
+                ltr,
+                size=size,
+                bold=bold,
+                color=color,
+                gap=0.0,
+                line=line,
+                dry_run=dry_run,
+                align="left",
+            )
+            second = self.text_block(
+                rtl,
+                size=size,
+                bold=bold,
+                color=color,
+                gap=gap,
+                line=line,
+                dry_run=dry_run,
+                align="right",
+            )
+            return first + second
+        line_h = line or size * 0.62
+        if dry_run:
+            return line_h + gap
+        if self.get_y() + line_h > self.page_break_trigger:
+            self.add_page()
+        y = self.get_y()
+        self.set_text_color(*color)
+        self.set_xy(self.l_margin, y)
+        self.cell(ltr_w, line_h, ltr, align=Align.L)
+        self._font(rtl, size, bold, direction="rtl")
+        self.set_xy(self.w - self.r_margin - rtl_w, y)
+        self.cell(rtl_w, line_h, shown_rtl, align=Align.R)
+        self.set_xy(self.l_margin, y + line_h)
+        self.ln(gap)
+        return 0.0
+
     def label(
-        self, text: str, *, gap: float = 0.5, dry_run: bool = False, align: str | None = None
+        self,
+        text: str,
+        *,
+        gap: float = 0.5,
+        dry_run: bool = False,
+        align: str | None = None,
+        split: bool = False,
     ) -> float:
         """A question label: ink-muted, and a Thaana label as large as its answer."""
         size = 9 * (DV_LABEL_SCALE if has_thaana(text) else 1)
-        return self.text_block(text, size=size, color=LABEL, gap=gap, dry_run=dry_run, align=align)
+        return self.text_block(
+            text, size=size, color=LABEL, gap=gap, dry_run=dry_run, align=align, split=split
+        )
+
+    def split_for(self, el: Any) -> bool:
+        """True when an element's text aligns ``auto`` (its own ``align``, then the form
+        default), so a bilingual text is split into its English and Dhivehi parts."""
+        return explicit_align(getattr(el, "align", None), self.src.form.settings.align) is None
 
     def field_align(self, el: Any, text: str | None) -> str:
         """Alignment of an element's lines: its ``align``, else the form's, else the
@@ -477,10 +566,11 @@ def _local(dt: datetime | None, tz: ZoneInfo, seconds: bool = False) -> str:
 def _answer(doc: _Doc, fld: FieldElement, value: Any, src: PdfInput) -> None:
     no_answer = WORDS["no_answer"]
     align = doc.field_align(fld, fld.label)
+    split = doc.split_for(fld)
     if isinstance(fld, SignatureField) and fld.id in src.signatures:
-        _signature(doc, fld.label, src.signatures[fld.id], align)
+        _signature(doc, fld.label, src.signatures[fld.id], align, split)
         return
-    doc.label(fld.label, align=align)
+    doc.label(fld.label, align=align, split=split)
     if isinstance(fld, FileField):
         refs = value if isinstance(value, list) else []
         shown = 0
@@ -498,7 +588,12 @@ def _answer(doc: _Doc, fld: FieldElement, value: Any, src: PdfInput) -> None:
     if isinstance(fld, SignatureField):
         doc.text_block(no_answer, latin=True, color=MUTED, gap=3, align=align)
         return
-    text = answer_text(fld, value, display=True)
+    # Chosen options one per line, so a bilingual option is split like on the form.
+    choice = isinstance(fld, SingleChoiceField | MultiChoiceField)
+    if split and isinstance(fld, MultiChoiceField):
+        text = answer_text(fld, value, display=True, list_sep=chr(10))
+    else:
+        text = answer_text(fld, value, display=True)
     if not text:
         doc.text_block(no_answer, latin=True, color=MUTED, gap=3, align=align)
     else:
@@ -509,6 +604,7 @@ def _answer(doc: _Doc, fld: FieldElement, value: Any, src: PdfInput) -> None:
             gap=3,
             align="justify" if explicit == "justify" else align,
             per_line=explicit is None,
+            split=split and choice,
         )
 
 
@@ -526,20 +622,20 @@ def _png_size(png: bytes) -> tuple[int, int] | None:
 SIGNATURE_WIDTH = 70.0
 
 
-def _signature(doc: _Doc, label: str, sig: SignatureInfo, align: str) -> None:
+def _signature(doc: _Doc, label: str, sig: SignatureInfo, align: str, split: bool = False) -> None:
     """The label, the statement the signer saw, the server-rendered image and its baseline,
     kept together: when they don't fit, the page breaks before the label, so the image is
     never separated from its statement."""
     width = SIGNATURE_WIDTH
     px = _png_size(sig.png)
     image_h = width * px[1] / px[0] if px else 40.0
-    needed = doc.label(label, dry_run=True, align=align) + image_h + 5
+    needed = doc.label(label, dry_run=True, align=align, split=split) + image_h + 5
     if sig.attestation:
         needed += doc.text_block(sig.attestation, size=10, gap=1, dry_run=True, align=align)
     top_of_page = doc.get_y() <= doc.t_margin + 1
     if not top_of_page and doc.get_y() + needed > doc.page_break_trigger:
         doc.add_page()
-    doc.label(label, align=align)
+    doc.label(label, align=align, split=split)
     if sig.attestation:
         doc.text_block(sig.attestation, size=10, gap=1, align=align)
     if doc.get_y() + image_h > doc.page_break_trigger:
@@ -570,6 +666,7 @@ def _elements(doc: _Doc, elements: list[Any], visible: set[str], src: PdfInput) 
                     bold=not has_thaana(el.text),
                     gap=2,
                     align=doc.field_align(el, el.text),
+                    split=doc.split_for(el),
                 )
             continue
         if isinstance(el, SectionElement):
@@ -580,6 +677,7 @@ def _elements(doc: _Doc, elements: list[Any], visible: set[str], src: PdfInput) 
                     bold=not has_thaana(el.title),
                     gap=2,
                     align=doc.field_align(el, el.title),
+                    split=doc.split_for(el),
                 )
             _elements(doc, el.elements, visible, src)
             continue
@@ -604,7 +702,7 @@ def leaf_fields(elements: list[Any]) -> list[FieldElement]:
 
 def _repeater(doc: _Doc, rep: RepeaterElement, src: PdfInput) -> None:
     align = doc.field_align(rep, rep.label)
-    doc.label(rep.label, gap=1, align=align)
+    doc.label(rep.label, gap=1, align=align, split=doc.split_for(rep))
     rows = src.data.get(rep.id)
     rows = rows if isinstance(rows, list) else []
     fields = [f for f in leaf_fields(rep.elements) if not isinstance(f, HiddenField)]
@@ -736,7 +834,14 @@ def _render(src: PdfInput, total_pages: int | None) -> _Doc:
     title_align = resolve_align(
         form.settings.title_align, form.settings.align, text_direction(title, doc.sheet_dir)
     )
-    doc.text_block(title, size=17, bold=not has_thaana(title), gap=2, align=title_align)
+    doc.text_block(
+        title,
+        size=17,
+        bold=not has_thaana(title),
+        gap=2,
+        align=title_align,
+        split=explicit_align(form.settings.title_align, form.settings.align) is None,
+    )
     doc.runs(
         [
             (
@@ -766,6 +871,7 @@ def _render(src: PdfInput, total_pages: int | None) -> _Doc:
                 gap=3,
                 color=src.accent or INK,
                 align=doc.field_align(page, page.title),
+                split=doc.split_for(page),
             )
         _elements(doc, page.elements, visible, src)
         doc.ln(2)

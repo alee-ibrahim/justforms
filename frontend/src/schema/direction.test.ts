@@ -5,7 +5,7 @@ import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { isolateRuns } from '@/thaana/runs'
+import { bilingualParts, isolateRuns, type BilingualParts } from '@/thaana/runs'
 
 import { parseForm } from '.'
 import { alignClass } from './align'
@@ -32,6 +32,7 @@ interface Vectors {
   }[]
   isolate: { text: string; dir?: TextDirection; runs: [string, TextDirection | null][] }[]
   lines: { text: string; fallback?: TextDirection; lines: { dir: TextDirection; lang: 'dv' | 'en' }[] }[]
+  bilingual: { text: string; parts: BilingualParts | null }[]
 }
 
 const vectors = JSON.parse(
@@ -58,6 +59,13 @@ describe('isolateRuns (shared vectors)', () => {
   for (const v of vectors.isolate)
     it(JSON.stringify(v.text), () => {
       expect(isolateRuns(v.text, v.dir ?? textDirection(v.text)).map((r) => [r.text, r.dir])).toEqual(v.runs)
+    })
+})
+
+describe('bilingualParts (shared vectors)', () => {
+  for (const v of vectors.bilingual)
+    it(JSON.stringify(v.text), () => {
+      expect(bilingualParts(v.text)).toEqual(v.parts)
     })
 })
 

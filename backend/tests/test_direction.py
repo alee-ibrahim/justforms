@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from app.schemas.direction import (
+    bilingual_parts,
     explicit_align,
     has_thaana,
     is_rtl,
@@ -59,3 +60,8 @@ def test_helpers() -> None:
 def test_isolate_vectors(case: dict[str, Any]) -> None:
     got = isolate_runs(case["text"], case.get("dir"))
     assert [[t, d] for t, d in got] == case["runs"]
+
+
+@pytest.mark.parametrize("case", VECTORS["bilingual"], ids=lambda c: repr(c["text"])[:30])
+def test_bilingual_vectors(case: dict[str, Any]) -> None:
+    assert bilingual_parts(case["text"]) == case["parts"]

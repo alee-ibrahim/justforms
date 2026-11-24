@@ -1,11 +1,9 @@
 /** Multiple-choice question (PHASE-2-SCREENS 4.5): checkbox cards. A lazy chunk of the renderer. */
 import { Checkbox } from '@/components/ui/checkbox'
-import { FormText } from '@/thaana/form-text'
-import { textDirection, textLang } from '@/schema/direction'
 import type { MultiChoiceField } from '@/schema'
 
 import { controlId, useRenderer } from './context'
-import { ChoiceCard, type ControlProps } from './fields'
+import { ChoiceCard, OptionText, type ControlProps } from './fields'
 import { leaveGroup } from './util'
 import { fmt, MSG } from './messages'
 import { En } from './msg'
@@ -48,9 +46,7 @@ export default function MultiChoiceControl({
               />
             }
           >
-            <bdi dir={textDirection(o.label)} lang={textLang(o.label)}>
-              <FormText text={o.label} />
-            </bdi>
+            <OptionText field={field} label={o.label} />
           </ChoiceCard>
         )
       })}

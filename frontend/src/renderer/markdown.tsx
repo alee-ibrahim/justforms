@@ -6,7 +6,8 @@ import { Fragment, type CSSProperties, type ReactNode } from 'react'
 
 import { paragraphStyle, textDirection, textLang, type TextAlign, type TextDirection } from '@/schema/direction'
 import { isolateNumbers } from '@/thaana/display'
-import { Isolated } from '@/thaana/form-text'
+import { Bilingual, Isolated } from '@/thaana/form-text'
+import { bilingualParts } from '@/thaana/runs'
 
 const INLINE = /(\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_|\[[^\]]+\]\([^)\s]+\))/g
 const ITEM = /^\s*[-*]\s+/
@@ -94,6 +95,18 @@ export function Markdown({
   align?: TextAlign
   measure?: boolean
 }) {
+  // A one-line bilingual text without markup ("Your full name / ފުރިހަމަ ނަން") with auto
+  // alignment: one row, English at the left and Dhivehi at the right.
+  const plain = text.trim()
+  const parts = align === 'auto' && !ITEM.test(plain) && plain.search(INLINE) < 0 ? bilingualParts(plain) : null
+  if (parts)
+    return (
+      <div id={id} className={className} style={style}>
+        <p>
+          <Bilingual parts={parts} />
+        </p>
+      </div>
+    )
   const base = textDirection(text, rtl ? 'rtl' : 'ltr')
   const para = align || measure ? paragraphStyle(align ?? 'auto', measure) : undefined
   const width = measure ? 'max-w-[36em]' : undefined

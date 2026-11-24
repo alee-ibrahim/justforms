@@ -106,7 +106,7 @@ export function RepeaterFrame({
           place.lang === 'dv' ? 'font-normal' : 'font-semibold',
         )}
       >
-        {label ?? <FormText text={el.label} />}
+        {label ?? <FormText text={el.label} split={place.align === 'auto'} />}
       </FieldLegend>
       {description !== undefined ? (
         description
@@ -163,7 +163,7 @@ export function RepeaterFrame({
         <PlusIcon />
         {addLabel ? (
           <bdi dir={textDirection(addLabel)} lang={textLang(addLabel)}>
-            <FormText text={addLabel} />
+            <FormText text={addLabel} split="inline" />
           </bdi>
         ) : (
           <En>{MSG.addEntry}</En>

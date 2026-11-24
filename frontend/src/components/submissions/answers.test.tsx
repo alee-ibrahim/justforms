@@ -188,10 +188,24 @@ describe('Answers (form view)', () => {
     expect(html).toMatch(/<bdi lang="en" dir="ltr">Aminath Ali<\/bdi>/)
   })
 
-  it('marks the Dhivehi run inside a bilingual label', () => {
+  it('splits a bilingual label (auto alignment): English left, Dhivehi right', () => {
     const bilingual = form()
     const name = bilingual.pages[0].elements![0] as { label: string }
     name.label = 'Name / ނަން'
+    const html = renderToStaticMarkup(
+      <TooltipProvider>
+        <Answers form={bilingual} data={DATA} signatures={[SIG]} />
+      </TooltipProvider>,
+    )
+    expect(html).toMatch(/<dt lang="en" dir="ltr" class="[^"]*"><span dir="ltr" data-slot="bilingual"[^>]*>/)
+    expect(html).toContain('data-part="ltr">Name</span><span lang="dv" dir="rtl" class="me-auto text-start" data-part="rtl">ނަން</span>')
+  })
+
+  it('keeps a bilingual label whole with an explicit alignment, the Dhivehi run marked', () => {
+    const bilingual = form()
+    const name = bilingual.pages[0].elements![0] as { label: string; align?: string }
+    name.label = 'Name / ނަން'
+    name.align = 'left'
     const html = renderToStaticMarkup(
       <TooltipProvider>
         <Answers form={bilingual} data={DATA} signatures={[SIG]} />

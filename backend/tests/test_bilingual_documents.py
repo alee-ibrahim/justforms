@@ -197,9 +197,13 @@ def test_email_gives_every_text_its_own_direction_and_alignment() -> None:
     assert 'dir="rtl"' in dv_answer and "font-size:18px" in dv_answer
     # Centred English question.
     assert 'align="center"' in _div(html, "Email")
-    # The title (English first) and the Dhivehi success message each take their own direction.
-    title = _div(html, "Application form / ")
+    # The title (English first) takes its own direction; with auto alignment the bilingual
+    # title is one row, English at the left and Dhivehi at the right.
+    title = _div(html, '<table role="presentation" width="100%"')
     assert 'dir="ltr"' in title and 'align="left"' in title
+    assert re.search(r'<td lang="en" dir="ltr" align="left"[^>]*>Application form</td>', html)
+    assert re.search(r'<td lang="dv" dir="rtl" align="right"[^>]*>', html)
+    # The Dhivehi success message takes its own direction.
     success = _div(html, "ޝުކުރިއްޔާ")
     assert 'dir="rtl"' in success and 'align="right"' in success
     # The email itself stays English, left to right.
@@ -343,8 +347,9 @@ def test_email_isolates_the_other_script_and_follows_the_dominant_one() -> None:
     html = msg.html or ""
     # Dhivehi-dominant title and label, though one starts with a Latin acronym: right to left,
     # the acronym isolated so the brackets and question mark stay put.
-    assert 'dir="rtl"' in _div(html, "ބައިވެރިވުމަށް (")
-    assert 'ބައިވެރިވުމަށް (<bdi dir="ltr" lang="en">PPY</bdi>) ފޯމު' in html
+    assert 'dir="rtl"' in _div(html, "ބައިވެރިވުމަށް <bdi")
+    # The bracket pair belongs to the run it encloses.
+    assert 'ބައިވެރިވުމަށް <bdi dir="ltr" lang="en">(PPY)</bdi> ފޯމު' in html
     label = re.search(r'<div([^>]*)><bdi dir="ltr" lang="en">PPY</bdi> ގެ', html)
     assert label and 'dir="rtl"' in label.group(1) and 'align="right"' in label.group(1)
     assert 'dir="rtl"' in _div(html, "2026 ވަނަ")
@@ -418,3 +423,135 @@ def test_pdf_justify_ends_each_paragraph_at_its_start_edge() -> None:
     assert max(b[1] for b in last) > width * 0.8
     assert min(b[0] for b in last) > min(b[0] for b in first) + 20
     doc.close()
+
+
+# Bilingual one-line texts from a public form: English part, Dhivehi part.
+PROGRAM = "Which program did you participate in? ބައިވެރިވި ޕްރޮގްރާމަކީ:"
+PPY = "ޕްރެކްޓިސް ޕާލިމެންޓް ފޮރ ޔޫތު (ޕީ.ޕީ.ވައި) (Practice Parliament for Youth (PPY))"
+
+
+def _split_form(**settings: Any) -> Form:
+    return _form(
+        field("full_name", label="Full name: ފުރިހަމަ ނަން"),
+        field("year", label="Year of participation: ބައިވެރިވި އަހަރު"),
+        {
+            "kind": "field",
+            "id": "program",
+            "type": "single_choice",
+            "label": PROGRAM,
+            "options": [{"value": "ppy", "label": PPY}],
+        },
+        title="Application form / ހުށަހަޅާ ފޯމު",
+        **settings,
+    )
+
+
+def _line_chars(page: Any, needle: str) -> tuple[float, list[tuple[str, float]]]:
+    """x of ``needle`` and every character on its line with its x (pt)."""
+    tp = page.get_textpage()
+    try:
+        full = tp.get_text_range()
+        i = full.find(needle)
+        assert i >= 0, (needle, full)
+        left, bottom, _right, top = tp.get_charbox(i)
+        chars = []
+        for j, ch in enumerate(full):
+            if ch.isspace():
+                continue
+            _l, b, _r, t = tp.get_charbox(j)
+            if b < top and t > bottom:
+                chars.append((ch, float(_l)))
+        return float(left), chars
+    finally:
+        tp.close()
+
+
+def _thaana_xs_on_line(page: Any, needle: str) -> tuple[float, list[float]]:
+    """x of ``needle`` and the x of every Thaana character on its line (pt)."""
+    x, chars = _line_chars(page, needle)
+    return x, [cx for ch, cx in chars if "\u0780" <= ch <= "\u07bf"]
+
+
+def _split_pdf(form: Form) -> bytes:
+    return render_pdf(
+        PdfInput(
+            org_name="Example Office",
+            form_title=form.settings.title,
+            form=form,
+            version=1,
+            schema_hash="x",
+            submission_id="00000000-0000-0000-0000-000000000000",
+            seq=7,
+            submitted_at=datetime(2026, 11, 1, tzinfo=UTC),
+            data={"full_name": "Aminath", "year": "2024", "program": "ppy"},
+            content_hash="y",
+            chain_head=None,
+            tz=ZoneInfo("UTC"),
+            verify_url="http://testserver/v/token",
+        )
+    )
+
+
+def test_pdf_splits_bilingual_texts_english_left_dhivehi_right() -> None:
+    doc = pdfium.PdfDocument(_split_pdf(_split_form()))
+    page = doc[0]
+    width = page.get_width()
+    for needle in ("Application", "Full", "Year", "Which"):
+        x, thaana = _thaana_xs_on_line(page, needle)
+        assert x < width / 4, needle
+        assert thaana and min(thaana) > width / 2, needle
+    # The option: Dhivehi at the right, the English part at the left with both its bracket
+    # pairs, ending in its two closing brackets.
+    x, thaana = _thaana_xs_on_line(page, "Practice")
+    assert x < width / 4 and thaana and min(thaana) > width / 2
+    _x, chars = _line_chars(page, "Practice")
+    english = sorted((cx, ch) for ch, cx in chars if cx < width / 2)
+    # (Text extraction may map a mirrored bracket glyph to either bracket.)
+    assert len([ch for _cx, ch in english if ch in "()"]) == 4
+    assert english[0][1] in "()" and english[-1][1] in "()"
+    assert english[-2][1] in "()" and english[-3][1] == "Y"
+    doc.close()
+
+
+def test_pdf_explicit_alignment_keeps_bilingual_text_whole() -> None:
+    doc = pdfium.PdfDocument(_split_pdf(_split_form(align="left")))
+    page = doc[0]
+    width = page.get_width()
+    x, thaana = _thaana_xs_on_line(page, "Full")
+    assert x < width / 4 and thaana and max(thaana) < width / 2
+    doc.close()
+
+
+def test_email_splits_bilingual_labels_and_options() -> None:
+    form = _split_form()
+    msg = emails.receipt_message(
+        org_name="Example Office",
+        form=form,
+        title=form.settings.title,
+        reference="#0007",
+        submitted=datetime(2026, 11, 1, tzinfo=UTC),
+        tz=ZoneInfo("UTC"),
+        answers=emails.answers_for_email(form, {"full_name": "Aminath", "program": "ppy"}),
+        pdf=None,
+    )
+    html = msg.html or ""
+    assert re.search(r'<td lang="en" dir="ltr" align="left"[^>]*>Full name:</td>', html)
+    assert re.search(r'<td lang="dv" dir="rtl" align="right"[^>]*>ފުރިހަމަ ނަން</td>', html)
+    assert re.search(r'<td lang="en"[^>]*>Which program did you participate in\?</td>', html)
+    assert re.search(r'<td lang="en"[^>]*>\(Practice Parliament for Youth \(PPY\)\)</td>', html)
+    # Explicit alignment: one piece.
+    left = _split_form(align="left")
+    html = (
+        emails.receipt_message(
+            org_name="Example Office",
+            form=left,
+            title=left.settings.title,
+            reference="#0007",
+            submitted=datetime(2026, 11, 1, tzinfo=UTC),
+            tz=ZoneInfo("UTC"),
+            answers=emails.answers_for_email(left, {"full_name": "Aminath"}),
+            pdf=None,
+        ).html
+        or ""
+    )
+    assert "<td lang=" not in html

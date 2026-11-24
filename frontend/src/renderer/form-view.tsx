@@ -589,7 +589,7 @@ export function FormRenderer({
         <div className="flex flex-col gap-1">
           {!embed && <FormLogo form={form} brand={brand} theme={theme} />}
           <p className="text-base text-muted-foreground" {...titlePlace(form)}>
-            <FormText text={form.settings.title} />
+            <FormText text={form.settings.title} split={titleSplit(form)} />
           </p>
         </div>
         {phase === 'done' ? (
@@ -641,7 +641,7 @@ export function FormRenderer({
                     pagePlace.lang === 'dv' ? 'font-bold' : 'font-[650] tracking-tight',
                   )}
                 >
-                  <FormText text={page.title} />
+                  <FormText text={page.title} split={pagePlace.align === 'auto'} />
                 </h2>
               )}
               {page.description && (
@@ -801,7 +801,7 @@ export function FormRenderer({
 function ButtonText({ text }: { text: string }) {
   return (
     <bdi dir={textDirection(text)} lang={textLang(text)}>
-      <FormText text={text} />
+      <FormText text={text} split="inline" />
     </bdi>
   )
 }
@@ -810,6 +810,11 @@ function ButtonText({ text }: { text: string }) {
 function titlePlace(form: Form) {
   const p = placement(form.settings.title, form.settings.titleAlign, form.settings.align)
   return { dir: p.dir, lang: p.lang, style: p.text }
+}
+
+/** True when a bilingual form title is shown split (auto alignment). */
+function titleSplit(form: Form): boolean {
+  return placement(form.settings.title, form.settings.titleAlign, form.settings.align).align === 'auto'
 }
 
 const LOGO_SIZE = { s: 'h-6 max-w-32', m: 'h-8 max-w-48', l: 'h-14 max-w-80' } as const
@@ -896,7 +901,7 @@ export function FormHeader({
         style={place.text}
         className={cn('df-title text-2xl font-bold sm:text-3xl', place.lang === 'en' && 'tracking-tight')}
       >
-        {title ?? <FormText text={form.settings.title} />}
+        {title ?? <FormText text={form.settings.title} split={place.align === 'auto'} />}
       </h1>
       {description !== undefined
         ? description

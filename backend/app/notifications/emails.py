@@ -25,6 +25,7 @@ from app.answers import answer_text
 from app.config import Settings
 from app.logic.index import FormIndex
 from app.schemas.direction import (
+    bilingual_parts,
     explicit_align,
     has_thaana,
     is_rtl,
@@ -44,6 +45,7 @@ from app.schemas.form import (
     PhoneField,
     RepeaterElement,
     SignatureField,
+    SingleChoiceField,
     TimeField,
     YesNoField,
 )
@@ -112,14 +114,14 @@ _TEMPLATES = {
 {% for a in answers %}
 {% set l = a.label_block %}{% set v = a.value_block %}
 <tr><td style="padding:8px 0;border-top:1px solid #DCE0EA;text-align:{{ a.cell_align }}" align="{{ a.cell_align }}">
-<div lang="{{ l.lang }}" dir="{{ l.dir }}" align="{{ l.align }}" style="color:#3A425E;font-size:{{ l.px }}px;line-height:1.75;text-align:{{ l.align }}{{ l.font }}">{{ a.label|runs(l.dir) }}</div>
-{% if a.value_lines %}<div style="white-space:pre-wrap;font-size:{{ v.px }}px;line-height:1.75">{{ a.value_lines }}</div></td></tr>{% else %}<div lang="{{ v.lang }}" dir="{{ v.dir }}" align="{{ v.align }}" style="white-space:pre-wrap;font-size:{{ v.px }}px;line-height:1.75;text-align:{{ v.align }}{{ v.font }}">{% if a.ltr %}<bdi dir="ltr" style="font-family:Inter,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">{{ a.value }}</bdi>{% else %}{{ a.value|runs(v.dir) }}{% endif %}</div></td></tr>{% endif %}
+<div lang="{{ l.lang }}" dir="{{ l.dir }}" align="{{ l.align }}" style="color:#3A425E;font-size:{{ l.px }}px;line-height:1.75;text-align:{{ l.align }}{{ l.font }}">{{ a.label|bilingual(l.dir, a.explicit is none) }}</div>
+{% if a.value_lines %}<div style="white-space:pre-wrap;font-size:{{ v.px }}px;line-height:1.75">{{ a.value_lines }}</div></td></tr>{% else %}<div lang="{{ v.lang }}" dir="{{ v.dir }}" align="{{ v.align }}" style="white-space:pre-wrap;font-size:{{ v.px }}px;line-height:1.75;text-align:{{ v.align }}{{ v.font }}">{% if a.ltr %}<bdi dir="ltr" style="font-family:Inter,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">{{ a.value }}</bdi>{% else %}{{ a.value|bilingual(v.dir, a.split_value) }}{% endif %}</div></td></tr>{% endif %}
 {% endfor %}
 </table>
 {% endif %}""",
     "owner.html": """{% extends "layout.html" %}{% block body %}
 <p style="margin:0 0 4px;color:#5A6380">New response</p>
-<h1 style="margin:0 0 16px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
+<h1 style="margin:0 0 16px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|bilingual(dir, split) }}</h1>
 {% if message %}<div style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message|paragraphs }}</div>
 {% endif %}<p style="margin:0 0 16px">Reference <strong>{{ reference }}</strong>, submitted {{ submitted }}{% if respondent %} by <bdi>{{ respondent }}</bdi>{% endif %}.</p>
 <p style="margin:0 0 20px"><a href="{{ url }}" style="display:inline-block;background:{{ brand.button_bg }};color:{{ brand.button_fg }};text-decoration:none;padding:10px 16px;border-radius:6px">Open the submission</a></p>
@@ -140,7 +142,7 @@ Open the submission: {{ url }}
 Answers are not included in this email.
 {% endif %}""",
     "receipt.html": """{% extends "layout.html" %}{% block body %}
-<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|bilingual(dir, split) }}</h1>
 {% if message %}<div style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message|paragraphs }}</div>
 {% elif success_lines %}<div style="margin:0 0 16px;white-space:pre-wrap">{{ success_lines }}</div>
 {% elif success %}<p style="margin:0 0 16px;white-space:pre-wrap;text-align:{{ s.align }}{{ s.font }}" lang="{{ s.lang }}" dir="{{ s.dir }}" align="{{ s.align }}">{{ success|runs(s.dir) }}</p>
@@ -166,7 +168,7 @@ Answers are not included in this email.
 {{ a.value }}
 {% endfor %}{% endif %}""",
     "code.html": """{% extends "layout.html" %}{% block body %}
-<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|bilingual(dir, split) }}</h1>
 <p style="margin:0 0 12px">{{ body }}</p>
 <p style="margin:0 0 16px;font-size:28px;letter-spacing:4px;font-family:Inter,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-variant-numeric:tabular-nums">{{ code }}</p>
 <p style="margin:0;color:#5A6380">{{ w.code_ignore }}</p>
@@ -179,7 +181,7 @@ Answers are not included in this email.
 """,
     "approval_request.html": """{% extends "layout.html" %}{% block body %}
 <p style="margin:0 0 4px;color:#5A6380">{{ kicker }}</p>
-<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|bilingual(dir, split) }}</h1>
 {% if message %}<div style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message|paragraphs }}</div>
 {% endif %}<p style="margin:0 0 {{ '8' if step_of else '20' }}px">{{ body }}</p>
 {% if step_of %}<p style="margin:0 0 20px;color:#5A6380">{{ step_of }}</p>
@@ -213,7 +215,7 @@ Answers are not included in this email.
 """,
     "approval_notice.html": """{% extends "layout.html" %}{% block body %}
 <p style="margin:0 0 4px;color:#5A6380">{{ kicker }}</p>
-<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|bilingual(dir, split) }}</h1>
 {% if message %}<div style="margin:0 0 12px;white-space:pre-wrap" dir="auto">{{ message|paragraphs }}</div>
 <p style="margin:0 0 {{ '8' if step_of else '20' }}px">{{ w.reference }} <strong>{{ reference }}</strong></p>
 {% else %}<p style="margin:0 0 {{ '8' if step_of else '20' }}px">{{ body }}</p>
@@ -242,7 +244,7 @@ Answers are not included in this email.
 {{ note }}
 """,
     "outcome.html": """{% extends "layout.html" %}{% block body %}
-<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|bilingual(dir, split) }}</h1>
 {% if message %}<div style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message|paragraphs }}</div>
 <p style="margin:0 0 16px">{{ w.outcome_reference }}: <strong>{{ reference }}</strong></p>
 {% else %}<p style="margin:0 0 16px">{{ body }}</p>
@@ -289,7 +291,7 @@ The link works until {{ until }}. If you weren't expecting this, you can ignore 
 """,
     "form_shared.html": """{% extends "layout.html" %}{% block body %}
 <p style="margin:0 0 4px;color:#5A6380">{{ kicker }}</p>
-<h1 style="margin:0 0 16px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
+<h1 style="margin:0 0 16px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|bilingual(dir, split) }}</h1>
 <p style="margin:0 0 16px">{{ body }}</p>
 {% if note %}<p style="margin:0 0 4px;color:#5A6380"><bdi dir="auto">{{ sharer }}</bdi> wrote:</p>
 <p style="margin:0 0 20px;padding:4px 0 4px 12px;border-left:3px solid #DCE0EA;white-space:pre-wrap" dir="auto">{{ note }}</p>
@@ -379,6 +381,9 @@ class Answer:
     # The explicit left/center/right it resolves to; ``None`` (auto): each paragraph of a
     # multi-line answer aligns to its own direction.
     explicit: str | None = None
+    # A chosen option with auto alignment: a bilingual option is shown English left, Dhivehi
+    # right.
+    split_value: bool = False
 
     @property
     def cell_align(self) -> str:
@@ -545,18 +550,40 @@ def _paragraphs_filter(text: Any) -> Markup | str:
     return paragraphs_html(text) if _multiline(text) else text
 
 
+def bilingual_html(text: Any, direction: str | None = None, split: bool = False) -> Markup:
+    """Form content for HTML (``runs_html``); with ``split`` (auto alignment) a bilingual
+    one-line text ("Full name: ފުރިހަމަ ނަން", ``bilingual_parts``) is one row of two cells,
+    English at the left and Dhivehi at the right (a table: mail clients ignore flex)."""
+    text = "" if text is None else str(text)
+    parts = bilingual_parts(text) if split else None
+    if parts is None:
+        return runs_html(text, direction)
+    return Markup(
+        '<table role="presentation" width="100%" style="width:100%;border-collapse:collapse">'
+        '<tr><td lang="en" dir="ltr" align="left" style="padding:0 12px 0 0;text-align:left;'
+        "vertical-align:top;font-family:Inter,'Segoe UI',Roboto,'Helvetica Neue',Arial,"
+        'sans-serif">{}</td><td lang="dv" dir="rtl" align="right" style="padding:0;'
+        'text-align:right;vertical-align:top{}">{}</td></tr></table>'
+    ).format(runs_html(parts["ltr"], "ltr"), Markup(THAANA_FONT), runs_html(parts["rtl"], "rtl"))
+
+
 _env.filters["paragraphs"] = _paragraphs_filter
 _env.filters["runs"] = runs_html
+_env.filters["bilingual"] = bilingual_html
 
 
-def _title(title: str, form: Form | None = None) -> dict[str, str]:
-    """``lang``/``dir``/``align``/``font`` template values of the form title: aligned by
+def _title(title: str, form: Form | None = None) -> dict[str, Any]:
+    """``lang``/``dir``/``align``/``font``/``split`` template values of the form title: aligned by
     ``settings.titleAlign``, else ``settings.align``, else its direction."""
     align = None
+    split = True
     if form is not None:
         align = resolve_align(form.settings.title_align, form.settings.align, text_direction(title))
-    block = _block(title, align)
+        split = explicit_align(form.settings.title_align, form.settings.align) is None
+    block: dict[str, Any] = _block(title, align)
     del block["px"]
+    # Auto alignment: a bilingual title is shown as one row, English left and Dhivehi right.
+    block["split"] = split
     return block
 
 
@@ -631,6 +658,8 @@ def answers_for_email(form: Form, data: dict[str, Any]) -> list[Answer]:
                     ltr=isinstance(el, LTR_FIELDS),
                     align=field_align(form, el),
                     explicit=field_explicit_align(form, el),
+                    split_value=isinstance(el, SingleChoiceField)
+                    and field_explicit_align(form, el) is None,
                 )
             )
     return out
