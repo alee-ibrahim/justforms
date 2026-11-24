@@ -10,7 +10,8 @@ import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { displayText } from '@/thaana/display'
+import { FormText } from '@/thaana/form-text'
+import { textDirection, textLang } from '@/schema/direction'
 import type {
   FieldElement,
   LongTextField,
@@ -20,7 +21,7 @@ import type {
 
 import { type AnswerPath, controlId, useRenderer } from './context'
 import { idPresetOf, normalizeWith } from './id-presets'
-import { leaveGroup } from './util'
+import { leaveGroup, thaanaKeyboard } from './util'
 import { ltrRun, MSG } from './messages'
 import { En, Msg } from './msg'
 
@@ -74,6 +75,7 @@ function autoComplete(id: string): string | undefined {
 
 // -- text ----------------------------------------------------------------------------------
 
+
 function TextControl({
   field,
   path,
@@ -85,10 +87,15 @@ function TextControl({
   const preset = idPresetOf(field)
   const script = preset ? 'latin' : (field.inputScript ?? 'auto')
   const text = typeof value === 'string' ? value : ''
-  const dir = script === 'latin' ? 'ltr' : script === 'thaana' ? 'rtl' : undefined
+  const keyboard = thaanaKeyboard(field, script)
+  // Answers switch direction as they are typed (first strong character); an empty box starts
+  // on the side of what it expects (the keyboard's, else the placeholder's or label's).
+  const emptyDir = script === 'latin' ? 'ltr' : textDirection(field.placeholder || field.label, ctx.dir)
+  const dir = script === 'latin' ? 'ltr' : text ? textDirection(text, emptyDir) : emptyDir
   const common = {
     id: controlId(path),
     dir,
+    lang: script === 'latin' ? 'en' : textLang(text || field.placeholder || field.label),
     value: text,
     placeholder: field.placeholder || preset?.placeholder || undefined,
     'aria-invalid': invalid || undefined,
@@ -107,7 +114,7 @@ function TextControl({
       </p>
     ) : null
 
-  if (script === 'latin' || (script === 'auto' && ctx.language !== 'dv')) {
+  if (keyboard === 'none') {
     return (
       <>
         {field.type === 'long_text' ? (
@@ -125,7 +132,8 @@ function TextControl({
       </>
     )
   }
-  // Thaana input with the phonetic keyboard toggle: only Dhivehi forms need it (lazy chunk).
+  // Thaana input with the phonetic keyboard toggle (lazy chunk): only questions that expect
+  // Dhivehi answers load it.
   const long = field.type === 'long_text'
   const rows = field.type === 'long_text' ? (field.rows ?? 4) : 4
   return (
@@ -139,7 +147,7 @@ function TextControl({
           )
         }
       >
-        <ThaanaInput common={common} long={long} rows={rows} canvas={ctx.mode === 'canvas'} />
+        <ThaanaInput common={common} long={long} rows={rows} canvas={ctx.mode === 'canvas'} initial={keyboard === 'on'} />
       </Suspense>
       {counter}
     </>
@@ -281,7 +289,7 @@ function SingleChoiceControl({
           {ltrRun(MSG.choose)}
         </NativeSelectOption>
         {field.options.map((o) => (
-          <NativeSelectOption key={o.value} value={o.value}>
+          <NativeSelectOption key={o.value} value={o.value} dir={textDirection(o.label)} lang={textLang(o.label)}>
             {o.label}
           </NativeSelectOption>
         ))}
@@ -311,7 +319,9 @@ function SingleChoiceControl({
             id={i === 0 ? base : `${base}-${i}`}
             control={<RadioGroupItem value={o.value} id={i === 0 ? base : `${base}-${i}`} />}
           >
-            {displayText(o.label, ctx.language)}
+            <bdi dir={textDirection(o.label)} lang={textLang(o.label)}>
+              <FormText text={o.label} />
+            </bdi>
           </ChoiceCard>
         ))}
         {field.allowOther && (

@@ -2,9 +2,8 @@
   "name": "ops_dates_times",
   "description": "Dates (YYYY-MM-DD) and times (HH:MM) compare lexicographically; other shapes never compare",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

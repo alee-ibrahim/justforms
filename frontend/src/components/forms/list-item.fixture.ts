@@ -25,7 +25,6 @@ export function listItem(overrides: Partial<FormListItem> = {}): FormListItem {
     newCount: 0,
     createdAt: '2026-10-01T09:00:00Z',
     updatedAt: '2026-10-01T09:00:00Z',
-    language: 'en',
     hasUnpublishedChanges: false,
     owner: { id: 'u1', name: 'Aminath Ali', email: 'aminath@example.org' },
     ownerCount: 1,

@@ -205,7 +205,6 @@ async def build_payload(
         "seq": sub.seq,
         "reference": f"#{sub.seq:04d}",
         "status": sub.status.value,
-        "language": sub.language,
         "submittedAt": sub.submitted_at.astimezone(UTC).isoformat().replace("+00:00", "Z"),
         "contentHash": f"sha256:{sub.content_hash}" if sub.content_hash else None,
         "respondentEmail": sub.respondent_email,

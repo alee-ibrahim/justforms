@@ -5,8 +5,8 @@ import type { Form } from '@/schema'
 import { funnel, kinds, problemKind } from './friction-lib'
 
 const schema = {
-  schemaVersion: '1',
-  settings: { language: 'en', title: 'T' },
+  schemaVersion: '2',
+  settings: { title: 'T' },
   pages: [{ id: 'about', elements: [] }, { id: 'contact', title: 'Contact', elements: [] }, { id: 'review', elements: [] }],
 } as Form
 

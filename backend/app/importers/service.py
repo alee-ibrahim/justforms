@@ -58,7 +58,6 @@ async def create_form(
     user_id: uuid.UUID,
     *,
     title: str | None,
-    language: str | None,
     storage: Storage | None = None,
 ) -> FormRecord:
     """Turn a form-import preview into a new draft form owned by ``user_id``. The logo kept
@@ -68,8 +67,6 @@ async def create_form(
     settings = dict(schema["settings"])
     if title:
         settings["title"] = title
-    if language:
-        settings["language"] = language
     schema["settings"] = settings
     draft = Form.model_validate(schema).dump()
     record_settings: dict[str, Any] = {"importedFrom": "jotform"}
@@ -204,7 +201,6 @@ async def _import_rows(
             form_version_id=version.id,
             seq=seq,
             status=status,
-            language=form.settings.language,
             data=res.data,
             submitted_at=submitted,
             ip=res.ip,

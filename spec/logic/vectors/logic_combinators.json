@@ -2,9 +2,8 @@
   "name": "logic_combinators",
   "description": "all (empty = true), any (empty = false), not, and nesting",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

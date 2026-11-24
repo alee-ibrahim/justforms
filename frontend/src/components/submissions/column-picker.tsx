@@ -11,19 +11,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import type { FieldElement, FormLanguage } from '@/schema'
+import type { FieldElement } from '@/schema'
+import { textProps } from '@/schema/align'
 
 import { RESPONDENT_COLUMN } from './use-columns'
 
 export function ColumnPicker({
   fields,
   ids,
-  language,
   onChange,
 }: {
   fields: FieldElement[]
   ids: string[]
-  language: FormLanguage
   onChange: (ids: string[] | null) => void
 }) {
   return (
@@ -51,7 +50,7 @@ export function ColumnPicker({
             onSelect={(e) => e.preventDefault()}
             onCheckedChange={(on) => onChange(on ? [...ids, f.id] : ids.filter((x) => x !== f.id))}
           >
-            <bdi lang={language} dir="auto" className="truncate">
+            <bdi {...textProps(f.label)} className="truncate">
               {f.label}
             </bdi>
           </DropdownMenuCheckboxItem>

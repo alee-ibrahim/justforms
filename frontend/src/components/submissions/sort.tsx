@@ -19,7 +19,8 @@ import {
 import { TableHead } from '@/components/ui/table'
 import type { SortDir } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import type { FieldElement, FormLanguage } from '@/schema'
+import type { FieldElement } from '@/schema'
+import { textLang } from '@/schema/direction'
 
 import {
   DEFAULT_KEY,
@@ -79,7 +80,6 @@ export function SortMenu({
   state,
   onSort,
   fields,
-  language,
   showRespondent,
   showApproval,
   className,
@@ -87,7 +87,6 @@ export function SortMenu({
   state: SortState
   onSort: (next: SortState) => void
   fields: FieldElement[]
-  language: FormLanguage
   showRespondent: boolean
   showApproval: boolean
   className?: string
@@ -131,7 +130,7 @@ export function SortMenu({
           {answers.length > 0 && <DropdownMenuSeparator />}
           {answers.map((f) => (
             <DropdownMenuRadioItem key={f.id} value={f.id}>
-              <bdi dir="auto" lang={language} className="truncate">
+              <bdi dir="auto" lang={textLang(f.label)} className="truncate">
                 {f.label || f.id}
               </bdi>
             </DropdownMenuRadioItem>

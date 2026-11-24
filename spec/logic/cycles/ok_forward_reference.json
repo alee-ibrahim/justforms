@@ -2,9 +2,8 @@
   "name": "ok_forward_reference",
   "expect": "ok",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Cycle"
     },
     "pages": [

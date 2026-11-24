@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode } from 'react'
 
 import type { Condition, Form } from '@/schema'
-import { contentProps, formLanguage } from '@/schema/language'
+import { textLang } from '@/schema/direction'
 
 import { piecesOf } from './logic-text'
 
@@ -15,14 +15,13 @@ export function ConditionSentence({
   form: Form
   prefix?: string
 }): ReactNode {
-  const lang = contentProps(formLanguage(form)).lang
   return (
     <>
       {prefix}
       {prefix && ' '}
       {piecesOf(cond, form, false).map((p, i) =>
         p.content ? (
-          <bdi key={i} dir="auto" lang={lang}>
+          <bdi key={i} dir="auto" lang={textLang(p.text)}>
             {p.text}
           </bdi>
         ) : (

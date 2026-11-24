@@ -2,9 +2,8 @@
   "name": "unicode_thaana",
   "description": "Thaana values compare exactly; strings are NFC-normalised before comparison",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "dv",
       "title": "Vector"
     },
     "pages": [

@@ -2,9 +2,8 @@
   "name": "design_example",
   "description": "The DESIGN section 4.4 youth programme form",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "dv",
       "title": "ޒުވާނުންގެ ޕްރޮގްރާމަށް ހުށަހަޅާ ފޯމު",
       "submitLabel": "ހުށަހަޅާ",
       "successMessage": "ޝުކުރިއްޔާ!",

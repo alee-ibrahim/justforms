@@ -2,9 +2,8 @@
   "name": "forward_references",
   "description": "An element may depend on a field on a later page; that field reads missing when its page is skipped",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

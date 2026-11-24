@@ -74,7 +74,6 @@ export interface RepeaterSummary {
 
 export interface Insights {
   total: number
-  language: 'en' | 'dv'
   questions: QuestionSummary[]
   repeaters: RepeaterSummary[]
 }

@@ -7,8 +7,8 @@ import { blockPosition } from './problems'
 const field = (id: string, type = 'short_text'): Element => ({ kind: 'field', id, type, label: '' }) as Element
 
 const form: Form = {
-  schemaVersion: '1',
-  settings: { language: 'en', title: 'T' },
+  schemaVersion: '2',
+  settings: { title: 'T' },
   pages: [
     {
       id: 'page_1',

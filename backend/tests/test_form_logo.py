@@ -179,7 +179,7 @@ def _pdf_input(**extra: Any) -> PdfInput:
     language = extra.pop("language", "en")
     form = Form.model_validate(
         {
-            "settings": {"title": "Application", "language": language},
+            "settings": {"title": "ފޯމު" if language == "dv" else "Application"},
             "pages": [{"id": "p1", "elements": [field("name")]}],
         }
     )

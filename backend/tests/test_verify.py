@@ -130,7 +130,7 @@ async def test_dhivehi_pdf_renders(
     file_storage: Storage,
 ) -> None:
     me = await admin_client(client, db, settings, queue)
-    pub = await _signed_form(client, me, language="dv")
+    pub = await _signed_form(client, me, title="ފޯމު")
     sid = await _submit(client, pub, name="ޢާއިޝަތު ޢަލީ")
     pdf = await _pdf(db, file_storage, settings, sid)
     assert b"NotoSansThaana" in pdf

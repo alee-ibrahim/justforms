@@ -103,7 +103,9 @@ def test_rendering_is_deterministic() -> None:
 # -- submit, audit trail, integrity ----------------------------------------------------------
 
 
-async def _signed_form(client: AsyncClient, me: dict[str, Any], language: str = "en") -> Published:
+async def _signed_form(
+    client: AsyncClient, me: dict[str, Any], title: str = "Declaration"
+) -> Published:
     return await publish(
         client,
         me,
@@ -111,8 +113,7 @@ async def _signed_form(client: AsyncClient, me: dict[str, Any], language: str = 
             field("full_name", required=True, label="Full name"),
             field("sign", "signature", required=True, label="Signature", attestation=STATEMENT),
         ],
-        title="Declaration",
-        language=language,
+        title=title,
     )
 
 
@@ -300,7 +301,7 @@ async def test_dhivehi_pdf_embeds_thaana_font(
     file_storage: Storage,
 ) -> None:
     me = await admin_client(client, db, settings, queue)
-    pub = await _signed_form(client, me, language="dv")
+    pub = await _signed_form(client, me, title="ފޯމު")
     sid = await _submit(client, pub, name="ޢާއިޝަތު ޢަލީ")
     assert await generate_pdf(db, file_storage, settings, uuid.UUID(sid))
     sub = await db.get(Submission, uuid.UUID(sid))

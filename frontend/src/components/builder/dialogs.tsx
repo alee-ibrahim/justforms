@@ -12,7 +12,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { formLanguage } from '@/schema/language'
+import { textLang } from '@/schema/direction'
 
 import { deleteElement, quoted } from './actions'
 import { blockLabel } from './block-types'
@@ -21,7 +21,6 @@ import { findElement, removePage, rulesReading, subtreeIds } from './tree'
 
 function RuleList({ ids }: { ids: Set<string> }) {
   const form = useBuilder((s) => s.schema)
-  const lang = formLanguage(form)
   const rules = rulesReading(form, ids)
   if (!rules.length) return null
   return (
@@ -40,7 +39,7 @@ function RuleList({ ids }: { ids: Set<string> }) {
                 `Page ${pageIndex + 1}, ${what}`
               ) : (
                 <>
-                  <bdi dir="auto" lang={lang}>
+                  <bdi dir="auto" lang={textLang(el ? blockLabel(el) || r.ownerId : r.ownerId)}>
                     {el ? blockLabel(el) || r.ownerId : r.ownerId}
                   </bdi>
                   , {what}

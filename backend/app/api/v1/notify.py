@@ -106,8 +106,6 @@ class EmailLogOut(ApiModel):
 
 class NotificationsOut(ApiModel):
     smtp_enabled: bool
-    # Language of the email questions' labels (the form's language).
-    language: str
     owner_email: RuleOut
     respondent_receipt: RuleOut
     email_fields: list[EmailFieldOut]
@@ -165,7 +163,6 @@ async def _notifications(db: DbDep, settings: SettingsDep, access: FormAccess) -
     )
     return NotificationsOut(
         smtp_enabled=settings.smtp_enabled,
-        language=schema.settings.language,
         owner_email=_rule_out(rules.get(RuleType.OWNER_EMAIL)),
         respondent_receipt=_rule_out(rules.get(RuleType.RESPONDENT_RECEIPT)),
         email_fields=[EmailFieldOut(id=f.id, label=f.label) for f in email_fields(schema)],

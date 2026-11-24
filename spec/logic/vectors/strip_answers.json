@@ -2,9 +2,8 @@
   "name": "strip_answers",
   "description": "Stored data keeps only visible value-producing fields; unknown and non-value keys are dropped",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

@@ -1,7 +1,13 @@
 /** Answers as short text for tables and the detail view. */
-import type { FieldElement, FormLanguage, Option } from '@/schema'
+import type { FieldElement, Option } from '@/schema'
+import { textLang } from '@/schema/direction'
 
-export function answerText(field: FieldElement, value: unknown, language: FormLanguage): string {
+/** Labels joined for a multi-choice answer: the Arabic-script comma when every label is Dhivehi. */
+function joinLabels(labels: string[]): string {
+  return labels.join(labels.length && labels.every((l) => textLang(l) === 'dv') ? '، ' : ', ')
+}
+
+export function answerText(field: FieldElement, value: unknown): string {
   if (value === undefined || value === null) return ''
   switch (field.type) {
     case 'yes_no':
@@ -11,7 +17,7 @@ export function answerText(field: FieldElement, value: unknown, language: FormLa
       return field.options.find((o) => o.value === value)?.label ?? String(value)
     case 'multi_choice':
       return Array.isArray(value)
-        ? value.map((v) => field.options.find((o) => o.value === v)?.label ?? String(v)).join(language === 'dv' ? '، ' : ', ')
+        ? joinLabels(value.map((v) => field.options.find((o) => o.value === v)?.label ?? String(v)))
         : String(value)
     case 'file':
       return Array.isArray(value) ? value.map((f: { name?: string }) => f.name ?? 'file').join(', ') : ''

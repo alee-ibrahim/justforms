@@ -22,7 +22,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { api, ApiError, type FormSummary, type SharingOut } from '@/lib/api'
 import { sharingQuery } from '@/lib/queries'
 import { useDelayed } from '@/lib/use-delayed'
-import { contentProps } from '@/schema'
+import { textProps } from '@/schema/align'
 
 const TITLE_MAX = 120
 const DESCRIPTION_MAX = 300
@@ -57,7 +57,6 @@ function Sharing({ form, data }: { form: FormSummary; data: SharingOut }) {
   const [title, setTitle] = useState(data.title ?? '')
   const [description, setDescription] = useState(data.description ?? '')
   const dirty = title.trim() !== (data.title ?? '') || description.trim() !== (data.description ?? '')
-  const content = contentProps(data.language)
   const save = useMutation({
     mutationFn: () => api.saveSharing(form.id, { title: title.trim() || null, description: description.trim() || null }),
     onSuccess: (next) => {
@@ -100,7 +99,7 @@ function Sharing({ form, data }: { form: FormSummary; data: SharingOut }) {
               <FieldLabel htmlFor="share-title">Title</FieldLabel>
               <Input
                 id="share-title"
-                {...content}
+                {...textProps(title || data.defaultTitle)}
                 value={title}
                 maxLength={TITLE_MAX}
                 placeholder={data.defaultTitle}
@@ -113,7 +112,7 @@ function Sharing({ form, data }: { form: FormSummary; data: SharingOut }) {
               <FieldLabel htmlFor="share-description">Description</FieldLabel>
               <Textarea
                 id="share-description"
-                {...content}
+                {...textProps(description || data.defaultDescription)}
                 value={description}
                 rows={3}
                 maxLength={DESCRIPTION_MAX}
@@ -242,7 +241,6 @@ const host = (url: string) => url.replace(/^https?:\/\//, '').split('/')[0]
 
 /** The link card as three common apps show it. Composition of tokens only; not interactive. */
 function LinkPreview({ data, title, description }: { data: SharingOut; title: string; description: string }) {
-  const content = contentProps(data.language)
   const image = (
     <img src={data.imageUrl} alt="" width={1200} height={630} className="aspect-[1200/630] w-full bg-muted object-cover" />
   )
@@ -265,11 +263,11 @@ function LinkPreview({ data, title, description }: { data: SharingOut; title: st
               <div className="overflow-hidden rounded-md bg-card">
                 {image}
                 <div className="flex flex-col gap-0.5 px-3 py-2">
-                  <p {...content} className="line-clamp-2 text-sm font-semibold">
+                  <p {...textProps(title)} className="line-clamp-2 text-sm font-semibold">
                     {title}
                   </p>
                   {description && (
-                    <p {...content} className="line-clamp-2 text-xs text-muted-foreground">
+                    <p {...textProps(description)} className="line-clamp-2 text-xs text-muted-foreground">
                       {description}
                     </p>
                   )}
@@ -288,11 +286,11 @@ function LinkPreview({ data, title, description }: { data: SharingOut; title: st
               {image}
               <div className="flex flex-col gap-0.5 border-t bg-muted px-3 py-2">
                 <p className="text-xs text-muted-foreground">{site}</p>
-                <p {...content} className="line-clamp-2 font-semibold">
+                <p {...textProps(title)} className="line-clamp-2 font-semibold">
                   {title}
                 </p>
                 {description && (
-                  <p {...content} className="line-clamp-1 text-sm text-muted-foreground">
+                  <p {...textProps(description)} className="line-clamp-1 text-sm text-muted-foreground">
                     {description}
                   </p>
                 )}
@@ -304,7 +302,7 @@ function LinkPreview({ data, title, description }: { data: SharingOut; title: st
               <div className="relative overflow-hidden rounded-xl border">
                 {image}
                 <p
-                  {...content}
+                  {...textProps(title)}
                   className="absolute bottom-2 start-2 max-w-[85%] truncate rounded-sm bg-foreground/75 px-1.5 py-0.5 text-xs text-background"
                 >
                   {title}

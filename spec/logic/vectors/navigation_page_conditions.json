@@ -2,9 +2,8 @@
   "name": "navigation_page_conditions",
   "description": "Page visibleIf with all/any over earlier pages, including fields on skipped pages",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

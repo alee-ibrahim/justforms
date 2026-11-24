@@ -16,7 +16,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { FieldFilter, FilterOp } from '@/lib/api'
-import type { FieldElement, FormLanguage } from '@/schema'
+import type { FieldElement } from '@/schema'
+import { textLang } from '@/schema/direction'
+import { textProps } from '@/schema/align'
 import { cn } from '@/lib/utils'
 
 type Kind = 'text' | 'number' | 'date' | 'choice' | 'multi' | 'yes_no' | 'presence'
@@ -86,11 +88,9 @@ function filterSentence(field: FieldElement | undefined, f: FieldFilter): string
 
 export function AddFilter({
   fields,
-  language,
   onAdd,
 }: {
   fields: FieldElement[]
-  language: FormLanguage
   onAdd: (f: FieldFilter) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -115,7 +115,6 @@ export function AddFilter({
     reset()
     setOpen(false)
   }
-  const lang = { lang: language, dir: 'auto' as const }
 
   return (
     <Popover
@@ -156,7 +155,7 @@ export function AddFilter({
                 <SelectContent>
                   {fields.map((f) => (
                     <SelectItem key={f.id} value={f.id}>
-                      <bdi {...lang}>{f.label}</bdi>
+                      <bdi {...textProps(f.label)}>{f.label}</bdi>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -196,7 +195,7 @@ export function AddFilter({
                       ) : (
                         field.options.map((o) => (
                           <SelectItem key={o.value} value={o.value}>
-                            <bdi {...lang}>{o.label}</bdi>
+                            <bdi {...textProps(o.label)}>{o.label}</bdi>
                           </SelectItem>
                         ))
                       )}
@@ -208,7 +207,7 @@ export function AddFilter({
                     type={kind === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'time' ? 'time' : 'text'}
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
-                    {...(kind === 'text' ? lang : { dir: 'ltr' })}
+                    {...(kind === 'text' ? { dir: 'auto', lang: textLang(value) } : { dir: 'ltr' })}
                   />
                 )}
               </Field>
@@ -226,12 +225,10 @@ export function AddFilter({
 export function FilterChips({
   filters,
   fields,
-  language,
   onRemove,
 }: {
   filters: FieldFilter[]
   fields: FieldElement[]
-  language: FormLanguage
   onRemove: (index: number) => void
 }) {
   return (
@@ -241,7 +238,7 @@ export function FilterChips({
         const sentence = filterSentence(field, f)
         return (
           <Badge key={`${f.field}-${i}`} variant="outline" className="h-7 gap-1 pe-0.5 text-sm font-normal">
-            <bdi lang={language} dir="auto">
+            <bdi dir="auto" lang={textLang(sentence)}>
               {sentence}
             </bdi>
             <Button

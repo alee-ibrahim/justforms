@@ -2,9 +2,8 @@
   "name": "ok_repeater_child_reads_outside",
   "expect": "ok",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Cycle"
     },
     "pages": [

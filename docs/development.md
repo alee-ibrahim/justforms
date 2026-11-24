@@ -52,7 +52,7 @@ the Compose `dev` profile (see [Deployment](deployment.md#docker-compose)) and p
 | `just lint` | ruff (check and format) and mypy for the backend; oxlint, the logical-classes check and `tsc` for the frontend |
 | `just test` | pytest and vitest, including the shared logic, validation and webhook-signature vectors in `spec/` |
 | `just format` | Format and auto-fix the backend with ruff |
-| `just spec` | Regenerate `spec/form-schema.v1.json` and the frontend types after a schema change |
+| `just spec` | Regenerate `spec/form-schema.v2.json` and the frontend types after a schema change |
 | `just check-spec` | Fail if those generated files are stale |
 | `just build-frontend` | Production build of the SPA |
 | `pnpm check:bundle` | In `frontend/`, after a build: keeps the public form within its size budget |
@@ -93,7 +93,7 @@ justfile          task recipes
 Read [CLAUDE.md](../CLAUDE.md) before changing code. The short version:
 
 - **The schema is the source of truth.** Change `backend/app/schemas/form.py` first, then run
-  `just spec` to regenerate `spec/form-schema.v1.json` and the frontend types.
+  `just spec` to regenerate `spec/form-schema.v2.json` and the frontend types.
 - The logic engine and answer validation have Python and TypeScript twins. Change both and add
   a case to the shared vectors in `spec/`.
 - UI components come from the official shadcn/ui CLI only; theme through CSS variables.

@@ -64,14 +64,26 @@ class GetForm(Args):
     """Return the current form (as changed so far) as JSON."""
 
 
+AlignArg = Annotated[
+    Literal["auto", "left", "center", "right"],
+    Field(
+        description='Text alignment; "auto" follows the direction of the text. Set it only '
+        "when the person asks for an alignment."
+    ),
+]
+
+
 class UpdateSettings(Args):
-    """Change the form title, description, submit button label or success message. Pass null
-    to clear an optional text."""
+    """Change the form title, description, submit button label, success message or text
+    alignment (``align``: the form default; ``titleAlign``: the title and description). Pass
+    null to clear an optional value."""
 
     title: Text | None = None
     description: Text | None = None
     submit_label: Text | None = None
     success_message: Text | None = None
+    align: AlignArg | None = None
+    title_align: AlignArg | None = None
 
 
 class AddPage(Args):
@@ -79,17 +91,19 @@ class AddPage(Args):
 
     title: Text | None = None
     description: Text | None = None
+    align: AlignArg | None = None
     after_page_id: str | None = Field(
         default=None, description="Insert after this page; default: at the end."
     )
 
 
 class UpdatePage(Args):
-    """Change a page's title or description (null clears it)."""
+    """Change a page's title, description or alignment (null clears it)."""
 
     page_id: str
     title: Text | None = None
     description: Text | None = None
+    align: AlignArg | None = None
 
 
 class RemovePage(Args):
@@ -489,6 +503,8 @@ class WorkingCopy:
             page["title"] = args.title
         if args.description:
             page["description"] = args.description
+        if args.align:
+            page["align"] = args.align
         pages.insert(position, page)
         self._commit(candidate)
         return StepResult(

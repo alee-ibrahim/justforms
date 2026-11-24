@@ -18,7 +18,7 @@ def choice(fid: str, *opts: tuple[str, str], type_: str = "single_choice") -> di
 
 def form(*pages: list[dict[str, Any]], **settings: Any) -> dict[str, Any]:
     return {
-        "schemaVersion": "1",
+        "schemaVersion": "2",
         "settings": {"title": "T", **settings},
         "pages": [{"id": f"p{i + 1}", "elements": els} for i, els in enumerate(pages)],
     }
@@ -295,14 +295,10 @@ def test_form_settings() -> None:
 
 
 def test_content_blocks_and_dhivehi() -> None:
-    a = form(
-        [{"kind": "content", "id": "h", "contentType": "heading", "text": "ފުރަތަމަ"}], language="dv"
-    )
-    b = form(
-        [{"kind": "content", "id": "h", "contentType": "heading", "text": "ދެވަނަ"}], language="dv"
-    )
+    a = form([{"kind": "content", "id": "h", "contentType": "heading", "text": "ފުރަތަމަ"}], title="ފޯމު")
+    b = form([{"kind": "content", "id": "h", "contentType": "heading", "text": "ދެވަނަ"}], title="ފޯމު")
     result = diff(a, b)
-    assert result["language"] == "dv"
+    assert "language" not in result
     entry = by_id(result)["h"]
     assert entry["label"] == "ދެވަނަ"
     assert entry["typeName"] == "Heading"

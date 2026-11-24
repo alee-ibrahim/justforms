@@ -13,8 +13,14 @@ Noto Sans Thaana for Thaana. Faruma is never bundled (licence unclear, DESIGN 16
 can supply a Thaana font for server rendering (``JUSTFORMS_THAANA_FONT_FILE``, ``app.pdf.faces``).
 
 Fixed labels (reference, submitted, approval record, footer, "No answer", "Yes"/"No") are
-English for every form. The page follows the form's direction: in a Dhivehi form every line
-starts at the right edge, form content is shaped right to left, and each English label is one
+English for every form. A form has no language (schemaVersion 2): every piece of form content
+takes its direction and face from its own text (Thaana: right to left in the Thaana face, a
+step larger; Latin: left to right in Inter; a mixed text such as "Name / ނަން" is laid out by
+the Unicode bidi algorithm with its first strong character as the paragraph direction). Each
+question, heading and title is aligned by its ``align`` (else ``settings.align``, else its
+label's direction). The sheet chrome (reference and date line, approval record, footer, logo
+and QR placement) follows the **sheet direction**, the direction of the form title: in a
+right-to-left sheet those lines start at the right edge and each English label is one
 left-to-right run placed against that edge, so its words and numbers keep their order.
 """
 
@@ -35,6 +41,7 @@ from app.answers import WORDS, answer_text
 from app.logic.engine import evaluate
 from app.logic.index import FormIndex
 from app.pdf.faces import BUNDLED, LATIN_BOLD, LATIN_REGULAR, ThaanaFace
+from app.schemas.direction import Direction, has_thaana, resolve_align, text_direction
 from app.schemas.form import (
     ContentElement,
     DateField,
@@ -59,6 +66,10 @@ LABEL = (58, 66, 94)
 # Thaana question labels are set this much larger again (on top of the 1.12 Thaana scale), so
 # a label is never smaller than its answer (DESIGN-SYSTEM 4.2).
 DV_LABEL_SCALE = 1.15
+# Thaana reads small next to Latin at the same size (DESIGN 16): one step larger.
+THAANA_SCALE = 1.12
+# Picks the Thaana face in ``_font`` for a block of mixed cells (a repeater table).
+THAANA_SAMPLE = "\u0780"
 HAIRLINE = (220, 224, 234)
 # Answers printed left to right: Latin data, and Yes / No (English system words).
 LATIN_ONLY = (EmailField, PhoneField, NumberField, DateField, TimeField, YesNoField)
@@ -163,7 +174,9 @@ class _Doc(FPDF):
         super().__init__(format="A4", unit="mm")
         self.src = src
         self.total_pages = total_pages
-        self.rtl = src.form.settings.language == "dv"
+        # The sheet direction: the form title's. Places the chrome (see the module docs).
+        self.sheet_dir: Direction = text_direction(src.form.settings.title or src.form_title)
+        self.rtl = self.sheet_dir == "rtl"
         self.w_ = PDF_WORDS
         self.set_margins(MARGIN, MARGIN, MARGIN)
         self.set_auto_page_break(True, margin=MARGIN + FOOTER_HEIGHT)
@@ -184,17 +197,43 @@ class _Doc(FPDF):
 
     # -- text helpers -------------------------------------------------------------------
 
-    def _font(self, content: bool, size: float, bold: bool = False, tabular: bool = False) -> None:
-        """``tabular``: figures of equal width (references, dates, page numbers)."""
-        thaana = content and self.rtl
-        self.set_font("thaana" if thaana else "latin", "B" if bold else "", size)
-        self.set_fallback_fonts(["latin" if thaana else "thaana"], exact_match=False)
-        if thaana:
-            self.set_text_shaping(True, direction="rtl", script="thaa", language="div")
-        else:
+    def _font(
+        self,
+        text: str | None,
+        size: float,
+        bold: bool = False,
+        tabular: bool = False,
+        *,
+        direction: Direction | None = None,
+    ) -> float:
+        """Face and shaping for ``text`` (``None``: English system text, Latin left to right).
+        Text with Thaana uses the Thaana face a step larger (Latin falls back to Inter), shaped
+        in its own direction; a mixed text is split into runs by the bidi algorithm. Returns the
+        size used. ``tabular``: figures of equal width (references, dates, page numbers)."""
+        if text is not None and has_thaana(text):
+            size *= THAANA_SCALE
+            self.set_font("thaana", "B" if bold else "", size)
+            self.set_fallback_fonts(["latin"], exact_match=False)
+            pure = not any(ch.isascii() and ch.isalpha() for ch in text)
             self.set_text_shaping(
-                True, direction="ltr", features={"tnum": True} if tabular else None
+                True,
+                direction=direction or text_direction(text),
+                script="thaa" if pure else None,
+                language="div" if pure else None,
             )
+            return size
+        self.set_font("latin", "B" if bold else "", size)
+        self.set_fallback_fonts(["thaana"], exact_match=False)
+        self.set_text_shaping(
+            True,
+            direction=direction or ("ltr" if text is None else text_direction(text)),
+            features={"tnum": True} if tabular else None,
+        )
+        return size
+
+    def start_align(self) -> str:
+        """The sheet's start edge, for English system lines."""
+        return "right" if self.rtl else "left"
 
     def text_block(
         self,
@@ -208,29 +247,49 @@ class _Doc(FPDF):
         gap: float = 1.5,
         line: float | None = None,
         dry_run: bool = False,
+        align: str | None = None,
     ) -> float:
-        """A paragraph at the page's start edge (right in a Dhivehi form). ``content`` text is
-        shaped in the form's language and direction; ``latin`` (Latin-only answers, English
-        labels) is shaped left to right. Returns the height it takes, gap included;
-        ``dry_run`` only measures."""
+        """A paragraph. ``content`` text is shaped in its own direction and face (``_font``);
+        ``latin`` (Latin-only answers, English labels) is shaped left to right. ``align`` is
+        ``left``/``center``/``right``; by default content follows its own direction and
+        English system text the sheet's start edge. Returns the height it takes, gap
+        included; ``dry_run`` only measures."""
         if not text:
             return 0.0
-        self._font(content and not latin, size * (1.12 if content and self.rtl else 1), bold)
+        content = content and not latin
+        direction: Direction = text_direction(text, self.sheet_dir) if content else "ltr"
+        thaana = content and has_thaana(text)
+        self._font(text if content else None, size, bold, direction=direction)
         self.set_text_color(*color)
-        align = Align.R if self.rtl else Align.L
-        line_h = line or size * (0.62 if content and self.rtl else 0.5)
+        if align is None:
+            align = ("right" if direction == "rtl" else "left") if content else self.start_align()
+        cell_align = {"left": Align.L, "center": Align.C, "right": Align.R}[align]
+        line_h = line or size * (0.62 if thaana else 0.5)
         if dry_run:
-            height = self.multi_cell(0, line_h, text, align=align, dry_run=True, output="HEIGHT")
+            height = self.multi_cell(
+                0, line_h, text, align=cell_align, dry_run=True, output="HEIGHT"
+            )
             assert isinstance(height, float | int)
             return float(height) + gap
-        self.multi_cell(0, line_h, text, align=align, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.multi_cell(0, line_h, text, align=cell_align, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         self.ln(gap)
         return 0.0
 
-    def label(self, text: str, *, gap: float = 0.5, dry_run: bool = False) -> float:
-        """A question label: ink-muted, and in a Dhivehi form as large as its answer."""
-        size = 9 * (DV_LABEL_SCALE if self.rtl else 1)
-        return self.text_block(text, size=size, color=LABEL, gap=gap, dry_run=dry_run)
+    def label(
+        self, text: str, *, gap: float = 0.5, dry_run: bool = False, align: str | None = None
+    ) -> float:
+        """A question label: ink-muted, and a Thaana label as large as its answer."""
+        size = 9 * (DV_LABEL_SCALE if has_thaana(text) else 1)
+        return self.text_block(text, size=size, color=LABEL, gap=gap, dry_run=dry_run, align=align)
+
+    def field_align(self, el: Any, text: str | None) -> str:
+        """Alignment of an element's lines: its ``align``, else the form's, else the
+        direction of ``text`` (its label or title)."""
+        return resolve_align(
+            getattr(el, "align", None),
+            self.src.form.settings.align,
+            text_direction(text, self.sheet_dir),
+        )
 
     def runs(
         self,
@@ -256,9 +315,7 @@ class _Doc(FPDF):
         x = start if start is not None else (self.w - self.r_margin if self.rtl else self.l_margin)
         self.set_text_color(*color)
         for text, latin in parts:
-            self._font(
-                not latin, size * (1.12 if self.rtl and not latin else 1), tabular=tabular and latin
-            )
+            self._font(None if latin else text, size, tabular=tabular and latin)
             gap = self.get_string_width(" ")
             if not text:
                 x += -2 * gap if self.rtl else 2 * gap
@@ -332,12 +389,12 @@ def _local(dt: datetime | None, tz: ZoneInfo, seconds: bool = False) -> str:
 
 
 def _answer(doc: _Doc, fld: FieldElement, value: Any, src: PdfInput) -> None:
-    lang = src.form.settings.language
     no_answer = WORDS["no_answer"]
+    align = doc.field_align(fld, fld.label)
     if isinstance(fld, SignatureField) and fld.id in src.signatures:
-        _signature(doc, fld.label, src.signatures[fld.id])
+        _signature(doc, fld.label, src.signatures[fld.id], align)
         return
-    doc.label(fld.label)
+    doc.label(fld.label, align=align)
     if isinstance(fld, FileField):
         refs = value if isinstance(value, list) else []
         shown = 0
@@ -345,21 +402,21 @@ def _answer(doc: _Doc, fld: FieldElement, value: Any, src: PdfInput) -> None:
             info = src.files.get(str(ref.get("fileId"))) if isinstance(ref, dict) else None
             if info is None:
                 continue
-            doc.text_block(f"{info.name}  ({_size(info.size)})", latin=True, gap=0.5)
+            doc.text_block(f"{info.name}  ({_size(info.size)})", gap=0.5, align=align)
             shown += 1
         if not shown:
-            doc.text_block(no_answer, latin=True, color=MUTED, gap=3)
+            doc.text_block(no_answer, latin=True, color=MUTED, gap=3, align=align)
         else:
             doc.ln(2.5)
         return
     if isinstance(fld, SignatureField):
-        doc.text_block(no_answer, latin=True, color=MUTED, gap=3)
+        doc.text_block(no_answer, latin=True, color=MUTED, gap=3, align=align)
         return
-    text = answer_text(fld, value, lang, display=True)
+    text = answer_text(fld, value, display=True)
     if not text:
-        doc.text_block(no_answer, latin=True, color=MUTED, gap=3)
+        doc.text_block(no_answer, latin=True, color=MUTED, gap=3, align=align)
     else:
-        doc.text_block(text, latin=isinstance(fld, LATIN_ONLY), gap=3)
+        doc.text_block(text, latin=isinstance(fld, LATIN_ONLY), gap=3, align=align)
 
 
 PNG_MAGIC = bytes.fromhex("89504e470d0a1a0a")
@@ -376,25 +433,30 @@ def _png_size(png: bytes) -> tuple[int, int] | None:
 SIGNATURE_WIDTH = 70.0
 
 
-def _signature(doc: _Doc, label: str, sig: SignatureInfo) -> None:
+def _signature(doc: _Doc, label: str, sig: SignatureInfo, align: str) -> None:
     """The label, the statement the signer saw, the server-rendered image and its baseline,
     kept together: when they don't fit, the page breaks before the label, so the image is
     never separated from its statement."""
     width = SIGNATURE_WIDTH
     px = _png_size(sig.png)
     image_h = width * px[1] / px[0] if px else 40.0
-    needed = doc.label(label, dry_run=True) + image_h + 5
+    needed = doc.label(label, dry_run=True, align=align) + image_h + 5
     if sig.attestation:
-        needed += doc.text_block(sig.attestation, size=10, gap=1, dry_run=True)
+        needed += doc.text_block(sig.attestation, size=10, gap=1, dry_run=True, align=align)
     top_of_page = doc.get_y() <= doc.t_margin + 1
     if not top_of_page and doc.get_y() + needed > doc.page_break_trigger:
         doc.add_page()
-    doc.label(label)
+    doc.label(label, align=align)
     if sig.attestation:
-        doc.text_block(sig.attestation, size=10, gap=1)
+        doc.text_block(sig.attestation, size=10, gap=1, align=align)
     if doc.get_y() + image_h > doc.page_break_trigger:
         doc.add_page()  # a statement longer than a page: the image still follows it
-    x = doc.w - doc.r_margin - width if doc.rtl else doc.l_margin
+    if align == "right":
+        x = doc.w - doc.r_margin - width
+    elif align == "center":
+        x = (doc.w - width) / 2
+    else:
+        x = doc.l_margin
     top = doc.get_y()
     info = doc.image(io.BytesIO(sig.png), x=x, y=top, w=width)
     bottom = top + float(info.rendered_height)
@@ -409,11 +471,23 @@ def _elements(doc: _Doc, elements: list[Any], visible: set[str], src: PdfInput) 
             continue
         if isinstance(el, ContentElement):
             if el.content_type == "heading" and el.text:
-                doc.text_block(el.text, size=12, bold=not doc.rtl, gap=2)
+                doc.text_block(
+                    el.text,
+                    size=12,
+                    bold=not has_thaana(el.text),
+                    gap=2,
+                    align=doc.field_align(el, el.text),
+                )
             continue
         if isinstance(el, SectionElement):
             if el.title:
-                doc.text_block(el.title, size=11.5, bold=not doc.rtl, gap=2)
+                doc.text_block(
+                    el.title,
+                    size=11.5,
+                    bold=not has_thaana(el.title),
+                    gap=2,
+                    align=doc.field_align(el, el.title),
+                )
             _elements(doc, el.elements, visible, src)
             continue
         if isinstance(el, RepeaterElement):
@@ -436,33 +510,38 @@ def leaf_fields(elements: list[Any]) -> list[FieldElement]:
 
 
 def _repeater(doc: _Doc, rep: RepeaterElement, src: PdfInput) -> None:
-    lang = src.form.settings.language
-    doc.label(rep.label, gap=1)
+    align = doc.field_align(rep, rep.label)
+    doc.label(rep.label, gap=1, align=align)
     rows = src.data.get(rep.id)
     rows = rows if isinstance(rows, list) else []
     fields = [f for f in leaf_fields(rep.elements) if not isinstance(f, HiddenField)]
     if not rows or not fields:
-        doc.text_block(WORDS["no_answer"], latin=True, color=MUTED, gap=3)
+        doc.text_block(WORDS["no_answer"], latin=True, color=MUTED, gap=3, align=align)
         return
-    doc._font(True, 8.5 * (1.12 if doc.rtl else 1))
-    doc.set_text_color(*INK)
-    doc.set_draw_color(*HAIRLINE)
     headings = ["#", *(f.label for f in fields)]
     body = [
-        [str(i + 1), *(answer_text(f, row.get(f.id), lang, display=True) for f in fields)]
+        [str(i + 1), *(answer_text(f, row.get(f.id), display=True) for f in fields)]
         for i, row in enumerate(rows)
         if isinstance(row, dict)
     ]
-    if doc.rtl:
+    # Columns run in the repeater label's direction; every cell's paragraph direction is
+    # detected from its own text (shaping direction left unset).
+    rtl = text_direction(rep.label, doc.sheet_dir) == "rtl"
+    thaana = any(has_thaana(c) for c in [*headings, *(c for r in body for c in r)])
+    doc._font(THAANA_SAMPLE if thaana else "", 8.5)
+    doc.set_text_shaping(True, direction=None)
+    doc.set_text_color(*INK)
+    doc.set_draw_color(*HAIRLINE)
+    if rtl:
         headings = list(reversed(headings))
         body = [list(reversed(r)) for r in body]
     widths = [8] + [40] * len(fields)
-    if doc.rtl:
+    if rtl:
         widths = list(reversed(widths))
     with doc.table(
         col_widths=widths,
-        text_align="RIGHT" if doc.rtl else "LEFT",
-        line_height=6 if doc.rtl else 5,
+        text_align=align.upper(),
+        line_height=6 if thaana else 5,
         first_row_as_headings=True,
         borders_layout="HORIZONTAL_LINES",
         padding=1.2,
@@ -560,7 +639,11 @@ def _render(src: PdfInput, total_pages: int | None) -> _Doc:
     w = doc.w_
     doc.add_page()
     _brand_header(doc, src)
-    doc.text_block(form.settings.title or src.form_title, size=17, bold=not doc.rtl, gap=2)
+    title = form.settings.title or src.form_title
+    title_align = resolve_align(
+        form.settings.title_align, form.settings.align, text_direction(title, doc.sheet_dir)
+    )
+    doc.text_block(title, size=17, bold=not has_thaana(title), gap=2, align=title_align)
     doc.runs(
         [
             (
@@ -583,7 +666,14 @@ def _render(src: PdfInput, total_pages: int | None) -> _Doc:
         if not ids:
             continue
         if page.title:
-            doc.text_block(page.title, size=13, bold=not doc.rtl, gap=3, color=src.accent or INK)
+            doc.text_block(
+                page.title,
+                size=13,
+                bold=not has_thaana(page.title),
+                gap=3,
+                color=src.accent or INK,
+                align=doc.field_align(page, page.title),
+            )
         _elements(doc, page.elements, visible, src)
         doc.ln(2)
     _approvals(doc, src)

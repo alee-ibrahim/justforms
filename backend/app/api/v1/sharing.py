@@ -72,7 +72,6 @@ class SharingOut(ApiModel):
     default_description: str
     site_name: str
     url: str
-    language: str
     image_url: str  # same-origin, for the studio preview
     custom_image: CustomImageOut | None
     published: bool
@@ -112,7 +111,6 @@ async def _out(
         default_description=default_desc,
         site_name=preview.site_name,
         url=preview.url,
-        language=preview.language,
         image_url=f"/api/v1/forms/{form.id}/sharing/image?v={preview.version}",
         custom_image=(
             CustomImageOut(width=saved.image.width, height=saved.image.height)

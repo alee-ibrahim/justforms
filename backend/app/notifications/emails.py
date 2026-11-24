@@ -4,9 +4,11 @@ with Jinja2.
 
 All wording is English for every form: system text is never translated. Only form content (the
 form title, question labels, answers, the builder's success message, approval step names) can be
-Dhivehi; in HTML each such piece carries the form's ``lang``/``dir`` (or is isolated with
-``<bdi>`` inside an English sentence) so it reads right to left inside the left-to-right email.
-Sensitive answers are never emailed.
+Dhivehi, English or both. A form has no language: in HTML each such piece carries its own
+``lang``/``dir`` from its text (first strong character) and an ``align`` from the element's
+``align`` / ``settings.align`` (``settings.titleAlign`` for the title), or is isolated with
+``<bdi>`` inside an English sentence, so Dhivehi reads right to left inside the left-to-right
+email. Sensitive answers are never emailed.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ from markupsafe import Markup, escape
 from app.answers import answer_text
 from app.config import Settings
 from app.logic.index import FormIndex
+from app.schemas.direction import has_thaana, is_rtl, resolve_align, text_direction, text_lang
 from app.schemas.form import (
     DateField,
     EmailField,
@@ -34,7 +37,6 @@ from app.schemas.form import (
     SignatureField,
     TimeField,
     YesNoField,
-    text_direction,
 )
 
 # Respondent- and approver-facing wording (English for every form).
@@ -78,11 +80,11 @@ WORDS: dict[str, str] = {
 LTR_FIELDS = (EmailField, PhoneField, NumberField, DateField, TimeField, YesNoField)
 
 
-def _iso(text: str, language: str) -> str:
+def _iso(text: str) -> str:
     """Form content (a title, a step name) inside a plain-text English line (subject, text
-    body): in a right-to-left form it is wrapped in FSI ... PDI so the reference or punctuation
+    body): a right-to-left text is wrapped in FSI ... PDI so the reference or punctuation
     after it stays in English order ("(#0042)" not "(0042#)")."""
-    return f"\u2068{text}\u2069" if text_direction(language) == "rtl" else text
+    return f"\u2068{text}\u2069" if is_rtl(text) else text
 
 
 _TEMPLATES = {
@@ -97,17 +99,18 @@ _TEMPLATES = {
 <p style="max-width:560px;margin:16px auto 0;color:#5A6380;font-size:12px">Sent by {{ brand.name }}.{% if brand.support_url %} <a href="{{ brand.support_url }}" style="color:#5A6380">Get help</a>{% endif %}{% if brand.powered_by and brand.name != "JustForms" %} Powered by JustForms.{% endif %}</p>
 </body></html>""",
     "answers.html": """{% if answers %}
-<table role="presentation" style="width:100%;border-collapse:collapse;margin-top:8px{{ font }}" lang="{{ lang }}" dir="{{ dir }}">
+<table role="presentation" style="width:100%;border-collapse:collapse;margin-top:8px">
 {% for a in answers %}
-<tr><td lang="{{ lang }}" style="padding:8px 0;border-top:1px solid #DCE0EA;text-align:{{ align }}{{ font }}" align="{{ align }}">
-<div style="color:#3A425E;font-size:{{ label_px }}px;line-height:1.75">{{ a.label }}</div>
-<div style="white-space:pre-wrap;font-size:{{ answer_px }}px;line-height:1.75">{% if a.ltr %}<bdi dir="ltr" style="font-family:Inter,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">{{ a.value }}</bdi>{% else %}{{ a.value }}{% endif %}</div></td></tr>
+{% set l = a.label_block %}{% set v = a.value_block %}
+<tr><td style="padding:8px 0;border-top:1px solid #DCE0EA;text-align:{{ a.cell_align }}" align="{{ a.cell_align }}">
+<div lang="{{ l.lang }}" dir="{{ l.dir }}" align="{{ l.align }}" style="color:#3A425E;font-size:{{ l.px }}px;line-height:1.75;text-align:{{ l.align }}{{ l.font }}">{{ a.label }}</div>
+<div lang="{{ v.lang }}" dir="{{ v.dir }}" align="{{ v.align }}" style="white-space:pre-wrap;font-size:{{ v.px }}px;line-height:1.75;text-align:{{ v.align }}{{ v.font }}">{% if a.ltr %}<bdi dir="ltr" style="font-family:Inter,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">{{ a.value }}</bdi>{% else %}{{ a.value }}{% endif %}</div></td></tr>
 {% endfor %}
 </table>
 {% endif %}""",
     "owner.html": """{% extends "layout.html" %}{% block body %}
 <p style="margin:0 0 4px;color:#5A6380">New response</p>
-<h1 style="margin:0 0 16px;font-size:20px{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
+<h1 style="margin:0 0 16px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
 {% if message %}<p style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message }}</p>
 {% endif %}<p style="margin:0 0 16px">Reference <strong>{{ reference }}</strong>, submitted {{ submitted }}{% if respondent %} by <bdi>{{ respondent }}</bdi>{% endif %}.</p>
 <p style="margin:0 0 20px"><a href="{{ url }}" style="display:inline-block;background:{{ brand.button_bg }};color:{{ brand.button_fg }};text-decoration:none;padding:10px 16px;border-radius:6px">Open the submission</a></p>
@@ -128,9 +131,9 @@ Open the submission: {{ url }}
 Answers are not included in this email.
 {% endif %}""",
     "receipt.html": """{% extends "layout.html" %}{% block body %}
-<h1 style="margin:0 0 12px;font-size:20px{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
 {% if message %}<p style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message }}</p>
-{% elif success %}<p style="margin:0 0 16px;white-space:pre-wrap{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ success }}</p>
+{% elif success %}<p style="margin:0 0 16px;white-space:pre-wrap;text-align:{{ s.align }}{{ s.font }}" lang="{{ s.lang }}" dir="{{ s.dir }}" align="{{ s.align }}">{{ success }}</p>
 {% else %}<p style="margin:0 0 16px">{{ w.receipt_intro }}</p>
 {% endif %}
 <p style="margin:0 0 4px">{{ w.reference }}: <strong>{{ reference }}</strong></p>
@@ -153,7 +156,7 @@ Answers are not included in this email.
 {{ a.value }}
 {% endfor %}{% endif %}""",
     "code.html": """{% extends "layout.html" %}{% block body %}
-<h1 style="margin:0 0 12px;font-size:20px{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
 <p style="margin:0 0 12px">{{ body }}</p>
 <p style="margin:0 0 16px;font-size:28px;letter-spacing:4px;font-family:Inter,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-variant-numeric:tabular-nums">{{ code }}</p>
 <p style="margin:0;color:#5A6380">{{ w.code_ignore }}</p>
@@ -166,7 +169,7 @@ Answers are not included in this email.
 """,
     "approval_request.html": """{% extends "layout.html" %}{% block body %}
 <p style="margin:0 0 4px;color:#5A6380">{{ kicker }}</p>
-<h1 style="margin:0 0 12px;font-size:20px{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
 {% if message %}<p style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message }}</p>
 {% endif %}<p style="margin:0 0 {{ '8' if step_of else '20' }}px">{{ body }}</p>
 {% if step_of %}<p style="margin:0 0 20px;color:#5A6380">{{ step_of }}</p>
@@ -200,7 +203,7 @@ Answers are not included in this email.
 """,
     "approval_notice.html": """{% extends "layout.html" %}{% block body %}
 <p style="margin:0 0 4px;color:#5A6380">{{ kicker }}</p>
-<h1 style="margin:0 0 12px;font-size:20px{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
 {% if message %}<p style="margin:0 0 12px;white-space:pre-wrap" dir="auto">{{ message }}</p>
 <p style="margin:0 0 {{ '8' if step_of else '20' }}px">{{ w.reference }} <strong>{{ reference }}</strong></p>
 {% else %}<p style="margin:0 0 {{ '8' if step_of else '20' }}px">{{ body }}</p>
@@ -229,7 +232,7 @@ Answers are not included in this email.
 {{ note }}
 """,
     "outcome.html": """{% extends "layout.html" %}{% block body %}
-<h1 style="margin:0 0 12px;font-size:20px{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
 {% if message %}<p style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message }}</p>
 <p style="margin:0 0 16px">{{ w.outcome_reference }}: <strong>{{ reference }}</strong></p>
 {% else %}<p style="margin:0 0 16px">{{ body }}</p>
@@ -276,7 +279,7 @@ The link works until {{ until }}. If you weren't expecting this, you can ignore 
 """,
     "form_shared.html": """{% extends "layout.html" %}{% block body %}
 <p style="margin:0 0 4px;color:#5A6380">{{ kicker }}</p>
-<h1 style="margin:0 0 16px;font-size:20px{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
+<h1 style="margin:0 0 16px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
 <p style="margin:0 0 16px">{{ body }}</p>
 {% if note %}<p style="margin:0 0 4px;color:#5A6380"><bdi dir="auto">{{ sharer }}</bdi> wrote:</p>
 <p style="margin:0 0 20px;padding:4px 0 4px 12px;border-left:3px solid #DCE0EA;white-space:pre-wrap" dir="auto">{{ note }}</p>
@@ -361,6 +364,20 @@ class Answer:
     value: str
     # Latin data (email, phone, number, date, time) and Yes / No: kept left to right.
     ltr: bool = False
+    # The question's ``align`` resolved with the form's (``None``: its label's direction).
+    align: str | None = None
+
+    @property
+    def cell_align(self) -> str:
+        return self.align or ("right" if is_rtl(self.label) else "left")
+
+    @property
+    def label_block(self) -> dict[str, str]:
+        return _block(self.label, self.cell_align, label=True)
+
+    @property
+    def value_block(self) -> dict[str, str]:
+        return _block("1" if self.ltr else self.value, self.cell_align)
 
 
 @dataclass(frozen=True)
@@ -419,9 +436,8 @@ def fill(text: str, values: dict[str, str], answers: dict[str, str]) -> str:
 
 
 def placeholder_answers(form: Form, data: dict[str, Any]) -> dict[str, str]:
-    language = form.settings.language
     return {
-        key: answer_text(el, data.get(key), language, display=True)
+        key: answer_text(el, data.get(key), display=True)
         for key, el in placeholder_fields(form).items()
     }
 
@@ -436,26 +452,47 @@ def one_line(text: str, limit: int = 250) -> str:
 THAANA_FONT = ";font-family:Faruma,'MV Faseyha','Noto Sans Thaana',sans-serif"
 
 
-def _content(language: str) -> dict[str, str]:
-    """Template values for blocks of form content (title, answers, success message): the
-    form's language and direction. ``align`` repeats the direction for clients that ignore
-    ``dir`` on blocks. The email itself is English and left to right. Dhivehi answers get the
-    Thaana face and the Thaana scale (16 px labels, 18 px answers, DESIGN-SYSTEM 4.2)."""
-    direction = text_direction(language)
-    dv = language == "dv"
+def _block(text: str, align: str | None = None, *, label: bool = False) -> dict[str, str]:
+    """Template values for one piece of form content (a title, a label, an answer, the success
+    message): its own ``lang`` and ``dir`` from its text, and ``align`` (an explicit
+    ``left``/``center``/``right``, else the text's direction) repeated as an attribute for
+    clients that ignore ``dir`` on blocks. The email itself is English and left to right.
+    Thaana text gets the Thaana face and the Thaana scale (16 px labels, 18 px answers,
+    DESIGN-SYSTEM 4.2)."""
+    direction = text_direction(text)
+    thaana = has_thaana(text)
     return {
-        "lang": language,
+        "lang": text_lang(text),
         "dir": direction,
-        "align": "right" if direction == "rtl" else "left",
-        "font": THAANA_FONT if dv else "",
-        "label_px": "16" if dv else "13",
-        "answer_px": "18" if dv else "15",
+        "align": resolve_align(align, None, direction),
+        "font": THAANA_FONT if thaana else "",
+        "px": ("16" if thaana else "13") if label else ("18" if thaana else "15"),
     }
+
+
+def _title(title: str, form: Form | None = None) -> dict[str, str]:
+    """``lang``/``dir``/``align``/``font`` template values of the form title: aligned by
+    ``settings.titleAlign``, else ``settings.align``, else its direction."""
+    align = None
+    if form is not None:
+        align = resolve_align(form.settings.title_align, form.settings.align, text_direction(title))
+    block = _block(title, align)
+    del block["px"]
+    return block
+
+
+def _success(form: Form) -> dict[str, str]:
+    text = form.settings.success_message or ""
+    return _block(text, resolve_align(None, form.settings.align, text_direction(text)))
+
+
+def field_align(form: Form, el: Any) -> str:
+    label = str(getattr(el, "label", "") or "")
+    return resolve_align(getattr(el, "align", None), form.settings.align, text_direction(label))
 
 
 def answers_for_email(form: Form, data: dict[str, Any]) -> list[Answer]:
     """Answered, non-sensitive questions in form order; repeaters row by row."""
-    language = form.settings.language
     out: list[Answer] = []
     index = FormIndex.build(form)
     for info in index.elements.values():
@@ -478,19 +515,21 @@ def answers_for_email(form: Form, data: dict[str, Any]) -> list[Answer]:
                 for child in children:
                     if getattr(child, "sensitive", False) or isinstance(child, SignatureField):
                         continue
-                    text = answer_text(child, row.get(child.id), language, display=True)  # type: ignore[arg-type,attr-defined]
+                    text = answer_text(child, row.get(child.id), display=True)  # type: ignore[arg-type,attr-defined]
                     if text:
                         parts.append(f"{child.label}: {text}")  # type: ignore[attr-defined]
                 if parts:
                     label = f"{el.label} - {WORDS['entry'].format(n=n)}"
-                    out.append(Answer(label, "\n".join(parts)))
+                    out.append(Answer(label, "\n".join(parts), align=field_align(form, el)))
             continue
         if info.kind != "field" or getattr(el, "sensitive", False):
             continue
-        text = answer_text(el, data.get(info.id), language, display=True)  # type: ignore[arg-type]
+        text = answer_text(el, data.get(info.id), display=True)  # type: ignore[arg-type]
         if text:
             label = getattr(el, "label", info.id) or info.id
-            out.append(Answer(label, text, ltr=isinstance(el, LTR_FIELDS)))
+            out.append(
+                Answer(label, text, ltr=isinstance(el, LTR_FIELDS), align=field_align(form, el))
+            )
     return out
 
 
@@ -512,9 +551,8 @@ def owner_message(
     answers: list[Answer] | None,
     wording: Wording | None = None,
 ) -> Message:
-    lang = form.settings.language
     wording = wording or Wording()
-    subject = wording.subject or f"New response to {_iso(title, lang)} ({reference})"
+    subject = wording.subject or f"New response to {_iso(title)} ({reference})"
     ctx: dict[str, Any] = {
         "message": wording.message,
         "subject": subject,
@@ -526,7 +564,7 @@ def owner_message(
         "url": url,
         "respondent": respondent,
         "answers": answers or [],
-        **_content(lang),
+        **_title(title, form),
     }
     msg = _message(
         ctx["brand"],
@@ -551,12 +589,9 @@ def receipt_message(
     pdf: tuple[str, bytes] | None,
     wording: Wording | None = None,
 ) -> Message:
-    lang = form.settings.language
     w = WORDS
     wording = wording or Wording()
-    subject = wording.subject or w["receipt_subject"].format(
-        title=_iso(title, lang), reference=reference
-    )
+    subject = wording.subject or w["receipt_subject"].format(title=_iso(title), reference=reference)
     ctx: dict[str, Any] = {
         "message": wording.message,
         "subject": subject,
@@ -566,10 +601,11 @@ def receipt_message(
         "reference": reference,
         "submitted": submitted.astimezone(tz).strftime("%d %b %Y %H:%M %Z"),
         "success": form.settings.success_message or "",
+        "s": _success(form),
         "answers": answers,
         "pdf": pdf is not None,
         "w": w,
-        **_content(lang),
+        **_title(title, form),
     }
     msg = _message(
         ctx["brand"],
@@ -587,14 +623,12 @@ def code_message(
     *,
     org_name: str,
     title: str,
-    language: str,
     code: str,
     minutes: int,
     brand: EmailBrand | None = None,
 ) -> Message:
-    """``language`` is the form's: it only sets the direction of the form title."""
     w = WORDS
-    subject = w["code_subject"].format(title=_iso(title, language))
+    subject = w["code_subject"].format(title=_iso(title))
     ctx: dict[str, Any] = {
         "subject": subject,
         "org_name": org_name,
@@ -603,7 +637,7 @@ def code_message(
         "body": w["code_body"].format(code=code, minutes=minutes),
         "code": code,
         "w": w,
-        **_content(language),
+        **_title(title),
     }
     return _message(
         ctx["brand"],
@@ -613,13 +647,14 @@ def code_message(
     )
 
 
-def _sentence_html(template: str, content: set[str], language: str, **values: Any) -> Markup:
+def _sentence_html(template: str, content: set[str], **values: Any) -> Markup:
     """Fill an English ``template`` for HTML: values escaped, the ``content`` ones (form title,
-    step name: maybe Dhivehi) isolated with ``<bdi>`` in the form's language and direction so
+    step name: maybe Dhivehi) isolated with ``<bdi>`` in their own language and direction so
     they don't reorder the English around them."""
-    direction = text_direction(language)
     filled = {
-        k: Markup('<bdi lang="{}" dir="{}">{}</bdi>').format(language, direction, v)
+        k: Markup('<bdi lang="{}" dir="{}">{}</bdi>').format(
+            text_lang(str(v)), text_direction(str(v)), v
+        )
         if k in content
         else escape(v)
         for k, v in values.items()
@@ -648,13 +683,12 @@ def approval_request_message(
     link. Both buttons only open the approver page with that decision chosen (``?decision=``):
     the approver still confirms their email with a code and then the decision, so a mail
     scanner opening the links changes nothing."""
-    lang = form.settings.language
     w = WORDS
     wording = wording or Wording()
     date = submitted.astimezone(tz).strftime("%d %b %Y %H:%M %Z").strip()
     values = {"step": step_name, "reference": reference, "title": title, "date": date}
     subject = wording.subject or w["approval_subject"].format(
-        title=_iso(title, lang), reference=reference
+        title=_iso(title), reference=reference
     )
     sep = "&" if "?" in url else "?"
     ctx: dict[str, Any] = {
@@ -664,9 +698,9 @@ def approval_request_message(
         "org_name": org_name,
         "brand": _brand(brand, org_name),
         "title": title,
-        "body": _sentence_html(w["approval_body"], {"step", "title"}, lang, **values),
+        "body": _sentence_html(w["approval_body"], {"step", "title"}, **values),
         "body_text": w["approval_body"].format(
-            **values | {"step": _iso(step_name, lang), "title": _iso(title, lang)}
+            **values | {"step": _iso(step_name), "title": _iso(title)}
         ),
         # One step needs no "Step 1 of 1."
         "step_of": w["approval_step_of"].format(n=step, total=total) if total > 1 else "",
@@ -676,7 +710,7 @@ def approval_request_message(
         "reject_url": f"{url}{sep}decision=reject",
         "answers": answers or [],
         "w": w,
-        **_content(lang),
+        **_title(title, form),
     }
     msg = _message(
         ctx["brand"],
@@ -708,14 +742,11 @@ def approval_notice_message(
     """ "New response to review" for a step that only people with edit access decide, in the
     studio: a button to the submission (they sign in there), no Approve / Reject buttons, no
     approver link and no code. The form's own message replaces the built-in sentence."""
-    lang = form.settings.language
     w = WORDS
     wording = wording or Wording()
     date = submitted.astimezone(tz).strftime("%d %b %Y %H:%M %Z").strip()
     values = {"step": step_name, "reference": reference, "title": title, "date": date}
-    subject = wording.subject or w["notice_subject"].format(
-        title=_iso(title, lang), reference=reference
-    )
+    subject = wording.subject or w["notice_subject"].format(title=_iso(title), reference=reference)
     ctx: dict[str, Any] = {
         "subject": subject,
         "kicker": w["notice_kicker"],
@@ -723,9 +754,9 @@ def approval_notice_message(
         "org_name": org_name,
         "brand": _brand(brand, org_name),
         "title": title,
-        "body": _sentence_html(w["notice_body"], {"step", "title"}, lang, **values),
+        "body": _sentence_html(w["notice_body"], {"step", "title"}, **values),
         "body_text": w["notice_body"].format(
-            **values | {"step": _iso(step_name, lang), "title": _iso(title, lang)}
+            **values | {"step": _iso(step_name), "title": _iso(title)}
         ),
         "step_of": w["approval_step_of"].format(n=step, total=total) if total > 1 else "",
         "reference": reference,
@@ -734,7 +765,7 @@ def approval_notice_message(
         "url": url,
         "answers": answers or [],
         "w": w,
-        **_content(lang),
+        **_title(title, form),
     }
     msg = _message(
         ctx["brand"],
@@ -761,24 +792,23 @@ def outcome_message(
     """The outcome for the respondent. ``wording.message`` (the form's own text for this
     outcome) replaces the built-in sentence; the reference, a rejection's comment and the PDF
     note stay. Replies go to ``wording.reply_to`` when set."""
-    lang = form.settings.language
     wording = wording or Wording()
     w = WORDS
     key = "approved" if approved else "rejected"
-    subject = w[f"outcome_subject_{key}"].format(title=_iso(title, lang), reference=reference)
+    subject = w[f"outcome_subject_{key}"].format(title=_iso(title), reference=reference)
     ctx: dict[str, Any] = {
         "subject": subject,
         "org_name": org_name,
         "brand": _brand(brand, org_name),
         "title": title,
-        "body": _sentence_html(w[f"outcome_{key}"], set(), lang, reference=reference),
+        "body": _sentence_html(w[f"outcome_{key}"], set(), reference=reference),
         "body_text": w[f"outcome_{key}"].format(reference=reference),
         "comment": comment if not approved else None,
         "message": wording.message,
         "reference": reference,
         "pdf": pdf is not None,
         "w": w,
-        **_content(lang),
+        **_title(title, form),
     }
     msg = _message(
         ctx["brand"],
@@ -798,7 +828,6 @@ ROLE_PHRASES = {"admin": "an admin", "creator": "a form creator", "member": "a m
 @dataclass(frozen=True)
 class InvitedForm:
     title: str
-    language: str
 
 
 def invitation_message(
@@ -832,11 +861,11 @@ def invitation_message(
     )
     listed = []
     for f in forms:
-        content = _content(f.language)
+        content = _title(f.title or "Untitled form")
         listed.append(
             {
                 "title": f.title or "Untitled form",
-                "title_text": _iso(f.title or "Untitled form", f.language),
+                "title_text": _iso(f.title or "Untitled form"),
                 "lang": content["lang"],
                 "dir": content["dir"],
                 "align": content["align"],
@@ -876,7 +905,6 @@ def form_shared_message(
     sharer: str,
     sharer_email: str | None,
     title: str,
-    language: str,
     role: str,
     upgraded: bool,
     note: str | None,
@@ -888,7 +916,7 @@ def form_shared_message(
     sharer = one_line(sharer, 120) or "A colleague"
     title = title or "Untitled form"
     article, can = FORM_ROLE_WORDS.get(role, FORM_ROLE_WORDS["viewer"])
-    quoted = f"“{_iso(one_line(title, 150), language)}”"
+    quoted = f"“{_iso(one_line(title, 150))}”"
     subject = (
         f"{sharer} changed your access to {quoted}"
         if upgraded
@@ -896,16 +924,16 @@ def form_shared_message(
     )
     action = "changed your access to this form" if upgraded else "shared this form with you"
     sentence = f"{{sharer}} {action}. You're now {article}: {can}."
-    content = _content(language)
+    content = _title(title)
     ctx: dict[str, Any] = {
         "subject": subject,
         "org_name": org_name,
         "brand": _brand(brand, org_name),
         "kicker": "Access changed" if upgraded else "Shared with you",
         "title": title,
-        "title_text": _iso(title, language),
+        "title_text": _iso(title),
         "sharer": sharer,
-        "body": _sentence_html(sentence, set(), language, sharer=sharer),
+        "body": _sentence_html(sentence, set(), sharer=sharer),
         "body_text": sentence.format(sharer=sharer),
         "note": note,
         "button": "Open the submissions" if role == "viewer" else "Open the form",

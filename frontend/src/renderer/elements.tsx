@@ -12,6 +12,7 @@ import {
   FieldLegend,
   FieldSet,
 } from '@/components/ui/field'
+import { DirectionProvider } from '@/components/ui/direction'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import type {
@@ -24,11 +25,11 @@ import type {
 import { type AnswerPath, controlId, pathKey, useRenderer } from './context'
 import { FieldControl } from './fields'
 import { Markdown } from './markdown'
-import { displayText } from '@/thaana/display'
+import { FormText } from '@/thaana/form-text'
 
 import { MSG } from './messages'
 import { En } from './msg'
-import { isGroupControl, widthClass } from './util'
+import { isGroupControl, placement, widthClass } from './util'
 
 /** Help text may hold lists and paragraphs, so it is a div styled like FieldDescription. */
 export const DESCRIPTION = 'max-w-[36em] text-base text-muted-foreground'
@@ -81,15 +82,18 @@ export function QuestionView({
   const errId = invalid ? `${cid}-err` : undefined
   const describedBy = [errId, descId].filter(Boolean).join(' ') || undefined
   const group = isGroupControl(field)
+  // The question is one block in its label's direction (Thaana right to left, English left to
+  // right), aligned by its own `align` or the form default.
+  const place = placement(field.label, field.align, ctx.form.settings.align, ctx.dir)
   const labelClass = cn(
     'text-lg leading-snug',
-    ctx.language === 'dv' ? 'font-normal' : 'font-semibold',
+    place.lang === 'dv' ? 'font-normal' : 'font-semibold',
     invalid && 'text-destructive',
   )
   // Half-width pairs: the control sits at the bottom of the cell so a neighbour's help text or
   // badge doesn't push one input below the other.
   const half = field.width === 'half'
-  const labelText = label ?? (field.label.trim() ? displayText(field.label, ctx.language) : null)
+  const labelText = label ?? (field.label.trim() ? <FormText text={field.label} /> : null)
   const heading = (
     <>
       {labelText}
@@ -111,7 +115,7 @@ export function QuestionView({
       {description !== undefined
         ? description
         : field.description && (
-            <Markdown id={descId} text={field.description} className={DESCRIPTION} rtl={ctx.language === 'dv'} />
+            <Markdown id={descId} text={field.description} className={DESCRIPTION} style={place.block} rtl={place.dir === 'rtl'} />
           )}
       {invalid && (
         <FieldError id={errId} className="text-base">
@@ -145,33 +149,51 @@ export function QuestionView({
   )
   if (group)
     return (
-      <FieldSet className={frame} data-invalid={invalid || undefined}>
-        <FieldLegend id={labelId} className={cn(labelClass, 'mb-0 data-[variant=legend]:text-lg')}>
-          {heading}
-        </FieldLegend>
-        {body}
-      </FieldSet>
+      <DirectionProvider dir={place.dir}>
+        <FieldSet className={frame} data-invalid={invalid || undefined} dir={place.dir} lang={place.lang} style={place.text}>
+          <FieldLegend id={labelId} className={cn(labelClass, 'mb-0 w-full data-[variant=legend]:text-lg')}>
+            {heading}
+          </FieldLegend>
+          {body}
+        </FieldSet>
+      </DirectionProvider>
     )
   return (
-    <Field className={frame} data-invalid={invalid || undefined}>
-      <FieldLabel htmlFor={cid} id={labelId} className={cn(labelClass, 'block w-full')}>
-        {heading}
-      </FieldLabel>
-      {body}
-    </Field>
+    <DirectionProvider dir={place.dir}>
+      <Field className={frame} data-invalid={invalid || undefined} dir={place.dir} lang={place.lang} style={place.text}>
+        <FieldLabel htmlFor={cid} id={labelId} className={cn(labelClass, 'block w-full')}>
+          {heading}
+        </FieldLabel>
+        {body}
+      </Field>
+    </DirectionProvider>
   )
 }
 
 export function ContentView({ el, placeholder }: { el: ContentElement; placeholder?: ReactNode }) {
-  const { language } = useRenderer()
+  const { form, dir } = useRenderer()
+  const place = placement(el.text, el.align, form.settings.align, dir)
   switch (el.contentType) {
     case 'heading':
-      return <h3 className="text-xl font-semibold tracking-tight">{el.text ? displayText(el.text, language) : placeholder}</h3>
+      return (
+        <h3
+          dir={place.dir}
+          lang={place.lang}
+          style={place.text}
+          className={cn('text-xl', place.lang === 'dv' ? 'font-normal' : 'font-semibold tracking-tight')}
+        >
+          {el.text ? <FormText text={el.text} /> : placeholder}
+        </h3>
+      )
     case 'paragraph':
       return el.text ? (
-        <Markdown text={el.text} className="max-w-[36em] text-base" rtl={language === 'dv'} />
+        <div dir={place.dir} lang={place.lang}>
+          <Markdown text={el.text} className="max-w-[36em] text-base" style={place.block} rtl={place.dir === 'rtl'} />
+        </div>
       ) : (
-        <p className="text-base">{placeholder}</p>
+        <p className="text-base" dir={place.dir} style={place.text}>
+          {placeholder}
+        </p>
       )
     case 'divider':
       return <Separator className="my-2" />
@@ -192,22 +214,33 @@ export function SectionFrame({
   /** Builder: replaces the description (inline editing). */
   description?: ReactNode
 }) {
-  const { language } = useRenderer()
+  const { form, dir } = useRenderer()
+  const place = placement(el.title || el.description, el.align, form.settings.align, dir)
+  // The heading block takes the section's direction; its questions each take their own.
   return (
     <FieldSet className="gap-4">
       {(title ?? el.title) && (
         <FieldLegend
+          dir={place.dir}
+          lang={place.lang}
+          style={place.text}
           className={cn(
-            'mb-0 text-lg data-[variant=legend]:text-lg',
-            language === 'dv' ? 'font-normal' : 'font-semibold',
+            'mb-0 w-full text-lg data-[variant=legend]:text-lg',
+            place.lang === 'dv' ? 'font-normal' : 'font-semibold',
           )}
         >
-          {title ?? displayText(el.title ?? '', language)}
+          {title ?? <FormText text={el.title ?? ''} />}
         </FieldLegend>
       )}
-      {description !== undefined
-        ? description
-        : el.description && <Markdown text={el.description} className={DESCRIPTION} rtl={language === 'dv'} />}
+      {description !== undefined ? (
+        description
+      ) : (
+        el.description && (
+          <div dir={place.dir} lang={place.lang}>
+            <Markdown text={el.description} className={DESCRIPTION} style={place.block} rtl={place.dir === 'rtl'} />
+          </div>
+        )
+      )}
       <FieldGroup className="gap-[var(--df-space,2rem)] @min-[32rem]:border-s @min-[32rem]:ps-4">{children}</FieldGroup>
     </FieldSet>
   )

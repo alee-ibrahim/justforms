@@ -370,8 +370,8 @@ button always has a `Tooltip` with the same text as its `aria-label`.
 
 ## 10. RTL and Thaana rules (renderer and canvas)
 
-- The form root carries `lang` and `dir` from `settings.language` via `contentProps(formLanguage(form))`; wrap it in `DirectionProvider`. Inspector inputs that edit form text get the same props, so a dv form is typed RTL in Thaana inside the English studio.
-  The studio chrome stays LTR English even when the canvas shows a dv form.
+- Forms have no language: each piece of form text carries its own `lang` and `dir` (`textProps(text)`, first strong character), and each question block takes its label's (`placement()` in `renderer/util.ts`, plus a `DirectionProvider`). The form root takes the title's direction for the sheet's own layout. Inputs that edit form text follow what is typed and offer the "ތ / A" Thaana keyboard, so Dhivehi is typed RTL in Thaana inside the English studio.
+  The studio chrome stays LTR English whatever the canvas shows.
 - Logical utilities only (`ms-`, `pe-`, `start-`, `text-start`, `border-s`).
 - Wrap LTR runs inside dv text in `<bdi dir="ltr">` (emails, IDs, URLs, phone numbers,
   version numbers). Inputs that take Latin data (`email`, `phone`, `number`, `inputScript:

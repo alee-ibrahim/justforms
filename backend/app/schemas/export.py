@@ -1,4 +1,4 @@
-"""Export the canonical form schema to ``spec/form-schema.v1.json`` and the ID-number presets
+"""Export the canonical form schema to ``spec/form-schema.v2.json`` and the ID-number presets
 to ``spec/id-presets.v1.json``.
 
     uv run python -m app.schemas.export           # write the file
@@ -18,9 +18,9 @@ from typing import Any
 from app.schemas.form import Form
 from app.schemas.id_presets import presets_document
 
-SPEC_PATH = Path(__file__).resolve().parents[3] / "spec" / "form-schema.v1.json"
+SPEC_PATH = Path(__file__).resolve().parents[3] / "spec" / "form-schema.v2.json"
 PRESETS_SPEC_PATH = SPEC_PATH.with_name("id-presets.v1.json")
-SCHEMA_ID = "https://github.com/alee-ibrahim/justforms/blob/main/spec/form-schema.v1.json"
+SCHEMA_ID = "https://github.com/alee-ibrahim/justforms/blob/main/spec/form-schema.v2.json"
 
 
 def build_json_schema() -> dict[str, Any]:
@@ -30,7 +30,7 @@ def build_json_schema() -> dict[str, Any]:
         "$id": SCHEMA_ID,
         **schema,
         "description": (
-            "JustForms form document, schemaVersion 1. GENERATED from backend/app/schemas/form.py; "
+            "JustForms form document, schemaVersion 2. GENERATED from backend/app/schemas/form.py; "
             "do not edit by hand. Cross-element rules (unique ids, logic references, cycles) "
             "are enforced by the backend and are not expressible here."
         ),

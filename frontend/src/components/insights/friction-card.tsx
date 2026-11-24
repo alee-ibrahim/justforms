@@ -15,13 +15,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { buildIndex } from '@/logic/form-index'
 import type { Form } from '@/schema'
+import { textLang } from '@/schema/direction'
 
 import { insightsApi } from './api'
 import { funnel, kinds } from './friction-lib'
 
 const pct = (n: number, of: number) => (of > 0 ? Math.round((n / of) * 100) : 0)
 
-export function FrictionCard({ formId, schema, language }: { formId: string; schema?: Form; language: string }) {
+export function FrictionCard({ formId, schema }: { formId: string; schema?: Form }) {
   const query = useQuery({ queryKey: ['friction', formId], queryFn: () => insightsApi.friction(formId) })
   const index = useMemo(() => (schema ? buildIndex(schema) : null), [schema])
   const data = query.data
@@ -79,7 +80,7 @@ export function FrictionCard({ formId, schema, language }: { formId: string; sch
                       {s.key.startsWith('page-') ? (
                         <>
                           Reached{' '}
-                          <bdi dir="auto" lang={language}>
+                          <bdi dir="auto" lang={textLang(s.label)}>
                             {s.label}
                           </bdi>
                         </>
@@ -121,7 +122,7 @@ export function FrictionCard({ formId, schema, language }: { formId: string; sch
                       <TableRow key={f.field}>
                         <TableCell className="whitespace-normal">
                           <div className="flex flex-col gap-1.5">
-                            <bdi dir="auto" lang={language} className="font-medium">
+                            <bdi dir="auto" lang={textLang(labelOf(f.field))} className="font-medium">
                               {labelOf(f.field)}
                             </bdi>
                             <div className="flex flex-wrap gap-1">
@@ -134,7 +135,7 @@ export function FrictionCard({ formId, schema, language }: { formId: string; sch
                           </div>
                         </TableCell>
                         <TableCell className="hidden align-top whitespace-normal text-muted-foreground sm:table-cell">
-                          <bdi dir="auto" lang={language}>
+                          <bdi dir="auto" lang={textLang(pageName(f.page))}>
                             {pageName(f.page)}
                           </bdi>
                         </TableCell>

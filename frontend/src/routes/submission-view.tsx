@@ -48,7 +48,7 @@ import { useDelayed } from '@/lib/use-delayed'
 import { cn } from '@/lib/utils'
 import { legibleAccent } from '@/renderer/accent'
 import { FormHeader } from '@/renderer/form-view'
-import { contentProps, formLanguage } from '@/schema/language'
+import { formDirection, textLang } from '@/schema/direction'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const reference = (seq: number) => `#${String(seq).padStart(4, '0')}`
@@ -468,7 +468,7 @@ function HeaderSkeleton() {
   )
 }
 
-/** The answers on the form's own sheet, in the form's theme, language and direction. */
+/** The answers on the form's own sheet, in the form's theme; each text takes its own direction. */
 function Sheet({
   d,
   theme,
@@ -540,12 +540,15 @@ function SheetBody({
   theme: Parameters<typeof themeScope>[0]
   showSkipped: boolean
 }) {
-  const language = formLanguage(d.schema)
+  // The sheet lays out like the form (its title's direction); every label and answer inside
+  // still takes the direction of its own text.
+  const dir = formDirection(d.schema)
   const options = theme?.options
   return (
-    <DirectionProvider dir={contentProps(language).dir}>
+    <DirectionProvider dir={dir}>
       <article
-        {...contentProps(language)}
+        dir={dir}
+        lang={textLang(d.schema.settings.title)}
         aria-label="Answers"
         className="@container mx-auto flex w-full max-w-[var(--df-sheet,40rem)] flex-col gap-6 bg-card p-5 text-base sm:rounded-md sm:border md:p-10 print:max-w-none print:border-0 print:p-0"
       >
@@ -555,7 +558,6 @@ function SheetBody({
           data={d.data}
           signatures={d.signatures}
           importedFiles={d.importedFiles}
-         
           showSkipped={showSkipped}
         />
       </article>

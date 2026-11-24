@@ -11,8 +11,8 @@ import { Answers } from './answers'
 import { ImportedNote } from './viewer-parts'
 
 const form = {
-  schemaVersion: '1',
-  settings: { title: 'Volunteers', language: 'en' },
+  schemaVersion: '2',
+  settings: { title: 'Volunteers' },
   pages: [
     {
       id: 'p1',

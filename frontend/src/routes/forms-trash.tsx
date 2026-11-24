@@ -41,6 +41,7 @@ import { api } from '@/lib/api'
 import { formatDate, formatDateTime } from '@/lib/format'
 import { meQuery, metaQuery } from '@/lib/queries'
 import { useDelayed } from '@/lib/use-delayed'
+import { textLang } from '@/schema/direction'
 
 function who(person: PersonRef | null, meId?: string): string {
   if (!person) return 'someone no longer here'
@@ -52,7 +53,7 @@ const count = (n: number) => `${n} ${n === 1 ? 'submission' : 'submissions'}`
 
 function Title({ form }: { form: TrashedForm }) {
   return (
-    <bdi dir="auto" lang={form.language}>
+    <bdi dir="auto" lang={textLang(form.title)}>
       {form.title || 'Untitled form'}
     </bdi>
   )

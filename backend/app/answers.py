@@ -8,6 +8,7 @@ import re
 from typing import Any
 
 from app.logic.index import FormIndex
+from app.schemas.direction import is_rtl
 from app.schemas.form import (
     FieldElement,
     FileField,
@@ -42,7 +43,6 @@ def option_label(field: SingleChoiceField | MultiChoiceField, value: Any) -> str
 def answer_text(
     field: FieldElement,
     value: Any,
-    language: str,
     *,
     list_sep: str = ", ",
     display: bool = False,
@@ -61,9 +61,10 @@ def answer_text(
     if isinstance(field, MultiChoiceField):
         if not isinstance(value, list):
             return str(value)
-        # Option labels are content: a Dhivehi list takes the Arabic comma.
-        sep = "، " if language == "dv" and list_sep == ", " else list_sep
-        return sep.join(option_label(field, v) for v in value)
+        labels = [option_label(field, v) for v in value]
+        # Option labels are content: a right-to-left (Dhivehi) list takes the Arabic comma.
+        sep = "، " if list_sep == ", " and labels and is_rtl(labels[0]) else list_sep
+        return sep.join(labels)
     if isinstance(field, FileField):
         if not isinstance(value, list):
             return ""
@@ -80,7 +81,6 @@ def answer_text(
 def search_text(form: Form, data: dict[str, Any]) -> str:
     """Lower-cased text of the non-sensitive answers (top level and repeater rows)."""
     parts: list[str] = []
-    language = form.settings.language
     for info in FormIndex.build(form).elements.values():
         el = info.element
         if info.kind != "field" or getattr(el, "sensitive", False):
@@ -97,7 +97,7 @@ def search_text(form: Form, data: dict[str, Any]) -> str:
                 else []
             )
         for value in values:
-            text = answer_text(el, value, language)  # type: ignore[arg-type]
+            text = answer_text(el, value)  # type: ignore[arg-type]
             if text:
                 parts.append(text.lower())
     return "\n".join(parts)[:100_000]

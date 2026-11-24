@@ -57,13 +57,10 @@ async def publish(
     elements: list[dict[str, Any]],
     *,
     title: str = "Form",
-    language: str = "en",
     pages: list[dict[str, Any]] | None = None,
 ) -> Published:
     """Create a form with ``elements`` on one page (or explicit ``pages``) and publish it."""
-    res = await client.post(
-        f"/api/v1/orgs/{me['orgs'][0]['id']}/forms", json={"title": title, "language": language}
-    )
+    res = await client.post(f"/api/v1/orgs/{me['orgs'][0]['id']}/forms", json={"title": title})
     assert res.status_code == 201, res.text
     form = res.json()
     draft = (await client.get(f"/api/v1/forms/{form['id']}/draft")).json()

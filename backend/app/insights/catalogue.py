@@ -85,7 +85,6 @@ class Repeater:
 
 @dataclass
 class Catalogue:
-    language: str
     questions: dict[str, Question]
     repeaters: dict[str, Repeater]
     # version number -> version id, oldest first
@@ -118,9 +117,7 @@ class Catalogue:
             for k, r in self.repeaters.items()
             if number in r.versions or self._mapped_in(k, number)
         }
-        return Catalogue(
-            self.language, questions, repeaters, self.version_ids, set(self.mapped_sources)
-        )
+        return Catalogue(questions, repeaters, self.version_ids, set(self.mapped_sources))
 
     def _mapped_in(self, repeater: str, number: int) -> bool:
         rep = self.repeaters.get(repeater)
@@ -145,7 +142,6 @@ def build(
     """``versions``: (number, id, schema) of every published version, any order."""
     ordered = sorted(versions, key=lambda v: v[0])
     newest = ordered[-1][0] if ordered else 0
-    language = ordered[-1][2].settings.language if ordered else "en"
     questions: dict[str, Question] = {}
     repeaters: dict[str, Repeater] = {}
     for number, _vid, form in reversed(ordered):
@@ -206,7 +202,7 @@ def build(
         q = questions.get(src)
         if q is not None and q.repeater is None and not q.current:
             del questions[src]
-    return Catalogue(language, questions, repeaters, version_ids, mapped_sources)
+    return Catalogue(questions, repeaters, version_ids, mapped_sources)
 
 
 def outline(

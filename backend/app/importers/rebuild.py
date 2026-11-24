@@ -44,7 +44,6 @@ from app.services.users import audit
 _COPIED = (
     "form_version_id",
     "status",
-    "language",
     "data",
     "ip",
     "user_agent",

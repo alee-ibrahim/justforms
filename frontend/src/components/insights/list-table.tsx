@@ -30,22 +30,19 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatPhone } from '@/components/submissions/format'
+import { textLang } from '@/schema/direction'
 
 import type { ChartSpec } from './api'
 import { listCsv, listRows, listTsv, sortRows, type ListSort } from './list-data'
 
 const FIRST = 10
-const thaana = /[ހ-޿]/
 
 const count = (n: number) => n.toLocaleString('en')
 
-function langOf(text: string, language: string) {
-  return thaana.test(text) ? 'dv' : language === 'dv' ? 'dv' : 'en'
-}
 
 /** One value for reading: phone numbers grouped and kept on one line, emails allowed to
  * break before "@" (copy and CSV keep the exact stored value). */
-function Value({ value, type, language }: { value: string; type: string | undefined; language: string }) {
+function Value({ value, type}: { value: string; type: string | undefined }) {
   if (type === 'phone')
     return (
       <bdi dir="ltr" className="whitespace-nowrap tabular-nums">
@@ -69,7 +66,7 @@ function Value({ value, type, language }: { value: string; type: string | undefi
     )
   }
   return (
-    <bdi dir="auto" lang={langOf(value, language)}>
+    <bdi dir="auto" lang={textLang(value)}>
       {value}
     </bdi>
   )
@@ -89,13 +86,11 @@ function SortButton({
   active,
   dir,
   onClick,
-  language,
 }: {
   label: string
   active: boolean
   dir: 'asc' | 'desc'
   onClick: () => void
-  language: string
 }) {
   const Icon = !active ? ArrowUpDownIcon : dir === 'asc' ? ArrowUpIcon : ArrowDownIcon
   return (
@@ -105,7 +100,7 @@ function SortButton({
       className="-ms-2.5 h-auto min-h-8 max-w-full justify-start px-2.5 py-1 text-start font-medium whitespace-normal pointer-coarse:min-h-11"
       onClick={onClick}
     >
-      <bdi dir="auto" lang={langOf(label, language)}>
+      <bdi dir="auto" lang={textLang(label)}>
         {label}
       </bdi>
       <Icon className={active ? '' : 'text-muted-foreground'} aria-hidden />
@@ -126,11 +121,11 @@ function Ref({ r, formId }: { r: ChartSpec['rows'][number]; formId: string }) {
   )
 }
 
-function Cell({ v, type, language }: { v: string | number | null | undefined; type?: string; language: string }) {
+function Cell({ v, type}: { v: string | number | null | undefined; type?: string }) {
   return v === null || v === undefined || v === '' ? (
     <span className="text-muted-foreground">No answer</span>
   ) : (
-    <Value value={String(v)} type={type} language={language} />
+    <Value value={String(v)} type={type} />
   )
 }
 
@@ -184,7 +179,7 @@ function SortMenu({
   )
 }
 
-export function ListTable({ chart, formId, language }: { chart: ChartSpec; formId: string; language: string }) {
+export function ListTable({ chart, formId}: { chart: ChartSpec; formId: string }) {
   const labels = chart.columnLabels ?? {}
   const [sort, setSort] = useState<ListSort | null>(null)
   const [all, setAll] = useState(false)
@@ -247,19 +242,19 @@ export function ListTable({ chart, formId, language }: { chart: ChartSpec; formI
               <div className="flex items-baseline gap-3">
                 <Ref r={r} formId={formId} />
                 <span className="min-w-0 font-medium break-words">
-                  <Cell v={r.values[first]} type={chart.columnTypes?.[first]} language={language} />
+                  <Cell v={r.values[first]} type={chart.columnTypes?.[first]} />
                 </span>
               </div>
               <dl className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-x-3 gap-y-1 text-sm sm:ps-11">
                 {rest.map((c) => (
                   <div key={c} className="contents">
                     <dt className="text-muted-foreground break-words">
-                      <bdi dir="auto" lang={langOf(labels[c] ?? c, language)}>
+                      <bdi dir="auto" lang={textLang(labels[c] ?? c)}>
                         {labels[c] ?? c}
                       </bdi>
                     </dt>
                     <dd className="min-w-0 break-words">
-                      <Cell v={r.values[c]} type={chart.columnTypes?.[c]} language={language} />
+                      <Cell v={r.values[c]} type={chart.columnTypes?.[c]} />
                     </dd>
                   </div>
                 ))}
@@ -272,7 +267,7 @@ export function ListTable({ chart, formId, language }: { chart: ChartSpec; formI
           <TableHeader>
             <TableRow>
               <TableHead className="h-auto w-16 py-1" aria-sort={ariaSort('_ref')}>
-                <SortButton label="Number" active={sort?.col === '_ref'} dir={sort?.dir ?? 'asc'} onClick={() => toggle('_ref')} language="en" />
+                <SortButton label="Number" active={sort?.col === '_ref'} dir={sort?.dir ?? 'asc'} onClick={() => toggle('_ref')} />
               </TableHead>
               {chart.columns.map((c) => (
                 <TableHead key={c} className="h-auto py-1 whitespace-normal" aria-sort={ariaSort(c)}>
@@ -281,7 +276,6 @@ export function ListTable({ chart, formId, language }: { chart: ChartSpec; formI
                     active={sort?.col === c}
                     dir={sort?.dir ?? 'asc'}
                     onClick={() => toggle(c)}
-                    language={language}
                   />
                 </TableHead>
               ))}
@@ -295,7 +289,7 @@ export function ListTable({ chart, formId, language }: { chart: ChartSpec; formI
                 </TableCell>
                 {chart.columns.map((c) => (
                   <TableCell key={c} className="py-1.5 align-top whitespace-normal break-words pointer-coarse:py-3">
-                    <Cell v={r.values[c]} type={chart.columnTypes?.[c]} language={language} />
+                    <Cell v={r.values[c]} type={chart.columnTypes?.[c]} />
                   </TableCell>
                 ))}
               </TableRow>

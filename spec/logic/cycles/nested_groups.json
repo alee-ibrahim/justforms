@@ -2,9 +2,8 @@
   "name": "nested_groups",
   "expect": "cycle",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Cycle"
     },
     "pages": [

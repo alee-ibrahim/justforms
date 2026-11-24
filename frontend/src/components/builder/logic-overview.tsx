@@ -9,7 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { buildIndex, iterLeaves } from '@/logic/form-index'
 import type { Condition, Form } from '@/schema'
-import { formLanguage } from '@/schema/language'
+import { textLang } from '@/schema/direction'
 
 import { blockInfo, blockLabel } from './block-types'
 import { ConditionSentence } from './condition-sentence'
@@ -45,7 +45,6 @@ export function LogicOverview({
   const store = useStore()
   const navigate = useNavigate()
   const form = useBuilder((s) => s.schema)
-  const lang = formLanguage(form)
   const index = buildIndex(form)
   const rules: Rule[] = []
   // After "Edit" the inspector's logic group takes focus, so only plain closes return focus.
@@ -64,7 +63,7 @@ export function LogicOverview({
   for (const info of index.elements.values()) {
     const el = info.element
     const owner = (
-      <bdi dir="auto" lang={lang}>
+      <bdi dir="auto" lang={textLang(blockLabel(el) || blockInfo(el).label)}>
         {blockLabel(el) || blockInfo(el).label}
       </bdi>
     )
@@ -153,7 +152,7 @@ export function LogicOverview({
                     {page.title && (
                       <>
                         ,{' '}
-                        <bdi dir="auto" lang={lang}>
+                        <bdi dir="auto" lang={textLang(page.title)}>
                           {page.title}
                         </bdi>
                       </>

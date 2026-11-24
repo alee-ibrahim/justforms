@@ -80,7 +80,6 @@ class ApprovalsOut(ApiModel):
     # Problems with the steps against the draft (errors and warnings), 1-based step numbers.
     issues: list[dict[str, Any]]
     email_fields: list[EmailQuestion]
-    language: str
     smtp_enabled: bool
 
 
@@ -101,7 +100,6 @@ async def _approvals_out(db: DbDep, settings: SettingsDep, form: FormRecord) -> 
         config=config,
         issues=[i.as_dict() for i in check_config(config, draft, live)],
         email_fields=[EmailQuestion(id=f.id, label=f.label) for f in email_questions(draft)],
-        language=draft.settings.language,
         smtp_enabled=settings.smtp_enabled,
     )
 
@@ -498,7 +496,6 @@ async def approver_link(
     brand = resolve_brand(settings, org)
     body = {
         "state": _state(step, sub),
-        "language": schema.settings.language,
         "orgName": brand.name,
         "brand": page_brand(settings, org, form, schema.dump()),
         "formTitle": schema.settings.title or form.title,
@@ -541,7 +538,6 @@ async def approver_code(
         org_name=brand.name,
         brand=form_email_brand(settings, org, form, schema.dump()),
         title=schema.settings.title or form.title,
-        language=schema.settings.language,
         code=code,
         minutes=settings.respondent_code_ttl_seconds // 60,
     )

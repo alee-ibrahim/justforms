@@ -16,14 +16,14 @@ import { buildIndex } from '@/logic/form-index'
 import { evaluate, type Evaluation } from '@/logic/engine'
 import type { Brand, ThemeOptions } from '@/lib/branding'
 import { cn } from '@/lib/utils'
-import { displayText } from '@/thaana/display'
+import { FormText } from '@/thaana/form-text'
 import { hasThaana } from '@yashau/thaana-react'
 import type { Element, FieldElement, Form } from '@/schema'
-import { contentProps, formLanguage } from '@/schema/language'
+import { formDirection, textDirection, textLang } from '@/schema/direction'
 
 import { legibleAccent } from './accent'
 import { DEFAULT_THEME, themeAttrs } from './theme'
-import { padToMinRows, prefetchControls } from './util'
+import { padToMinRows, placement, prefetchControls, thaanaKeyboard } from './util'
 import {
   type AnswerPath,
   controlId,
@@ -116,7 +116,7 @@ function SummaryText({ pr }: { pr: Problem }): ReactNode {
   const sep = /[?:.!؟]$/.test(label) ? '' : ':'
   return (
     <>
-      <bdi>
+      <bdi lang={textLang(label)}>
         {label}
         {sep}
       </bdi>{' '}
@@ -174,7 +174,9 @@ export function FormRenderer({
   onTop,
 }: FormRendererProps) {
   const theme = themeProp ?? brand?.theme ?? DEFAULT_THEME
-  const language = formLanguage(form)
+  // The sheet's own layout (progress, Back/Next) follows the form title's direction; every
+  // block of content takes its own.
+  const sheetDir = formDirection(form)
   const index = useMemo(() => buildIndex(form), [form])
   const [answers, setAnswers] = useState<Answers>(() => initialAnswers ?? {})
   const [errors, setErrors] = useState<Map<string, string>>(new Map())
@@ -206,6 +208,7 @@ export function FormRenderer({
   const path = ev?.path.length ? ev.path : form.pages.map((p) => p.id)
   const pageIndexInPath = Math.max(0, path.indexOf(pageId))
   const page = form.pages.find((p) => p.id === pageId) ?? form.pages[0]
+  const pagePlace = placement(page.title || page.description, page.align, form.settings.align, sheetDir)
   // The form as its own page: not the studio preview, not embedded in another website.
   const fullPage = frame === 'page' && !embed
   const isLast = pageIndexInPath >= path.length - 1
@@ -220,8 +223,12 @@ export function FormRenderer({
       types.add(info.element.kind === 'field' ? info.element.type : info.element.kind)
     prefetchControls(types)
     if (types.has('repeater')) void import('./repeater')
-    if (language === 'dv') void import('./thaana-input')
-  }, [index, language])
+    const keyboard = [...index.elements.values()].some(
+      ({ element: el }) =>
+        el.kind === 'field' && (el.type === 'short_text' || el.type === 'long_text') && thaanaKeyboard(el) !== 'none',
+    )
+    if (keyboard) void import('./thaana-input')
+  }, [index])
 
   const visibleSet = useMemo(() => new Set(ev?.visible ?? [...index.elements.keys()]), [ev, index])
   const requiredSet = useMemo(() => new Set(ev?.required ?? []), [ev])
@@ -342,7 +349,7 @@ export function FormRenderer({
       else next.delete(key)
       return next
     })
-  }, [])
+  }, [setUploadingState])
 
   const rowCount = useCallback(
     (repeaterId: string) => {
@@ -384,7 +391,7 @@ export function FormRenderer({
 
   const ctx: RendererContextValue = {
     form,
-    language,
+    dir: sheetDir,
     mode: 'fill',
     convention,
     getValue,
@@ -587,7 +594,9 @@ export function FormRenderer({
       <>
         <div className="flex flex-col gap-1">
           {!embed && <FormLogo form={form} brand={brand} theme={theme} />}
-          <p className="text-base text-muted-foreground">{displayText(form.settings.title, language)}</p>
+          <p className="text-base text-muted-foreground" {...titlePlace(form)}>
+            <FormText text={form.settings.title} />
+          </p>
         </div>
         {phase === 'done' ? (
           <SuccessScreen form={form} reference={reference ?? ''} onAnother={allowAnother ? resetForm : undefined} />
@@ -630,16 +639,26 @@ export function FormRenderer({
                 <h2
                   ref={titleRef}
                   tabIndex={-1}
+                  dir={pagePlace.dir}
+                  lang={pagePlace.lang}
+                  style={pagePlace.text}
                   className={cn(
                     'df-page-title text-xl outline-none',
-                    language === 'dv' ? 'font-bold' : 'font-[650] tracking-tight',
+                    pagePlace.lang === 'dv' ? 'font-bold' : 'font-[650] tracking-tight',
                   )}
                 >
-                  {displayText(page.title, language)}
+                  <FormText text={page.title} />
                 </h2>
               )}
               {page.description && (
-                <Markdown text={page.description} className="max-w-[36em] text-base text-muted-foreground" rtl={language === 'dv'} />
+                <div dir={pagePlace.dir} lang={pagePlace.lang}>
+                  <Markdown
+                    text={page.description}
+                    className="max-w-[36em] text-base text-muted-foreground"
+                    style={pagePlace.block}
+                    rtl={pagePlace.dir === 'rtl'}
+                  />
+                </div>
               )}
             </div>
           )}
@@ -713,7 +732,7 @@ export function FormRenderer({
             <Button type="button" variant="outline" className="h-12 px-4 text-base" onClick={back}>
               <ChevronLeftIcon className="rtl:rotate-180" />
               {form.settings.backLabel?.trim() ? (
-                <bdi {...contentProps(language)}>{form.settings.backLabel.trim()}</bdi>
+                <ButtonText text={form.settings.backLabel.trim()} />
               ) : (
                 <En>{msgs.back}</En>
               )}
@@ -727,9 +746,9 @@ export function FormRenderer({
             aria-describedby={pageUploading ? 'upload-wait' : undefined}
           >
             {isLast && form.settings.submitLabel?.trim() ? (
-              <bdi {...contentProps(language)}>{form.settings.submitLabel.trim()}</bdi>
+              <ButtonText text={form.settings.submitLabel.trim()} />
             ) : !isLast && form.settings.nextLabel?.trim() ? (
-              <bdi {...contentProps(language)}>{form.settings.nextLabel.trim()}</bdi>
+              <ButtonText text={form.settings.nextLabel.trim()} />
             ) : (
               <En>{isLast ? msgs.submit : msgs.next}</En>
             )}
@@ -747,9 +766,10 @@ export function FormRenderer({
   const accent = legibleAccent(form.settings.theme?.accent)
   return (
     <RendererContext.Provider value={ctx}>
-      <DirectionProvider dir={contentProps(language).dir}>
+      <DirectionProvider dir={sheetDir}>
         <div
-          {...contentProps(language)}
+          dir={sheetDir}
+          lang={textLang(form.settings.title)}
           {...themeAttrs(theme)}
           data-df-frame={fullPage ? 'page' : undefined}
           data-accent={accent ? '' : undefined}
@@ -780,6 +800,21 @@ export function FormRenderer({
       </DirectionProvider>
     </RendererContext.Provider>
   )
+}
+
+/** A form-defined button text (Back / Next / Submit): its own direction inside the button. */
+function ButtonText({ text }: { text: string }) {
+  return (
+    <bdi dir={textDirection(text)} lang={textLang(text)}>
+      <FormText text={text} />
+    </bdi>
+  )
+}
+
+/** `dir`/`lang`/alignment of the form title (header alignment, else the form default). */
+function titlePlace(form: Form) {
+  const p = placement(form.settings.title, form.settings.titleAlign, form.settings.align)
+  return { dir: p.dir, lang: p.lang, style: p.text }
 }
 
 const LOGO_SIZE = { s: 'h-6 max-w-32', m: 'h-8 max-w-48', l: 'h-14 max-w-80' } as const
@@ -836,7 +871,8 @@ export function FormHeader({
   title?: ReactNode
   description?: ReactNode
 }) {
-  const language = formLanguage(form)
+  const place = placement(form.settings.title, form.settings.titleAlign, form.settings.align)
+  const descPlace = placement(form.settings.description, form.settings.titleAlign, form.settings.align, place.dir)
   const logo = theme.logoPlacement !== 'hidden'
   const center = theme.logoPlacement === 'center'
   const hasLogo = theme.logoUrl !== undefined ? !!theme.logoUrl : !!brand?.logoUrl
@@ -860,17 +896,24 @@ export function FormHeader({
         </p>
       )}
       <h1
-        className={cn(
-          'df-title text-2xl font-bold sm:text-3xl',
-          language === 'en' && 'tracking-tight',
-        )}
+        dir={place.dir}
+        lang={place.lang}
+        style={place.text}
+        className={cn('df-title text-2xl font-bold sm:text-3xl', place.lang === 'en' && 'tracking-tight')}
       >
-        {title ?? displayText(form.settings.title, language)}
+        {title ?? <FormText text={form.settings.title} />}
       </h1>
       {description !== undefined
         ? description
         : form.settings.description && (
-            <Markdown text={form.settings.description} className="max-w-[36em] text-base text-muted-foreground" rtl={language === 'dv'} />
+            <div dir={descPlace.dir} lang={descPlace.lang}>
+              <Markdown
+                text={form.settings.description}
+                className="max-w-[36em] text-base text-muted-foreground"
+                style={descPlace.block}
+                rtl={descPlace.dir === 'rtl'}
+              />
+            </div>
           )}
     </header>
   )

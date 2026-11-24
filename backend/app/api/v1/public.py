@@ -275,7 +275,6 @@ async def get_public_form(
         "brand": page_brand(settings, org, form, version.schema),
         "accessMode": form.access_mode.value,
         "title": schema_settings.get("title", ""),
-        "language": schema_settings.get("language", "en"),
         "thaanaFontCssUrl": settings.thaana_font_css_url,
         "maxUploadMb": settings.max_upload_mb,
         "respondentEmail": email,
@@ -381,7 +380,6 @@ async def request_code(
         org_name=brand.name,
         brand=form_email_brand(settings, org, form, version.schema),
         title=schema_settings.get("title", "") or form.title,
-        language=schema_settings.get("language", "en"),
         code=code,
         minutes=settings.respondent_code_ttl_seconds // 60,
     )
@@ -609,7 +607,6 @@ async def submit(
         form_id=form_record.id,
         form_version_id=version.id,
         seq=seq,
-        language=form.settings.language,
         data=stripped,
         submitted_at=now,
         ip=ip,

@@ -32,11 +32,10 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { metaQuery } from '@/lib/queries'
-import { formLanguage } from '@/schema/language'
+import { textLang } from '@/schema/direction'
 
 import type { AiMessage, Step } from './api'
 import { type AiController, errorText, MAX_REQUEST, useAi } from './controller'
-import { textLang } from './files'
 import { PaperDialog } from './paper-dialog'
 import { SuggestionCard } from './suggestion-card'
 
@@ -47,7 +46,7 @@ const CREATE_EXAMPLES = [
 ]
 const EDIT_EXAMPLES = ['Add a phone number question', 'Make every question on page 1 required', 'Split this into two pages']
 
-function StepRow({ step, language }: { step: Step; language: string }) {
+function StepRow({ step }: { step: Step }) {
   if (step.tool === 'get_form') return null
   if (!step.ok)
     return (
@@ -71,7 +70,7 @@ function StepRow({ step, language }: { step: Step; language: string }) {
           {step.label && (
             <>
               {' '}
-              “<bdi dir="auto" lang={textLang(step.label, language)}>
+              “<bdi dir="auto" lang={textLang(step.label)}>
                 {step.label}
               </bdi>
               ”
@@ -83,12 +82,12 @@ function StepRow({ step, language }: { step: Step; language: string }) {
   )
 }
 
-function Steps({ steps, language }: { steps: Step[]; language: string }) {
+function Steps({ steps }: { steps: Step[] }) {
   if (!steps.some((s) => s.tool !== 'get_form')) return null
   return (
     <ItemGroup className="-mx-3 gap-0">
       {steps.map((s, i) => (
-        <StepRow key={i} step={s} language={language} />
+        <StepRow key={i} step={s} />
       ))}
     </ItemGroup>
   )
@@ -117,12 +116,10 @@ function Message({
   ai,
   msg,
   last,
-  language,
 }: {
   ai: AiController
   msg: AiMessage
   last: boolean
-  language: string
 }) {
   const c = msg.content
   if (msg.role === 'user') return <Request text={c.text ?? ''} file={c.attachment} />
@@ -130,7 +127,7 @@ function Message({
     return <p className="text-sm text-muted-foreground">{c.status === 'applied' ? 'Applied.' : 'Discarded.'}</p>
   return (
     <div className="flex flex-col gap-2">
-      <Steps steps={c.steps ?? []} language={language} />
+      <Steps steps={c.steps ?? []} />
       {c.status === 'ok' && c.text && (
         <p className="whitespace-pre-wrap text-sm" dir="auto">
           {c.text}
@@ -169,7 +166,6 @@ function EmptyChat({ ai, onPaper }: { ai: AiController; onPaper: () => void }) {
   const meta = useQuery(metaQuery)
   const schema = useBuilder((s) => s.schema)
   const empty = schema.pages.every((p) => !(p.elements ?? []).length)
-  const language = formLanguage(schema)
   return (
     <Empty className="gap-4 p-4">
       <EmptyHeader>
@@ -205,11 +201,6 @@ function EmptyChat({ ai, onPaper }: { ai: AiController; onPaper: () => void }) {
               Upload a blank PDF or photo; the AI recreates the questions.
             </p>
           </div>
-        )}
-        {language === 'dv' && (
-          <p className="mt-2 text-start text-xs text-muted-foreground">
-            This form is in Dhivehi. The AI writes in Dhivehi; check the wording before you publish.
-          </p>
         )}
       </EmptyContent>
     </Empty>
@@ -303,7 +294,6 @@ export function AiPanel({
   const loading = useAi(ai, (s) => s.loading)
   const live = useAi(ai, (s) => s.live)
   const error = useAi(ai, (s) => s.error)
-  const language = useBuilder((s) => formLanguage(s.schema))
   const [paper, setPaper] = useState(false)
   const vision = !!useQuery(metaQuery).data?.features.aiVision
   const viewport = useRef<HTMLDivElement>(null)
@@ -390,7 +380,6 @@ export function AiPanel({
                   key={m.id}
                   ai={ai}
                   msg={m}
-                  language={language}
                   last={!live && i === messages.length - 1}
                 />
               ))
@@ -398,7 +387,7 @@ export function AiPanel({
             {live && (
               <div className="flex flex-col gap-2">
                 <Request text={live.text} file={live.file} />
-                <Steps steps={live.steps} language={language} />
+                <Steps steps={live.steps} />
                 {live.reply && (
                   <p className="whitespace-pre-wrap text-sm" dir="auto">
                     {live.reply}

@@ -60,10 +60,10 @@ def events(text: str) -> list[tuple[str, dict[str, Any]]]:
     return out
 
 
-async def new_form(client: AsyncClient, me: dict[str, Any], language: str = "en") -> dict[str, Any]:
-    res = await client.post(
-        f"/api/v1/orgs/{me['orgs'][0]['id']}/forms", json={"title": "Sign-up", "language": language}
-    )
+async def new_form(
+    client: AsyncClient, me: dict[str, Any], title: str = "Sign-up"
+) -> dict[str, Any]:
+    res = await client.post(f"/api/v1/orgs/{me['orgs'][0]['id']}/forms", json={"title": title})
     assert res.status_code == 201, res.text
     return dict(res.json())
 
@@ -129,7 +129,7 @@ async def test_describe_to_draft_apply_and_undo(
     names = [n for n, _ in evs]
     assert names == ["tool.applied"] * 3 + ["message.delta", "proposal", "done"]
     proposal = evs[-2][1]
-    assert proposal["baseRevision"] == 1 and proposal["language"] == "en"
+    assert proposal["baseRevision"] == 1 and "language" not in proposal
     assert [(c["change"], c["label"]) for c in proposal["changes"]] == [
         ("changed", ""),
         ("added", "Full name"),
@@ -531,7 +531,7 @@ async def test_paper_form_import_needs_a_blank_confirmation(
     provider: ScriptedProvider,
 ) -> None:
     me = await admin_client(client, db, settings, queue)
-    fid = (await new_form(client, me, language="dv"))["id"]
+    fid = (await new_form(client, me, title="ފޯމު"))["id"]
     sid = (await open_session(client, fid))["id"]
     url = f"/api/v1/forms/{fid}/ai/sessions/{sid}/import"
     res = await client.post(url, content=png(), headers={"Content-Type": "image/png"})

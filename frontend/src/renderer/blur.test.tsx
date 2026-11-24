@@ -12,8 +12,8 @@ import { FormRenderer } from './form-view'
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const form = {
-  schemaVersion: '1',
-  settings: { language: 'en', title: 'Sign-up' },
+  schemaVersion: '2',
+  settings: { title: 'Sign-up' },
   pages: [
     {
       id: 'page_1',

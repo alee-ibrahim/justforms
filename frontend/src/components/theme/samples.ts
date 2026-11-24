@@ -3,9 +3,8 @@
 import type { Form } from '@/schema'
 
 export const SAMPLE_EN: Form = {
-  schemaVersion: '1',
+  schemaVersion: '2',
   settings: {
-    language: 'en',
     title: 'Youth programme application',
     description: 'It takes about five minutes. You can come back to it before you submit.',
   },
@@ -43,8 +42,8 @@ export const SAMPLE_EN: Form = {
 } as Form
 
 export const SAMPLE_DV: Form = {
-  schemaVersion: '1',
-  settings: { language: 'dv', title: 'ޒުވާނުންގެ ޕްރޮގްރާމަށް ހުށަހަޅާ ފޯމު' },
+  schemaVersion: '2',
+  settings: { title: 'ޒުވާނުންގެ ޕްރޮގްރާމަށް ހުށަހަޅާ ފޯމު' },
   pages: [
     {
       id: 'p_you',

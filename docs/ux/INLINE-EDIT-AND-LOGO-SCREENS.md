@@ -124,9 +124,10 @@ Back and Next become form content like Submit already is: `settings.backLabel` a
   While editing, the input has the same name without the value.
 - The live region announces nothing per keystroke; commits are visible through the save
   status ("Saving…", "Saved").
-- Studio chrome stays English and LTR. Editing inputs carry the form's `lang`/`dir`
-  (`contentProps`), so a dv form is typed right to left in Thaana; the phonetic keyboard is on
-  by default and the "ތ / A" toggle sits at the end edge of the box.
+- Studio chrome stays English and LTR. Editing inputs take `lang`/`dir` from the text being
+  typed (first strong character), so Dhivehi is typed right to left in Thaana and English left
+  to right, even in one form; the "ތ / A" toggle sits at the end edge of every box, on by
+  default when the text (or, while empty, its block) is Dhivehi.
 
 ### 1.7 Touch and phones
 

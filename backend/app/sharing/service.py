@@ -35,6 +35,7 @@ from app.branding.service import resolve as resolve_brand
 from app.config import Settings
 from app.models import FormRecord, Organization
 from app.pdf.faces import LATIN_VERSION, thaana_face
+from app.schemas.direction import is_rtl, text_lang
 from app.sharing import image as og
 from app.storage import ObjectNotFoundError, Storage
 from app.theme import resolve as themes
@@ -168,7 +169,6 @@ class Preview:
     title: str
     description: str
     site_name: str
-    language: str
     url: str  # canonical public address
     card: og.Card
     custom: CustomImage | None
@@ -176,7 +176,7 @@ class Preview:
 
     @property
     def locale(self) -> str:
-        return LOCALES.get(self.language, "en_US")
+        return LOCALES.get(text_lang(self.title), "en_US")
 
     @property
     def version(self) -> str:
@@ -247,7 +247,6 @@ def build(
     form that was never published)."""
     brand = resolve_brand(settings, org)
     s = (schema or {}).get("settings", {}) or {}
-    language = "dv" if s.get("language") == "dv" else "en"
     saved = stored(form)
     title = saved.title or " ".join(str(s.get("title") or form.title or "").split())
     title = title[:TITLE_MAX] or "Untitled form"
@@ -264,7 +263,7 @@ def build(
         description=description or None,
         org_name=brand.name,
         address=_address(settings, form.slug),
-        rtl=language == "dv",
+        rtl=is_rtl(title),
         colors=colors,
         thaana=thaana_face(settings, "image"),
     )
@@ -274,7 +273,6 @@ def build(
         title=title,
         description=description,
         site_name=brand.name,
-        language=language,
         url=f"{settings.public_origin}/{form.slug}",
         card=card,
         custom=saved.image,
@@ -381,7 +379,7 @@ def build_site(settings: Settings, org: Organization | None) -> SitePreview:
         description=None,
         org_name="",
         address=_address(settings, None),
-        rtl=og.is_thaana(brand.name),
+        rtl=is_rtl(brand.name),
         colors=colors,
         thaana=thaana_face(settings, "image"),
     )

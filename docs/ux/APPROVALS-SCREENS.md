@@ -6,7 +6,7 @@ Screens for the approval workflow and the clean respondent PDF with its public v
 Conventions are the same as in [PHASE-2-SCREENS.md](PHASE-2-SCREENS.md): copy in "quotes"
 ships as written, and **all of it is English for every form**, including what a respondent
 or approver reads (approver page, verify page, their emails, the PDF's fixed labels). Only
-form content (the form title, step names, questions and answers) is in the form's language
+form content (the form title, step names, questions and answers) is as written, English or Dhivehi
 and direction: the approver page and the emails are English and left to right with that
 content in its own `lang`/`dir` block, and a Dhivehi PDF starts every line at the right with
 English labels as left-to-right runs (DESIGN §16).
@@ -27,7 +27,7 @@ everyone else sees it disabled (same rule as the rest of Settings).
  │ ┌ Step 1 ──────────────────────────────────────── [↑] [↓] [🗑] ┐    │
  │ │ Step name  [ Supervisor                          ]           │    │
  │ │ Approver   (•) The answer to an email question               │    │
- │ │                [ Supervisor's email ▾ ]   (form language)    │    │
+ │ │                [ Supervisor's email ▾ ]   (as written)    │    │
  │ │            ( ) Always this address                           │    │
  │ │                [ director@example.org ]                      │    │
  │ │ ⚠ This question is optional. Responses without an answer     │    │
@@ -56,8 +56,8 @@ everyone else sees it disabled (same rule as the rest of Settings).
   - `Field` "Step name" `Input` (max 60, placeholder "Supervisor"). It is form content: the
     approver and respondent read it, so the input takes the form's `lang`/`dir`.
   - `RadioGroup` "Approver": "The answer to an email question" with a `NativeSelect` of the
-    form's top-level email questions (labels in the form's language, `<select>` with
-    `contentProps`), and "Always this address" with an `Input type="email" dir="ltr"`.
+    form's top-level email questions (labels as written, English or Dhivehi, `<select>` with
+    per-label `textProps`), and "Always this address" with an `Input type="email" dir="ltr"`.
     No email questions: the first option is disabled with description "Add an email
     question to the form to use this." Third option: "People with edit access, in the studio"
     ("Editors and owners of this form approve or reject it here after signing in. No emailed
@@ -145,7 +145,7 @@ the sheet header stays short on phones), not in the header as first sketched.
   "Approval" (`text-sm font-medium`). Icon per state, never colour alone: check (approved),
   x in stamp (rejected), clock (waiting), circle-dashed (not started), triangle (no
   approver), slash-circle (stopped).
-- Titles: "{n}. {step name}" (step name in the form's language, `bdi`). Descriptions:
+- Titles: "{n}. {step name}" (step name as written, English or Dhivehi, `bdi`). Descriptions:
   "Approved by {name} ({email}), {time}", "Rejected by {name} ({email}), {time}" plus the
   comment on its own line, "Waiting for {email} since {time}" (a studio step: "Waiting for a decision by someone with edit
   access since {time}"), "Not started",
@@ -218,7 +218,7 @@ hash, with a `Tooltip` for the full value).
 
 ## 4. Approver page (`/a/{token}`)
 
-Public, no account, in the form's language and direction. Same sheet-on-desk frame as the
+Public, no account, each text in its own direction. Same sheet-on-desk frame as the
 public form (sheet max 40rem, full-bleed on phones). Its own entry (`doc.html`), loaded
 lazily from the verify entry so the public form bundle is untouched.
 
@@ -363,7 +363,7 @@ components (`Button`, `Alert`), no router, no query cache, no renderer.
 
 ## 7. Emails
 
-- **Approval request** (to the approver, English; title and step name in the form's language): kicker "Approval needed",
+- **Approval request** (to the approver, English; title and step name as written, English or Dhivehi): kicker "Approval needed",
   subject "Approval needed: {title} ({ref})" or the form's own subject; the form's message if
   set; "{step name}: please approve or reject response {ref} to {title}. It was submitted on
   {date and time}." and, with more than one step, "Step {n} of {N}."; two buttons side by side, "Approve" (brand colour)
@@ -373,14 +373,14 @@ components (`Button`, `Alert`), no router, no query cache, no renderer.
   You'll confirm your email with a code, then confirm your decision there. The link works for
   {days} days." The text part lists the three links.
 - **To review** (steps decided in the studio, to the notify addresses; English; title and step
-  name in the form's language): kicker "Waiting for a decision", subject "New response to review:
+  name as written, English or Dhivehi): kicker "Waiting for a decision", subject "New response to review:
   {title} ({ref})" or the form's own subject; the form's message followed by "Reference {ref}", or
   "{step name}: response {ref} to {title} is waiting for a decision. It was submitted on {date}.";
   "Step {n} of {N}." with more than one step; one button "Open in {product}" to the submission
   page (sign-in required); the non-sensitive answers when turned on; then "Sign in to approve or
   reject it. Only people with edit access to the form can decide." No Approve / Reject buttons,
   no link to decide, no code.
-- **Outcome** (to the respondent, English; title in the form's language): subject "Approved: {title} ({ref})" /
+- **Outcome** (to the respondent, English; title as written, English or Dhivehi): subject "Approved: {title} ({ref})" /
   "Not approved: {title} ({ref})"; body "Your response {ref} was approved." / "Your response
   {ref} was not approved." plus "Comment: {comment}" for a rejection, and "The signed PDF is
   attached." when it is. The form's own message for the outcome replaces the sentence and is

@@ -1,7 +1,7 @@
 """What changed between a form's live version and its draft ("Review changes").
 
 Only the form document is versioned: its pages, sections, repeaters, questions, logic and
-``settings`` (title, description, language, button texts, success message, legacy theme
+``settings`` (title, description, alignment, button texts, success message, legacy theme
 accent). Everything stored on the form record instead (access, sharing, notifications,
 approvals, embed origins, form theme and logo, retention, card fields...) applies at once
 without publishing, so it is never part of the diff.
@@ -11,8 +11,8 @@ and a key that holds its default compare equal. Elements are matched by id (ids 
 across edits); a question whose parent or order among its siblings changed is "moved".
 
 Texts in the result are lists of pieces: ``{"text": ..., "content": bool}`` where ``content``
-marks form-language text (labels, options, titles) that the studio shows with the form's
-direction, and plain pieces are English UI words.
+marks form text (labels, options, titles) that the studio shows with its own direction
+(English, Dhivehi or both), and plain pieces are English UI words.
 """
 
 from __future__ import annotations
@@ -62,6 +62,7 @@ PROPS: dict[str, tuple[str, str]] = {
     "requiredIf": ("Required when", "logic"),
     "visibleIf": ("Shown when", "logic"),
     "width": ("Width", "width"),
+    "align": ("Alignment", "align"),
     "options": ("Options", "options"),
     "display": ("Show as", "display"),
     "allowOther": ("Allow 'Other'", "bool"),
@@ -98,7 +99,8 @@ CONTAINER_NAMES = {"description": "Description"}
 SETTINGS_PROPS: dict[str, tuple[str, str]] = {
     "title": ("Form title", "text"),
     "description": ("Form description", "text"),
-    "language": ("Form language", "language"),
+    "align": ("Text alignment", "align"),
+    "titleAlign": ("Title alignment", "align"),
     "submitLabel": ("Submit button text", "text"),
     "nextLabel": ("Next button text", "text"),
     "backLabel": ("Back button text", "text"),
@@ -106,6 +108,8 @@ SETTINGS_PROPS: dict[str, tuple[str, str]] = {
     "theme.accent": ("Accent colour", "value"),
     "theme.logoFileId": ("Logo in the form", "image"),
 }
+
+ALIGN_WORDS = {"auto": "Automatic", "left": "Left", "center": "Center", "right": "Right"}
 
 OP_WORDS: dict[str, str] = {
     "eq": "is",
@@ -333,8 +337,8 @@ def display(kind: str, value: Any, doc: Doc) -> list[Piece] | None:
         return [word("Dropdown" if value == "dropdown" else "Radio buttons")]
     if kind == "script":
         return [word({"latin": "Latin", "thaana": "Thaana"}.get(str(value), "Automatic"))]
-    if kind == "language":
-        return [word("Dhivehi" if value == "dv" else "English")]
+    if kind == "align":
+        return [word(ALIGN_WORDS.get(str(value), "Automatic"))]
     if kind == "logic":
         return condition_text(value, doc)
     if kind == "nav":
@@ -724,7 +728,6 @@ def diff(published: dict[str, Any], draft: dict[str, Any]) -> dict[str, Any]:
             "changed": counts.changed + len(settings),
             "moved": counts.moved,
         },
-        "language": new.raw["settings"].get("language", "en"),
         "settings": settings,
         "pages": groups,
     }

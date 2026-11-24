@@ -8,7 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/components/ui/item'
 import type { FormImport, ItemStatus, ReportItem } from '@/lib/imports'
-import { contentProps } from '@/schema'
+import { textProps } from '@/schema/align'
 
 import { importOutcome, jotformTypeName } from './type-names'
 
@@ -29,7 +29,7 @@ export function StatusBadge({ status, count }: { status: ItemStatus; count?: num
   )
 }
 
-export function FormImportReport({ preview, language }: { preview: FormImport; language: FormImport['language'] }) {
+export function FormImportReport({ preview }: { preview: FormImport }) {
   const { report } = preview
   const total = report.items.length
   const skippedItems = report.items.filter((i) => i.status === 'skipped')
@@ -46,7 +46,7 @@ export function FormImportReport({ preview, language }: { preview: FormImport; l
         <Item key={item.qid} size="xs" variant="muted" className="items-start">
           <ItemContent className="min-w-0">
             <ItemTitle className="w-full flex-wrap justify-between">
-              <bdi {...contentProps(language)} className="min-w-0 break-words">
+              <bdi {...textProps(item.label)} className="min-w-0 break-words">
                 {item.label || <span className="text-muted-foreground">No label</span>}
               </bdi>
               <StatusBadge status={item.status} />
@@ -104,7 +104,7 @@ export function FormImportReport({ preview, language }: { preview: FormImport; l
                   <Item key={i} size="xs" variant="muted" className="items-start">
                     <ItemContent className="min-w-0">
                       <ItemTitle className="w-full flex-wrap justify-between">
-                        <bdi {...contentProps(language)} className="min-w-0 break-words">
+                        <bdi {...textProps(c.description)} className="min-w-0 break-words">
                           {c.description}
                         </bdi>
                         <StatusBadge status={c.status === 'imported' ? 'imported' : 'skipped'} />
@@ -122,7 +122,7 @@ export function FormImportReport({ preview, language }: { preview: FormImport; l
               <ul className="flex list-disc flex-col gap-1 ps-5 text-sm">
                 {skippedItems.map((i) => (
                   <li key={i.qid}>
-                    <bdi {...contentProps(language)}>
+                    <bdi {...textProps(i.label)}>
                       {i.label || jotformTypeName(i.jotformType)}
                     </bdi>
                     : {i.notes.join(' ')}

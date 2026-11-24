@@ -2,9 +2,8 @@
   "name": "required",
   "description": "required OR requiredIf, only for visible fields; requiredIf reads effective answers",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

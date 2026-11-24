@@ -36,7 +36,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { buildIndex, type ElementInfo } from '@/logic/form-index'
 import { cn } from '@/lib/utils'
 import type { Condition, Element, FieldCondition, Form, NavigationRule, Op } from '@/schema'
-import { contentProps, formLanguage } from '@/schema/language'
+import { textLang } from '@/schema/direction'
 
 import { blockInfo, blockLabel } from './block-types'
 import { ConditionSentence } from './condition-sentence'
@@ -116,7 +116,6 @@ function FieldPicker({
   const ownerOrder = ownerId ? [...index.elements.keys()].indexOf(ownerId) : -1
   const order = [...index.elements.keys()]
   const current = value ? index.elements.get(value)?.element : undefined
-  const lang = formLanguage(form)
   const name = (el: Element) => blockLabel(el) || blockInfo(el).label
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -130,7 +129,7 @@ function FieldPicker({
         >
           <span className="truncate">
             {current ? (
-              <bdi dir="auto" lang={lang}>
+              <bdi dir="auto" lang={textLang(name(current))}>
                 {name(current)}
               </bdi>
             ) : value ? (
@@ -163,7 +162,7 @@ function FieldPicker({
                     >
                       <CheckIcon className={cn(value === info.id ? 'opacity-100' : 'opacity-0')} />
                       <span className="min-w-0 flex-1 truncate">
-                        <bdi dir="auto" lang={lang}>
+                        <bdi dir="auto" lang={textLang(name(info.element))}>
                           {name(info.element)}
                         </bdi>
                       </span>
@@ -185,7 +184,6 @@ function FieldPicker({
 
 function ValueControl({ form, row, onChange }: { form: Form; row: Row; onChange: (v: unknown) => void }) {
   const el = row.field ? buildIndex(form).elements.get(row.field)?.element : undefined
-  const content = contentProps(formLanguage(form))
   if (!row.op || UNARY.includes(row.op)) return null
   if (row.op.startsWith('count_'))
     return (
@@ -237,7 +235,7 @@ function ValueControl({ form, row, onChange }: { form: Form; row: Row; onChange:
                 onClick={() => onChange(on ? chosen.filter((v) => v !== o.value) : [...chosen, o.value])}
               >
                 {on && <CheckIcon />}
-                <bdi dir="auto" lang={content.lang}>
+                <bdi dir="auto" lang={textLang(o.label || o.value)}>
                   {o.label || o.value}
                 </bdi>
               </Button>
@@ -254,7 +252,7 @@ function ValueControl({ form, row, onChange }: { form: Form; row: Row; onChange:
         <SelectContent>
           {el.options.map((o) => (
             <SelectItem key={o.value} value={o.value}>
-              <bdi dir="auto" lang={content.lang}>
+              <bdi dir="auto" lang={textLang(o.label || o.value)}>
                 {o.label || o.value}
               </bdi>
             </SelectItem>
@@ -269,7 +267,7 @@ function ValueControl({ form, row, onChange }: { form: Form; row: Row; onChange:
     <Input
       type={kind}
       aria-label="Value"
-      {...(kind === 'text' ? content : { dir: 'ltr' })}
+      {...(kind === 'text' ? { dir: 'auto' } : { dir: 'ltr' })}
       value={row.value === undefined || row.value === null ? '' : String(row.value)}
       onChange={(e) => {
         const raw = e.target.value
@@ -573,7 +571,6 @@ export function PageJumps({ form, pageIndex }: { form: Form; pageIndex: number }
   const page = form.pages[pageIndex]
   const rules = page.next ?? []
   const later = form.pages.slice(pageIndex + 1)
-  const lang = formLanguage(form)
   const setRules = (f: Form, next: NavigationRule[]) => updatePage(f, pageIndex, (p) => ({ ...p, next }))
   const [errors, setErrors] = useState<Record<number, string | null>>({})
   return (
@@ -625,7 +622,7 @@ export function PageJumps({ form, pageIndex }: { form: Form; pageIndex: number }
                       <SelectItem key={p.id} value={p.id}>
                         {n}.{' '}
                         {p.title ? (
-                          <bdi dir="auto" lang={lang}>
+                          <bdi dir="auto" lang={textLang(p.title)}>
                             {p.title}
                           </bdi>
                         ) : (

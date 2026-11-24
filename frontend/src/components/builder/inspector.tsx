@@ -31,7 +31,6 @@ import {
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
@@ -43,7 +42,9 @@ import { cn } from '@/lib/utils'
 import { CUSTOM_ID, ID_PRESETS, idPresetOf } from '@/renderer/id-presets'
 import { ltrRun, MSG } from '@/renderer/messages'
 import type { Element, FieldElement, Form, Option } from '@/schema'
-import { contentProps, formLanguage, isFormLanguage } from '@/schema/language'
+import { textDirection, type TextAlign } from '@/schema/direction'
+
+import { AlignField } from './align-field'
 
 import { duplicate, requestDelete, wrap } from './actions'
 import { ContentInput, ContentTextarea } from './content-input'
@@ -94,18 +95,18 @@ function TextField({
   // Missing text is flagged quietly on the canvas at once; the red error waits until the input
   // was left once or Publish was tried (REVIEW P2-4).
   const [touched, setTouched] = useState(false)
-  const language = formLanguage(form)
-  const props = content ? contentProps(language) : {}
+  const props = content ? { dir: 'auto' as const } : {}
+  const hint = textDirection(form.settings.title)
   const shown = error && (touched || publishTried) ? error : null
   return (
     <Field data-invalid={shown ? true : undefined} onBlur={() => setTouched(true)}>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
       {content && multiline ? (
-        <ContentTextarea id={id} rows={2} language={language} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+        <ContentTextarea id={id} rows={2} dir={hint} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
       ) : content ? (
         <ContentInput
           id={id}
-          language={language}
+          dir={hint}
           value={value}
           placeholder={placeholder}
           aria-invalid={shown ? true : undefined}
@@ -268,7 +269,7 @@ function OptionRow({
       </Tooltip>
       <ContentInput
         aria-label={`Option ${index + 1}`}
-        language={formLanguage(form)}
+        dir={textDirection(form.settings.title)}
         value={option.label}
         placeholder={`Option ${index + 1}`}
         onChange={(e) => onChange(e.target.value)}
@@ -346,7 +347,7 @@ function OptionsEditor({ field, set }: { field: Extract<FieldElement, { options:
             <ContentTextarea
               rows={8}
               aria-label="Options, one per line"
-              language={formLanguage(form)}
+              dir={textDirection(form.settings.title)}
               value={paste}
               onChange={(e) => setPaste(e.target.value)}
             />
@@ -638,7 +639,10 @@ function TypingSettings({ field, set }: { field: TextQuestion; set: (patch: obje
             <ToggleGroupItem value="latin">Latin</ToggleGroupItem>
             <ToggleGroupItem value="thaana">Thaana</ToggleGroupItem>
           </ToggleGroup>
-          <FieldDescription>Thaana turns on the phonetic keyboard for this question.</FieldDescription>
+          <FieldDescription>
+            The answer box follows what is typed. Thaana turns the phonetic keyboard on; Auto turns it on when the
+            label is in Thaana and offers it when the label mixes in Thaana.
+          </FieldDescription>
         </Field>
       )
     default:
@@ -777,6 +781,12 @@ function FieldPanel({ field, form }: { field: FieldElement; form: Form }) {
               />
             )}
             <TypeSettings field={field} update={update} />
+            <AlignField
+              id="el-align"
+              value={field.align}
+              inherited={form.settings.align ?? 'auto'}
+              onChange={(align) => update({ align })}
+            />
           </FieldGroup>
         </AccordionContent>
       </AccordionItem>
@@ -924,6 +934,14 @@ function ContainerPanel({ el, form }: { el: Extract<Element, { kind: 'section' |
                   onChange={(text) => edit((x) => ({ ...x, text }) as Element)}
                 />
               ))}
+            {!(el.kind === 'content' && el.contentType !== 'heading' && el.contentType !== 'paragraph') && (
+              <AlignField
+                id="el-align"
+                value={el.align}
+                inherited={form.settings.align ?? 'auto'}
+                onChange={(align) => update({ align })}
+              />
+            )}
           </FieldGroup>
         </AccordionContent>
       </AccordionItem>
@@ -970,6 +988,12 @@ function PagePanel({ pageIndex, form }: { pageIndex: number; form: Form }) {
           <FieldGroup className="gap-4">
             <TextField id="page-title" label="Title" content value={page.title ?? ''} placeholder={`Page ${pageIndex + 1}`} onChange={(title) => setPage({ title })} />
             <TextField id="page-desc" label="Description" content multiline value={page.description ?? ''} onChange={(description) => setPage({ description })} />
+            <AlignField
+              id="page-align"
+              value={page.align}
+              inherited={form.settings.align ?? 'auto'}
+              onChange={(align) => setPage({ align })}
+            />
           </FieldGroup>
         </AccordionContent>
       </AccordionItem>
@@ -1007,7 +1031,6 @@ function PagePanel({ pageIndex, form }: { pageIndex: number; form: Form }) {
 
 function FormPanel({ form }: { form: Form }) {
   const store = useStore()
-  const language = formLanguage(form)
   const setSettings = (patch: object) => store.edit((f) => ({ ...f, settings: clean({ ...f.settings, ...patch }) }))
   return (
     <FieldGroup className="gap-4 p-4">
@@ -1020,27 +1043,19 @@ function FormPanel({ form }: { form: Form }) {
         onChange={(title) => store.edit((f) => ({ ...f, settings: { ...f.settings, title } }))}
       />
       <TextField id="form-desc" label="Description" content multiline value={form.settings.description ?? ''} onChange={(description) => setSettings({ description })} />
-      <FieldSet>
-        <FieldLegend variant="label">Form language</FieldLegend>
-        <RadioGroup
-          value={language}
-          onValueChange={(v) => isFormLanguage(v) && store.edit((f) => ({ ...f, settings: { ...f.settings, language: v } }))}
-        >
-          <Field orientation="horizontal">
-            <RadioGroupItem value="en" id="lang-en" />
-            <FieldLabel htmlFor="lang-en" className="font-normal">
-              English
-            </FieldLabel>
-          </Field>
-          <Field orientation="horizontal">
-            <RadioGroupItem value="dv" id="lang-dv" />
-            <FieldLabel htmlFor="lang-dv" className="font-normal">
-              Dhivehi
-            </FieldLabel>
-          </Field>
-        </RadioGroup>
-        <FieldDescription>Changing the language changes text direction. Existing text is kept.</FieldDescription>
-      </FieldSet>
+      <AlignField
+        id="form-title-align"
+        label="Title alignment"
+        value={form.settings.titleAlign}
+        inherited={form.settings.align ?? 'auto'}
+        onChange={(titleAlign) => setSettings({ titleAlign })}
+      />
+      <AlignField
+        id="form-align"
+        label="Text alignment"
+        value={form.settings.align ?? 'auto'}
+        onChange={(align: TextAlign | undefined) => setSettings({ align: align === 'auto' ? undefined : align })}
+      />
       <TextField id="form-next" label="Next button text" content value={form.settings.nextLabel ?? ''} placeholder={ltrRun(MSG.next)} onChange={(nextLabel) => setSettings({ nextLabel })} />
       <TextField id="form-back" label="Back button text" content value={form.settings.backLabel ?? ''} placeholder={ltrRun(MSG.back)} onChange={(backLabel) => setSettings({ backLabel })} />
       <TextField id="form-submit" label="Submit button text" content value={form.settings.submitLabel ?? ''} placeholder={ltrRun(MSG.submit)} onChange={(submitLabel) => setSettings({ submitLabel })} />

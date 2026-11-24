@@ -25,7 +25,7 @@ form's **Settings** page. Design background: [DESIGN.md §11.2](DESIGN.md).
   "createdAt": "2026-10-23T08:15:02Z",
   "form": { "id": "…", "slug": "youth-programme", "url": "https://forms.example.org/youth-programme", "version": 3 },
   "submission": {
-    "id": "…", "seq": 142, "reference": "#0142", "status": "new", "language": "dv",
+    "id": "…", "seq": 142, "reference": "#0142", "status": "new",
     "submittedAt": "2026-10-23T08:15:01Z", "contentHash": "sha256:…",
     "respondentEmail": null,
     "data": { "full_name": "Aishath Ali", "national_id": "[redacted]" },

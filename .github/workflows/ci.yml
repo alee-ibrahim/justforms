@@ -37,7 +37,7 @@ jobs:
         run: uv run ruff check . && uv run ruff format --check .
       - name: mypy
         run: uv run mypy app tests
-      - name: spec/form-schema.v1.json is current
+      - name: spec/form-schema.v2.json is current
         run: uv run python -m app.schemas.export --check
       - name: migrations up, down, up; models match
         run: |

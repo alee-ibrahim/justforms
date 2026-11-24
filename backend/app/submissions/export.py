@@ -1,19 +1,20 @@
 """The ``.xlsx`` export (DESIGN 15.2), built by the worker with openpyxl ``write_only=True``.
 
 - Sheet "Submissions": one row per submission. Fixed columns ``#``, ``Submitted at`` (in
-  ``JUSTFORMS_TIMEZONE``), ``Status``, ``Version``, ``Language``, ``Respondent email`` (the
+  ``JUSTFORMS_TIMEZONE``), ``Status``, ``Version``, ``Respondent email`` (the
   confirmed address of email-code and staff-only forms), then one column per question
   across the union of all versions: ordered by the latest version, removed questions at the
   end with "(version N)" after the label, N being the last version that asked them. Headers
-  are ``Label (key)`` with labels in the form's language; the fixed headers and words (status,
-  language, "Yes"/"No") are English for every form.
+  are ``Label (key)`` with labels as written (English, Dhivehi or both); the fixed headers and
+  words (status, "Yes"/"No") are English for every form.
 - Each repeater gets its own sheet: ``Submission #``, ``Row``, then its questions. With version
   field mappings in the form's settings (``app/submissions/version_map.py``), submissions of a
   version without the repeater get rows there too, read from the mapped fixed questions, and
   those questions get no columns of their own.
 - Choices show option labels (multi choice joined with ``; ``), files and signatures are links
   to the app (never presigned URLs), numbers stay numbers and everything else is text.
-- dv forms get right-to-left sheets. Cells starting with ``= + - @`` (or a tab or carriage
+- Sheets read right to left when the form title does (a Dhivehi title, the sheet direction of
+  the PDF too); every cell keeps its own text. Cells starting with ``= + - @`` (or a tab or carriage
   return) are prefixed with ``'`` so a spreadsheet never runs them as formulas.
 """
 
@@ -39,6 +40,7 @@ from app.insights import catalogue
 from app.logic.index import FormIndex
 from app.models import Export, ExportStatus, FormRecord, FormVersion, Signature, Submission
 from app.pdf.render import leaf_fields
+from app.schemas.direction import is_rtl
 from app.schemas.form import (
     FieldElement,
     FileField,
@@ -65,7 +67,6 @@ STATUS_WORDS = {
     "approved": "Approved",
     "rejected": "Rejected",
 }
-LANGUAGE_WORDS = {"en": "English", "dv": "Dhivehi"}
 _FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
 _SHEET_BAD = re.compile(r"[\[\]:*?/\\]")
 
@@ -139,7 +140,6 @@ def sheet_title(label: str, used: set[str]) -> str:
 @dataclass
 class Context:
     settings: Settings
-    language: str
     signatures: dict[uuid.UUID, dict[str, Signature]]
     mask_sensitive: bool = False
 
@@ -155,7 +155,7 @@ def cell_value(col: Column, value: Any, sub: Submission, ctx: Context) -> Any:
     if value is None or value == "" or value == []:
         return None
     if ctx.mask_sensitive and f.sensitive:
-        return mask(answer_text(f, value, ctx.language))
+        return mask(answer_text(f, value))
     if isinstance(f, NumberField | RatingField) and isinstance(value, int | float):
         return value if not isinstance(value, bool) else str(value)
     if isinstance(f, FileField) and isinstance(value, list):
@@ -172,7 +172,7 @@ def cell_value(col: Column, value: Any, sub: Submission, ctx: Context) -> Any:
         return f"Signed {when} ({ctx.link(f'submissions/{sub.id}/pdf')})".replace("  ", " ")
     if isinstance(f, HiddenField):
         return safe_text(str(value))
-    text = answer_text(f, value, ctx.language, list_sep="; ")
+    text = answer_text(f, value, list_sep="; ")
     return safe_text(text) if text else None
 
 
@@ -238,7 +238,7 @@ async def _build(db: AsyncSession, storage: Storage, settings: Settings, export:
     ).all()
     forms = [Form.model_validate(v.schema) for v in versions]
     version_no = {v.id: v.version for v in versions}
-    language = forms[-1].settings.language if forms else "en"
+    rtl = is_rtl(forms[-1].settings.title) if forms else False
     mappings = {
         m.repeater: m for m in version_map.parse((form_rec.settings or {}).get("versionMappings"))
     }
@@ -277,11 +277,11 @@ async def _build(db: AsyncSession, storage: Storage, settings: Settings, export:
     used: set[str] = {"submissions"}
     rep_sheets = [(r, wb.create_sheet(sheet_title(r.label, used))) for r in lay.repeaters]
     for ws in [main, *(s for _r, s in rep_sheets)]:
-        if language == "dv":
+        if rtl:
             ws.sheet_view.rightToLeft = True
     _header(
         main,
-        ["#", "Submitted at", "Status", "Version", "Language", "Respondent email"]
+        ["#", "Submitted at", "Status", "Version", "Respondent email"]
         + [f"{c.label} ({c.id})" for c in lay.columns],
     )
     for rep, ws in rep_sheets:
@@ -321,7 +321,7 @@ async def _build(db: AsyncSession, storage: Storage, settings: Settings, export:
             await db.scalars(select(Signature).where(Signature.submission_id.in_(ids)))
         ).all():
             sigs.setdefault(sig.submission_id, {})[sig.field_id] = sig
-        ctx = Context(settings, language, sigs, masked)
+        ctx = Context(settings, sigs, masked)
         for sub in batch:
             main.append(
                 [
@@ -329,7 +329,6 @@ async def _build(db: AsyncSession, storage: Storage, settings: Settings, export:
                     ctx.local(sub.submitted_at),
                     STATUS_WORDS.get(sub.status.value, sub.status.value),
                     version_no.get(sub.form_version_id),
-                    LANGUAGE_WORDS.get(sub.language, sub.language),
                     safe_text(sub.respondent_email) if sub.respondent_email else None,
                     *(cell_value(c, sub.data.get(c.id), sub, ctx) for c in lay.columns),
                 ]

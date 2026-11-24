@@ -2,9 +2,8 @@
   "name": "logic_negation",
   "description": "not around leaves and groups, single-item groups",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

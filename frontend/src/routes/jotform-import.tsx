@@ -56,8 +56,7 @@ import { toggleGroupOn } from '@/lib/toggle'
 import { cn } from '@/lib/utils'
 import type { Uploader } from '@/renderer/context'
 import { FormRenderer } from '@/renderer/form-view'
-import { contentProps, isFormLanguage, type FormLanguage } from '@/schema'
-import { FORM_LANGUAGES } from '@/schema/language'
+import { textProps } from '@/schema/align'
 
 type Source = 'link' | 'source' | 'file' | 'api'
 const MAX_HTML = 5 * 1024 * 1024
@@ -306,9 +305,8 @@ function SourceStep({ orgId, onRead }: { orgId: string; onRead: (p: FormImport) 
   )
 }
 
-function Preview({ preview, language, orgId, orgSlug }: { preview: FormImport; language: FormLanguage; orgId: string; orgSlug: string }) {
+function Preview({ preview, orgId, orgSlug }: { preview: FormImport; orgId: string; orgSlug: string }) {
   const [device, setDevice] = useState<'phone' | 'desktop'>('phone')
-  const form = { ...preview.schema, settings: { ...preview.schema.settings, language } }
   // The draft gets the organisation's form theme, so the preview wears it too, the same way
   // Settings > Appearance does (REVIEW P2-17). Until it loads, JustForms' own look.
   const theme = useQuery(orgThemeQuery(orgId)).data?.preview
@@ -349,8 +347,8 @@ function Preview({ preview, language, orgId, orgSlug }: { preview: FormImport; l
           )}
         >
           <FormRenderer
-            key={`${device}-${language}-${preview.collapseAsPages}`}
-            form={form}
+            key={`${device}-${preview.collapseAsPages}`}
+            form={preview.schema}
             mode="preview"
             frame={device === 'phone' ? 'bare' : 'page'}
             brand={brand}
@@ -381,12 +379,11 @@ function ResultStep({
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [title, setTitle] = useState(preview.schema.settings.title)
-  const [language, setLanguage] = useState<FormLanguage>(preview.language)
   const [view, setView] = useState<'report' | 'preview'>('report')
   const heading = useRef<HTMLHeadingElement>(null)
   useEffect(() => heading.current?.focus(), [])
   const create = useMutation({
-    mutationFn: () => importsApi.createForm(preview.id, { title: title.trim(), language }),
+    mutationFn: () => importsApi.createForm(preview.id, { title: title.trim() }),
     onSuccess: async ({ formId }) => {
       await queryClient.invalidateQueries({ queryKey: ['forms'] })
       toast.success('Draft created. Check it, then publish.')
@@ -397,7 +394,6 @@ function ResultStep({
     mutationFn: (collapseAsPages: boolean) => importsApi.setOptions(preview.id, { collapseAsPages }),
     onSuccess: onChange,
   })
-  const detected = FORM_LANGUAGES[preview.detectedLanguage].label
 
   const createCard = (
     <Card>
@@ -419,33 +415,11 @@ function ResultStep({
                 id="jf-title"
                 required
                 maxLength={500}
-                {...contentProps(language)}
+                {...textProps(title)}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
             </Field>
-            <FieldSet>
-              <FieldLegend variant="label">Form language</FieldLegend>
-              <RadioGroup
-                value={language}
-                onValueChange={(v) => isFormLanguage(v) && setLanguage(v)}
-                className="flex gap-6"
-              >
-                {(['en', 'dv'] as const).map((l) => (
-                  <Field key={l} orientation="horizontal" className="w-auto">
-                    <RadioGroupItem value={l} id={`jf-lang-${l}`} />
-                    <FieldLabel htmlFor={`jf-lang-${l}`} className="font-normal">
-                      {FORM_LANGUAGES[l].label}
-                    </FieldLabel>
-                  </Field>
-                ))}
-              </RadioGroup>
-              <FieldDescription>
-                {language === preview.detectedLanguage
-                  ? `Detected from the text: ${detected}.`
-                  : `Most of the text is in ${detected}.`}
-              </FieldDescription>
-            </FieldSet>
             {preview.collapseSections > 0 && (
               <Field orientation="horizontal" data-disabled={steps.isPending || undefined}>
                 <FieldContent>
@@ -508,10 +482,10 @@ function ResultStep({
       <div className="grid items-start gap-6 lg:grid-cols-[24rem_minmax(0,1fr)]">
         <div className={cn('flex min-w-0 flex-col gap-6', view !== 'report' && 'max-lg:hidden')}>
           {createCard}
-          <FormImportReport preview={preview} language={language} />
+          <FormImportReport preview={preview} />
         </div>
         <div className={cn('min-w-0', view !== 'preview' && 'max-lg:hidden')}>
-          <Preview preview={preview} language={language} orgId={orgId} orgSlug={orgSlug} />
+          <Preview preview={preview} orgId={orgId} orgSlug={orgSlug} />
         </div>
       </div>
     </>

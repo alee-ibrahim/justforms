@@ -48,7 +48,7 @@ from app.permissions import (
     has_org_role,
     org_role,
 )
-from app.schemas.form import Form, FormLanguage
+from app.schemas.form import Form
 from app.services import form_diff, slugs
 from app.services import forms as svc
 from app.services.progress import DEFAULT_SAVE_PROGRESS_DAYS, MAX_SAVE_PROGRESS_DAYS, progress_out
@@ -107,7 +107,6 @@ class FormListItem(FormOut):
     """A row of the forms list (docs/ux/FORMS-LIST-SCREENS.md): the form plus who owns it and
     its activity. Only what anyone with a role on the form may see (Share and Submissions)."""
 
-    language: FormLanguage = "en"
     # Published, and the draft differs from the live version.
     has_unpublished_changes: bool = False
     # The creator while they are an owner, else the earliest owner; owner_count counts all
@@ -133,7 +132,6 @@ RECENT_DAYS = 7
 
 class FormCreate(ApiModel):
     title: Annotated[str, StringConstraints(min_length=1, max_length=500, strip_whitespace=True)]
-    language: FormLanguage = "en"
     # The address; taken from the title when missing (a taken one gets -2, -3...).
     slug: Annotated[str, StringConstraints(pattern=slugs.SLUG_PATTERN)] | None = None
 
@@ -216,7 +214,6 @@ class DraftChangesOut(ApiModel):
     has_changes: bool
     summary: str
     counts: dict[str, int]
-    language: FormLanguage
     settings: list[dict[str, Any]]
     pages: list[dict[str, Any]]
 
@@ -399,7 +396,6 @@ async def list_forms(
             f.settings,
             f.created_at,
             f.updated_at,
-            f.draft_schema["settings"]["language"].astext.label("language"),
             FormVersion.version,
             (f.draft_schema != FormVersion.schema).label("changed"),
             mine.role.label("my_role"),
@@ -458,7 +454,6 @@ async def list_forms(
                 new_count=r.new,
                 created_at=r.created_at,
                 updated_at=r.updated_at,
-                language="dv" if r.language == "dv" else "en",
                 has_unpublished_changes=r.version is not None and bool(r.changed),
                 owner=_person(r.owner_id, r.owner_name, r.owner_email),
                 owner_count=r.owner_count or 0,
@@ -484,7 +479,7 @@ async def create_form(
     user: CurrentUser,
     _: OrgCreator,
 ) -> FormOut:
-    draft = svc.new_draft(body.title, body.language)
+    draft = svc.new_draft(body.title)
     if body.slug is not None:
         await _check_slug(db, body.slug)
     form = FormRecord(
@@ -652,7 +647,6 @@ class TrashedForm(ApiModel):
     title: str
     slug: str
     status: FormStatus
-    language: str
     deleted_at: datetime
     deleted_by: TrashPerson | None
     # When the nightly job erases it (and its submissions) for good.
@@ -715,9 +709,6 @@ async def list_trash(
                 title=form.title,
                 slug=form.slug,
                 status=form.status,
-                language="dv"
-                if (form.draft_schema or {}).get("settings", {}).get("language") == "dv"
-                else "en",
                 deleted_at=form.deleted_at,
                 deleted_by=TrashPerson(
                     id=person.id, name=person.display_name or "", email=person.email
@@ -877,7 +868,6 @@ async def draft_changes(db: DbDep, access: FormEditor) -> DraftChangesOut:
     """Changes in the draft that publishing would make live (DESIGN 17, Review changes)."""
     form = access.form
     live = await svc.live_schema(db, form)
-    language = form.draft_schema.get("settings", {}).get("language", "en")
     if live is None:
         return DraftChangesOut(
             base_version=None,
@@ -885,7 +875,6 @@ async def draft_changes(db: DbDep, access: FormEditor) -> DraftChangesOut:
             has_changes=True,
             summary="Not published yet",
             counts={"added": 0, "removed": 0, "changed": 0, "moved": 0},
-            language="dv" if language == "dv" else "en",
             settings=[],
             pages=[],
         )

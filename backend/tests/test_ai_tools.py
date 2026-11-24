@@ -10,10 +10,10 @@ from app.ai.tools import TOOLS, WorkingCopy, slug_id, tool_specs
 from app.schemas.form import Form
 
 
-def base(language: str = "en") -> dict[str, Any]:
+def base(title: str = "Volunteers") -> dict[str, Any]:
     return Form.model_validate(
         {
-            "settings": {"language": language, "title": "Volunteers"},
+            "settings": {"title": title},
             "pages": [
                 {
                     "id": "page_1",
@@ -48,8 +48,8 @@ def base(language: str = "en") -> dict[str, Any]:
     ).dump()
 
 
-def wc(language: str = "en") -> WorkingCopy:
-    return WorkingCopy(base(language))
+def wc() -> WorkingCopy:
+    return WorkingCopy(base())
 
 
 def ids(w: WorkingCopy, page: int = 0) -> list[str]:
@@ -103,7 +103,7 @@ def test_add_field_makes_ids_options_and_validates() -> None:
 
 
 def test_add_field_dhivehi_label_gets_a_type_based_id() -> None:
-    w = wc("dv")
+    w = wc()
     step = w.run(
         "add_field",
         {"parentId": "page_2", "field": {"type": "phone", "label": "ފޯނު ނަންބަރު"}},
@@ -332,8 +332,16 @@ def test_update_settings() -> None:
     assert w.run("update_settings", {"submitLabel": None}).ok
     assert "submitLabel" not in w.schema["settings"]
     assert not w.run("update_settings", {"title": None}).ok
-    # The language and theme are not the assistant's to change.
+    # Forms have no language; the theme is not the assistant's to change.
     assert not w.run("update_settings", {"language": "dv"}).ok
+    # Alignment is (only when asked for).
+    assert w.run("update_settings", {"align": "center", "titleAlign": "right"}).ok
+    assert w.schema["settings"]["align"] == "center"
+    assert w.schema["settings"]["titleAlign"] == "right"
+    assert not w.run("update_settings", {"align": "justify"}).ok
+    assert w.run("update_page", {"pageId": "page_2", "align": "left"}).ok
+    assert w.schema["pages"][1]["align"] == "left"
+    assert w.run("update_field", {"id": "name", "changes": {"align": "right"}}).ok
     assert not w.run("update_settings", {"theme": {"accent": "#000000"}}).ok
 
 

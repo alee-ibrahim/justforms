@@ -14,8 +14,8 @@ import { alreadyDecidedMessage, decidableStep } from './approval-lib'
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const schema = {
-  schemaVersion: '1',
-  settings: { title: 'Registration', language: 'en' },
+  schemaVersion: '2',
+  settings: { title: 'Registration' },
   pages: [{ id: 'p1', elements: [{ kind: 'field', id: 'name', type: 'short_text', label: 'Name' }] }],
 } as Form
 
@@ -46,7 +46,6 @@ function detail(over: Partial<SubmissionDetail> = {}): SubmissionDetail {
     formId: 'f1',
     seq: 7,
     status: 'in_review',
-    language: 'en',
     version: 1,
     createdAt: '2026-10-25T08:00:00Z',
     submittedAt: '2026-10-25T08:00:00Z',

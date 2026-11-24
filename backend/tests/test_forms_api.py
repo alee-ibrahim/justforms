@@ -41,7 +41,8 @@ async def test_create_edit_publish(
 
     draft = (await client.get(f"/api/v1/forms/{form['id']}/draft")).json()
     assert draft["revision"] == 1
-    assert draft["schema"]["settings"] == {"language": "en", "title": "Contact us"}
+    assert draft["schema"]["settings"] == {"title": "Contact us"}
+    assert draft["schema"]["schemaVersion"] == "2"
 
     res = await client.patch(
         f"/api/v1/forms/{form['id']}/draft", json={"baseRevision": 1, "patch": add_field(NAME)}
@@ -101,13 +102,12 @@ async def test_dv_form_and_publish_rejects_blank_label(
     client: AsyncClient, db: AsyncSession, settings: Settings, queue: RecordingQueue
 ) -> None:
     org_id = await _admin(client, db, settings, queue)
-    form = (
-        await client.post(f"/api/v1/orgs/{org_id}/forms", json={"title": "ފޯމު", "language": "dv"})
-    ).json()
+    form = (await client.post(f"/api/v1/orgs/{org_id}/forms", json={"title": "ފޯމު"})).json()
     assert form["slug"] == "foamu"  # romanised (official 1977 rules)
     assert form["title"] == "ފޯމު"
     draft = (await client.get(f"/api/v1/forms/{form['id']}/draft")).json()
-    assert draft["schema"]["settings"]["language"] == "dv"
+    # Forms have no language (schemaVersion 2): the text alone says it is Dhivehi.
+    assert draft["schema"]["settings"] == {"title": "ފޯމު"}
     blank = {**NAME, "label": ""}
     res = await client.patch(
         f"/api/v1/forms/{form['id']}/draft", json={"baseRevision": 1, "patch": add_field(blank)}
@@ -137,3 +137,45 @@ async def test_soft_delete(
     assert (await client.delete(f"/api/v1/forms/{form['id']}")).status_code == 204
     assert (await client.get(f"/api/v1/forms/{form['id']}")).status_code == 404
     assert (await client.get(f"/api/v1/orgs/{org_id}/forms")).json() == []
+
+
+async def test_create_takes_no_language_and_keeps_bilingual_text_and_alignment(
+    client: AsyncClient, db: AsyncSession, settings: Settings, queue: RecordingQueue
+) -> None:
+    org_id = await _admin(client, db, settings, queue)
+    res = await client.post(f"/api/v1/orgs/{org_id}/forms", json={"title": "Intake / ފޯމު"})
+    assert res.status_code == 201, res.text
+    form = res.json()
+    assert "language" not in form
+    draft = (await client.get(f"/api/v1/forms/{form['id']}/draft")).json()
+    assert draft["schema"] == {
+        "schemaVersion": "2",
+        "settings": {"title": "Intake / ފޯމު"},
+        "pages": draft["schema"]["pages"],
+    }
+    label = {**NAME, "label": "Name / ނަން", "align": "right"}
+    patch = [
+        *add_field(label),
+        {"op": "add", "path": "/settings/align", "value": "center"},
+        {"op": "add", "path": "/settings/titleAlign", "value": "left"},
+    ]
+    res = await client.patch(
+        f"/api/v1/forms/{form['id']}/draft", json={"baseRevision": 1, "patch": patch}
+    )
+    assert res.status_code == 200, res.text
+    draft = (await client.get(f"/api/v1/forms/{form['id']}/draft")).json()
+    assert draft["schema"]["settings"]["align"] == "center"
+    assert draft["schema"]["settings"]["titleAlign"] == "left"
+    assert draft["schema"]["pages"][0]["elements"][0]["label"] == "Name / ނަން"
+    assert draft["schema"]["pages"][0]["elements"][0]["align"] == "right"
+    # A form language is no longer part of the document.
+    res = await client.patch(
+        f"/api/v1/forms/{form['id']}/draft",
+        json={
+            "baseRevision": 2,
+            "patch": [{"op": "add", "path": "/settings/language", "value": "dv"}],
+        },
+    )
+    assert res.status_code == 422
+    rows = (await client.get(f"/api/v1/orgs/{org_id}/forms")).json()
+    assert rows and all("language" not in r for r in rows)

@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 
 import { loadSpecFile } from '@/logic/spec-files'
 
-import { contentProps, formLanguage, parseForm, type Form } from '.'
+import { formDirection, parseForm, type Form } from '.'
 
 const example = loadSpecFile<Form>('examples/youth-programme.json')
 
@@ -27,7 +27,7 @@ it('rejects extra keys', () => {
   expect(parseForm(bad).ok).toBe(false)
 })
 
-it('rejects bilingual text objects and unknown languages', () => {
+it('rejects bilingual text objects and the removed form language', () => {
   const bad = structuredClone(example) as unknown as { settings: Record<string, unknown> }
   bad.settings.title = { en: 'Title', dv: 'ފޯމު' }
   expect(parseForm(bad).ok).toBe(false)
@@ -36,10 +36,6 @@ it('rejects bilingual text objects and unknown languages', () => {
   expect(parseForm(bad2).ok).toBe(false)
 })
 
-it('derives lang and direction from the form language', () => {
-  expect(formLanguage(example)).toBe('dv')
-  expect(contentProps(formLanguage(example))).toEqual({ lang: 'dv', dir: 'rtl' })
-  const en = { ...example, settings: { title: 'T' } }
-  expect(formLanguage(en)).toBe('en')
-  expect(contentProps('en')).toEqual({ lang: 'en', dir: 'ltr' })
+it('lays the example (a Dhivehi form) out right to left from its title', () => {
+  expect(formDirection(example)).toBe('rtl')
 })

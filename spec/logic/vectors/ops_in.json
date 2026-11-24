@@ -2,9 +2,8 @@
   "name": "ops_in",
   "description": "in/not_in: scalar membership; arrays are never members; not_in is the exact negation",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

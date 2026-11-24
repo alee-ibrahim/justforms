@@ -2,9 +2,8 @@
   "name": "ops_missing_values",
   "description": "Missing values (absent, null, '', [], hidden): empty/neq/not_in/not_contains true, all else false",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

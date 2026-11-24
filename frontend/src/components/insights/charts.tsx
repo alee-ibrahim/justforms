@@ -2,7 +2,7 @@
  * Insights charts (INSIGHTS-SCREENS 3), drawn with the official shadcn Chart (Recharts):
  *
  * - `BarList`: one horizontal bar per answer, the answer's text above its bar and the count
- *   with its share at the end. Answers are form content, so they take the form's language
+ *   with its share at the end. Answers are form content, so each takes its own language
  *   (Thaana gets its font through `lang`). The chart itself stays left to right like the rest
  *   of the studio.
  * - `Columns`: vertical bars for histograms and months.
@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Bar, BarChart, Cell, LabelList, XAxis, YAxis } from 'recharts'
 
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
+import { textLang } from '@/schema/direction'
 
 export interface Datum {
   label: string
@@ -30,7 +31,6 @@ const config = {
 } satisfies ChartConfig
 
 const ROW = 44
-const thaana = /[ހ-޿]/
 
 function fit(text: string, width: number): string {
   // About 7px per character at 13px; SVG text has no ellipsis of its own.
@@ -62,12 +62,10 @@ function useWidth() {
 
 export function BarList({
   data,
-  language,
   onPick,
   unit = 'submissions',
 }: {
   data: Datum[]
-  language: string
   onPick?: (d: Datum) => void
   unit?: string
 }) {
@@ -76,13 +74,12 @@ export function BarList({
   const NameLabel = ({ x = 0, y = 0, index = 0 }: LabelProps) => {
     const d = data[index]
     if (!d) return null
-    const dv = language === 'dv' || thaana.test(d.label)
     return (
       <text
         x={Number(x)}
         y={Number(y) - 6}
         className="fill-foreground text-[13px]"
-        lang={dv ? 'dv' : 'en'}
+        lang={textLang(d.label)}
         style={{ unicodeBidi: 'plaintext' }}
       >
         <title>{d.label}</title>

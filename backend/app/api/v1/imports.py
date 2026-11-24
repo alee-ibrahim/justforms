@@ -60,7 +60,8 @@ from app.permissions import (
     org_role,
 )
 from app.queue import JobQueue, get_queue
-from app.schemas.form import Form, FormLanguage
+from app.schemas.form import Form
+from app.schemas.migrate import upgrade_form
 
 router = APIRouter(tags=["imports"])
 QueueDep = Annotated[JobQueue, Depends(get_queue)]
@@ -78,8 +79,6 @@ class JotformHtmlIn(ApiModel):
 
     html: Annotated[str, StringConstraints(max_length=MAX_HTML_CHARS)] | None = None
     url: Annotated[str, StringConstraints(max_length=2000, strip_whitespace=True)] | None = None
-    # None: detect from the text (mostly Thaana -> dv).
-    language: FormLanguage | None = None
     # Collapsible sections become steps (pages). None: on when the form has no page breaks.
     collapse_as_pages: bool | None = None
 
@@ -97,7 +96,6 @@ class JotformApiKeyIn(ApiModel):
 
 class JotformApiFormIn(JotformApiKeyIn):
     form_id: JotformId
-    language: FormLanguage | None = None
     collapse_as_pages: bool | None = None
 
 
@@ -115,8 +113,6 @@ class FormImportOut(ApiModel):
     status: ImportStatus
     schema_: dict[str, Any] = Field(alias="schema")
     report: dict[str, Any]
-    language: FormLanguage
-    detected_language: FormLanguage
     source_url: str | None = None
     jotform_form_id: str | None = None
     field_count: int
@@ -136,7 +132,6 @@ class CreateFormIn(ApiModel):
         Annotated[str, StringConstraints(min_length=1, max_length=500, strip_whitespace=True)]
         | None
     ) = None
-    language: FormLanguage | None = None
 
 
 class CreatedOut(ApiModel):
@@ -203,15 +198,14 @@ class StartIn(ApiModel):
 
 def _form_out(imp: Import) -> FormImportOut:
     src = imp.source
-    schema = src["form"]
+    # Previews stored before schemaVersion 2 still name a form language.
+    schema = upgrade_form(src["form"])
     return FormImportOut(
         id=imp.id,
         kind=imp.kind,
         status=imp.status,
         schema_=schema,
         report=imp.report,
-        language=schema["settings"]["language"],
-        detected_language=src.get("detectedLanguage", "en"),
         source_url=src.get("sourceUrl"),
         jotform_form_id=src.get("jotformFormId"),
         field_count=field_count(schema),
@@ -260,7 +254,6 @@ async def _save_preview(
         status=ImportStatus.PREVIEW,
         source={
             "form": conv.form,
-            "detectedLanguage": conv.detected_language,
             "sourceUrl": source_url,
             "jotformFormId": src.form_id,
             "captcha": conv.captcha,
@@ -287,14 +280,13 @@ async def _save_preview(
 
 
 def _convert(
-    src: JfSource, language: str | None, settings: Any, kind: str, collapse_as_pages: bool | None
+    src: JfSource, settings: Any, kind: str, collapse_as_pages: bool | None
 ) -> tuple[Conversion, Conversion | None]:
     """The conversion asked for, and the one with the opposite collapsible-section choice
     when the form has collapsible sections."""
     try:
         conv = convert(
             src,
-            language=language,
             max_upload_mb=settings.max_upload_mb,
             source_kind=kind,
             collapse_as_pages=collapse_as_pages,
@@ -303,7 +295,6 @@ def _convert(
         if conv.collapse_sections:
             other = convert(
                 src,
-                language=language,
                 max_upload_mb=settings.max_upload_mb,
                 source_kind=kind,
                 collapse_as_pages=not conv.collapse_as_pages,
@@ -343,7 +334,7 @@ async def import_jotform_html(
             {"detail": "not_a_jotform", "formUrl": exc.form_url},
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
-    conv, other = _convert(src, body.language, settings, "html", body.collapse_as_pages)
+    conv, other = _convert(src, settings, "html", body.collapse_as_pages)
     return await _save_preview(
         db, storage, settings, user, org_id, ImportKind.JOTFORM_HTML, src, conv, source_url, other
     )
@@ -391,7 +382,7 @@ async def import_jotform_api(
         raise _api_error(exc) from exc
     if not src.questions:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "not_a_jotform")
-    conv, other = _convert(src, body.language, settings, "api", body.collapse_as_pages)
+    conv, other = _convert(src, settings, "api", body.collapse_as_pages)
     return await _save_preview(
         db, storage, settings, user, org_id, ImportKind.JOTFORM_API, src, conv, None, other
     )
@@ -450,9 +441,7 @@ async def create_form_from_import(
     if not has_org_role(await org_role(db, user, imp.org_id), OrgRole.CREATOR):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "insufficient_org_role")
     temp = (imp.source.get("logo") or {}).get("key")
-    form = await service.create_form(
-        db, imp, user.id, title=body.title, language=body.language, storage=storage
-    )
+    form = await service.create_form(db, imp, user.id, title=body.title, storage=storage)
     await db.commit()
     if temp:
         await storage.delete(temp)
@@ -591,7 +580,6 @@ async def set_mapping(
     await db.commit()
 
     fields = {f.id: f for f in importable_fields(form)}
-    language = form.settings.language
     rows: list[PreviewRow] = []
     problems = 0
     for n, row in enumerate(imp.source["sample"], start=2):
@@ -614,7 +602,7 @@ async def set_mapping(
                 if fid in res.links:
                     text = "\n".join(res.links[fid])
                 elif fid in res.data:
-                    text = answer_text(fields[fid], res.data[fid], language)
+                    text = answer_text(fields[fid], res.data[fid])
             cells.append(PreviewCell(column=col, text=text, problem=bad.get(col)))
         rows.append(PreviewRow(row=n, cells=cells))
     return MappingPreviewOut(

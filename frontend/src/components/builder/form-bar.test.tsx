@@ -21,7 +21,7 @@ import { BuilderContext, BuilderStore } from './store'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-const schema: Form = { schemaVersion: '1', settings: { title: 'Intake' }, pages: [{ id: 'page_1', elements: [] }] }
+const schema: Form = { schemaVersion: '2', settings: { title: 'Intake' }, pages: [{ id: 'page_1', elements: [] }] }
 
 const summary: FormSummary = {
   id: 'f1',

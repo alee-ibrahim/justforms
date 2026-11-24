@@ -21,8 +21,7 @@ import { formatDate, formatDateTime } from '@/lib/format'
 import { metaQuery } from '@/lib/queries'
 import { useDelayed } from '@/lib/use-delayed'
 import type { FieldElement, Form } from '@/schema'
-import { formLanguage } from '@/schema/language'
-import { hasThaana } from '@yashau/thaana-react'
+import { textLang } from '@/schema/direction'
 
 import { answerText } from './format'
 
@@ -43,7 +42,7 @@ function who(person: PersonRef | null, meId?: string): string {
 function summary(row: DeletedSubmission, fields: FieldElement[], schema: Form | undefined): string {
   if (!schema) return ''
   for (const f of fields) {
-    const text = answerText(f, row.data[f.id], formLanguage(schema))
+    const text = answerText(f, row.data[f.id])
     if (text) return text
   }
   return ''
@@ -52,7 +51,7 @@ function summary(row: DeletedSubmission, fields: FieldElement[], schema: Form | 
 function Summary({ text }: { text: string }) {
   if (!text) return <span className="text-muted-foreground">-</span>
   return (
-    <bdi dir="auto" lang={hasThaana(text) ? 'dv' : 'en'} className="inline-block max-w-56 truncate align-middle">
+    <bdi dir="auto" lang={textLang(text)} className="inline-block max-w-56 truncate align-middle">
       {text}
     </bdi>
   )

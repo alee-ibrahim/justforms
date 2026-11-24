@@ -42,7 +42,7 @@ class Import(IdMixin, TimestampMixin, Base):
         default=ImportStatus.PREVIEW,
         server_default="preview",
     )
-    # Form imports: {"form": schema, "language", "detectedLanguage", "sourceUrl", ...}.
+    # Form imports: {"form": schema, "sourceUrl", ...} ("detectedLanguage": legacy, unused).
     # Submission imports: {"filename", "headers", "sample", "rowCount", "versionId"}.
     source: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}")
     # Uploaded submissions file, kept until the import finishes.

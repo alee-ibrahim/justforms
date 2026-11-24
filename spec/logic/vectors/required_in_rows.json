@@ -2,9 +2,8 @@
   "name": "required_in_rows",
   "description": "requiredIf inside repeater rows, reading siblings in the same row and fields outside",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

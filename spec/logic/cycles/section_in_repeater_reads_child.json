@@ -2,9 +2,8 @@
   "name": "section_in_repeater_reads_child",
   "expect": "cycle",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Cycle"
     },
     "pages": [

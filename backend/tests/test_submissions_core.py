@@ -75,8 +75,8 @@ PEOPLE = [
 ]
 
 
-async def _seed(client: AsyncClient, me: dict[str, Any], language: str = "en") -> Published:
-    pub = await publish(client, me, ELEMENTS, title="Intake", language=language)
+async def _seed(client: AsyncClient, me: dict[str, Any], title: str = "Intake") -> Published:
+    pub = await publish(client, me, ELEMENTS, title=title)
     for person in PEOPLE:
         res = await client.post(f"{pub.base}/submissions", json=pub.submit_body(person))
         assert res.status_code == 201, res.text
@@ -380,15 +380,15 @@ async def test_export_xlsx(
     assert info["rowCount"] == 3 and info["rowsDone"] == 3
     assert wb.sheetnames == ["Submissions", "Dependents"]
     sheet = rows(wb["Submissions"])
-    assert sheet[0][:6] == [
+    # No "Language" column: forms have no language (schemaVersion 2).
+    assert sheet[0][:5] == [
         "#",
         "Submitted at",
         "Status",
         "Version",
-        "Language",
         "Respondent email",
     ]
-    assert sheet[0][6:] == [
+    assert sheet[0][5:] == [
         "Full name (name)",
         "National ID (national_id)",
         "Age (age)",
@@ -398,9 +398,9 @@ async def test_export_xlsx(
         "Notes (notes)",
     ]
     first = sheet[1]
-    assert first[0] == 1 and first[2] == "New" and first[3] == 1 and first[4] == "English"
-    assert first[5] is None  # public form: no confirmed respondent address
-    assert first[6:13] == [
+    assert first[0] == 1 and first[2] == "New" and first[3] == 1
+    assert first[4] is None  # public form: no confirmed respondent address
+    assert first[5:12] == [
         "Aminath Ali",
         "A111567",  # editors and owners export sensitive answers
         19,
@@ -409,7 +409,7 @@ async def test_export_xlsx(
         "2026-11-01",
         '\'=HYPERLINK("http://evil")',  # formula injection neutralised
     ]
-    assert sheet[2][10] == "Law; IT"
+    assert sheet[2][9] == "Law; IT"
     assert rows(wb["Dependents"]) == [
         ["Submission #", "Row", "Name (dep_name)", "ID (dep_id)"],
         [1, 1, "Aisha", "A900001"],
@@ -451,7 +451,7 @@ async def test_export_xlsx(
     assert (await client.post(f"/api/v1/forms/{pub.id}/publish")).status_code == 200
     wb, _info = await _export(client, db, settings, queue, file_storage, pub)
     header = rows(wb["Submissions"])[0]
-    assert header[6:8] == ["Full name (name)", "Email (email)"]
+    assert header[5:7] == ["Full name (name)", "Email (email)"]
     assert header[-1] == "Notes (version 1) (notes)"
 
 
@@ -464,7 +464,7 @@ async def test_export_dv_and_viewer_sees_everything(
     file_storage: Storage,
 ) -> None:
     me = await admin_client(client, db, settings, queue)
-    pub = await _seed(client, me, language="dv")
+    pub = await _seed(client, me, title="ފޯމު")
     viewer = User(email="viewer@example.org")
     db.add(viewer)
     await db.flush()
@@ -480,7 +480,7 @@ async def test_export_dv_and_viewer_sees_everything(
     assert wb["Submissions"].sheet_view.rightToLeft is True
     sheet = rows(wb["Submissions"])
     # Viewers process the data: their exports carry sensitive answers as given.
-    assert sheet[1][4] == "Dhivehi" and sheet[1][7] == "A111567"
+    assert sheet[1][6] == "A111567"
     assert rows(wb["Dependents"])[1][3] == "A900001"
 
 
@@ -498,7 +498,7 @@ async def test_export_ten_thousand_rows(
     file_storage: Storage,
 ) -> None:
     me = await admin_client(client, db, settings, queue)
-    pub = await publish(client, me, ELEMENTS, title="Big", language="dv")
+    pub = await publish(client, me, ELEMENTS, title="ބޮޑު")
     version_id = uuid.UUID(pub.live["versionId"])
     now = datetime.now(UTC)
     await db.execute(
@@ -509,7 +509,6 @@ async def test_export_ten_thousand_rows(
                 "form_id": uuid.UUID(pub.id),
                 "form_version_id": version_id,
                 "seq": i + 1,
-                "language": "dv",
                 "data": {
                     "name": f"ޢާއިޝަތު {i}",
                     "age": 18 + i % 20,
@@ -529,7 +528,7 @@ async def test_export_ten_thousand_rows(
     assert info["rowCount"] == 10_000
     assert wb["Submissions"].max_row == 10_001
     assert wb["Dependents"].max_row == 20_001
-    assert rows(wb["Submissions"])[10_000][6] == "ޢާއިޝަތު 9999"
+    assert rows(wb["Submissions"])[10_000][5] == "ޢާއިޝަތު 9999"
     assert elapsed < 60, elapsed
 
 

@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Condition } from '@/lib/api'
+import { textLang } from '@/schema/direction'
 
 import type { Bar, ChoiceSummary, DateSummary, NumberSummary, QuestionSummary, TextSummary } from './api'
 import { BarList, Columns, type Datum } from './charts'
@@ -34,8 +35,6 @@ import { chartPng, download, fileName } from './png'
 
 export type OpenList = (where: Condition[], label: string) => void
 
-const thaana = /[ހ-޿]/
-const langOf = (text: string, language: string) => (language === 'dv' || thaana.test(text) ? 'dv' : 'en')
 
 function plural(n: number, one: string, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`
@@ -72,12 +71,10 @@ function rowsOf(q: QuestionSummary): Row[] {
 
 function AnswerTable({
   rows,
-  language,
   onPick,
   unit,
 }: {
   rows: Row[]
-  language: string
   onPick: (r: Row) => void
   unit: string
 }) {
@@ -101,7 +98,7 @@ function AnswerTable({
                 onClick={() => onPick(r)}
                 aria-label={`Show the ${plural(r.count, unit.replace(/s$/, ''))} for ${r.label}`}
               >
-                <bdi dir="auto" lang={langOf(r.label, language)}>
+                <bdi dir="auto" lang={textLang(r.label)}>
                   {r.label}
                 </bdi>
               </Button>
@@ -134,7 +131,7 @@ function Stats({ q }: { q: NumberSummary }) {
   )
 }
 
-function OtherAnswers({ q, language }: { q: ChoiceSummary; language: string }) {
+function OtherAnswers({ q}: { q: ChoiceSummary }) {
   const texts = q.other?.texts ?? []
   if (!texts.length) return null
   return (
@@ -149,7 +146,7 @@ function OtherAnswers({ q, language }: { q: ChoiceSummary; language: string }) {
         <ul className="flex flex-col gap-1 pt-1 text-sm">
           {texts.map((t) => (
             <li key={t.text} className="flex items-baseline justify-between gap-3">
-              <bdi dir="auto" lang={langOf(t.text, language)} className="min-w-0 break-words">
+              <bdi dir="auto" lang={textLang(t.text)} className="min-w-0 break-words">
                 {t.text}
               </bdi>
               <span className="shrink-0 text-muted-foreground tabular-nums">{t.count}</span>
@@ -161,7 +158,7 @@ function OtherAnswers({ q, language }: { q: ChoiceSummary; language: string }) {
   )
 }
 
-function Examples({ q, language, formId }: { q: TextSummary; language: string; formId: string }) {
+function Examples({ q, formId }: { q: TextSummary; formId: string }) {
   if (!q.examples.length) return null
   return (
     <ul className="flex flex-col divide-y text-sm">
@@ -175,7 +172,7 @@ function Examples({ q, language, formId }: { q: TextSummary; language: string; f
             <span className="shrink-0 text-muted-foreground tabular-nums">#{e.ref}</span>
             <bdi
               dir="auto"
-              lang={langOf(e.text, language)}
+              lang={textLang(e.text)}
               className="line-clamp-3 min-w-0 break-words"
             >
               {e.text}
@@ -191,7 +188,6 @@ export function QuestionCard({
   q,
   of,
   unit,
-  language,
   formId,
   multipleVersions,
   onOpen,
@@ -200,7 +196,6 @@ export function QuestionCard({
   /** Submissions (or rows, inside a repeater) the shares are out of. */
   of: number
   unit: 'submissions' | 'rows'
-  language: string
   formId: string
   multipleVersions: boolean
   onOpen: OpenList
@@ -228,7 +223,7 @@ export function QuestionCard({
     <Card className="min-w-0 rounded-md border shadow-none ring-0" data-question={q.key}>
       <CardHeader>
         <CardTitle className="text-base leading-snug">
-          <bdi dir="auto" lang={langOf(q.label, language)}>
+          <bdi dir="auto" lang={textLang(q.label)}>
             {q.label}
           </bdi>
         </CardTitle>
@@ -276,9 +271,9 @@ export function QuestionCard({
         {charted && q.answered > 0 && (
           <div ref={chartRef}>
             {asTable ? (
-              <AnswerTable rows={rows} language={language} onPick={pick} unit={unit} />
+              <AnswerTable rows={rows} onPick={pick} unit={unit} />
             ) : q.kind === 'choice' ? (
-              <BarList data={rows} language={language} onPick={(d) => pick(d as Row)} unit={unit} />
+              <BarList data={rows} onPick={(d) => pick(d as Row)} unit={unit} />
             ) : (
               <Columns data={rows} onPick={(d) => pick(d as Row)} unit={unit} />
             )}
@@ -291,7 +286,7 @@ export function QuestionCard({
                 People could tick more than one, so the shares add up to more than 100%.
               </p>
             )}
-            <OtherAnswers q={q} language={language} />
+            <OtherAnswers q={q} />
             {q.truncated && <p className="text-xs text-muted-foreground">Showing the first 100 answers.</p>}
           </>
         )}
@@ -302,7 +297,7 @@ export function QuestionCard({
         )}
         {(q.kind === 'text' || q.kind === 'sensitive') && (
           <>
-            <Examples q={q} language={language} formId={formId} />
+            <Examples q={q} formId={formId} />
           </>
         )}
         {(q.kind === 'file' || q.kind === 'signature') && (

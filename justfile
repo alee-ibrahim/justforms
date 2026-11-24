@@ -28,7 +28,7 @@ migrate:
 create-admin email:
     cd backend && uv run python -m app.cli create-admin --email {{ email }}
 
-# Regenerate spec/form-schema.v1.json and the frontend types after changing the schema
+# Regenerate spec/form-schema.v2.json and the frontend types after changing the schema
 spec:
     cd backend && uv run python -m app.schemas.export
     cd frontend && pnpm gen:schema

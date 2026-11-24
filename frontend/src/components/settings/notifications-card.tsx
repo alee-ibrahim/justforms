@@ -25,7 +25,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { api, ApiError, type EmailLogEntry, type FormSummary, type NotificationRule, type Notifications, type RuleType } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
-import { contentProps } from '@/schema/language'
+import { textProps } from '@/schema/align'
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const CONFIRMED = '__confirmed__'
@@ -251,7 +251,7 @@ export function NotificationsCard({ form, canManage }: { form: FormSummary; canM
                   id="receipt-to"
                   value={receiptTarget}
                   disabled={disabled}
-                  {...contentProps(n.language)}
+                  {...textProps(n.emailFields.find((f) => f.id === receiptTarget)?.label)}
                   onChange={(e) =>
                     put('respondent_receipt', {
                       ...receipt,
@@ -266,7 +266,7 @@ export function NotificationsCard({ form, canManage }: { form: FormSummary; canM
                   )}
                   {!confirmedAvailable && !receipt.emailField && <NativeSelectOption value="">Choose a question</NativeSelectOption>}
                   {n.emailFields.map((f) => (
-                    <NativeSelectOption key={f.id} value={f.id}>
+                    <NativeSelectOption key={f.id} value={f.id} {...textProps(f.label)}>
                       {f.label || f.id}
                     </NativeSelectOption>
                   ))}

@@ -87,6 +87,7 @@ class Submission(IdMixin, TimestampMixin, Base):
         default=SubmissionStatus.NEW,
         server_default="new",
     )
+    # Legacy, unused since schemaVersion 2 (forms have no language); always the default.
     language: Mapped[str] = mapped_column(String(8), default="en", server_default="en")
     data: Mapped[dict[str, Any]] = mapped_column(JSONB)
     # Server time of the submit; part of the content hash, so it never changes.
@@ -224,4 +225,5 @@ class Signature(IdMixin, TimestampMixin, Base):
     ip: Mapped[str | None] = mapped_column(INET)
     user_agent: Mapped[str | None] = mapped_column(String(1000))
     attestation_text: Mapped[str] = mapped_column(Text, default="", server_default="")
-    language: Mapped[str] = mapped_column(String(8))
+    # Legacy, unused since schemaVersion 2 (forms have no language); always the default.
+    language: Mapped[str] = mapped_column(String(8), default="en")

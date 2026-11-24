@@ -2,8 +2,8 @@
  * Approver page (`/a/{token}`, APPROVALS-SCREENS 4). Lazy chunk of the document entry. The
  * approver confirms the address the link was sent to with a one-time code, reads the response
  * (sensitive answers hidden), and approves or rejects. The page is system text, so English and
- * left to right for every form; the form's title, questions and answers take the form's language
- * and direction. The session token lives in memory only.
+ * left to right for every form; the form's title, questions and answers are form content, each
+ * text in its own direction (English and Dhivehi can sit side by side). The session token lives in memory only.
  */
 import { DownloadIcon, FileIcon, InfoIcon, LockIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -30,11 +30,13 @@ import { Textarea } from '@/components/ui/textarea'
 import { answerText } from '@/components/submissions/format'
 import { applyBrand, type Brand } from '@/lib/branding'
 import { loadThaanaFont } from '@/lib/thaana-font'
+import { cn } from '@/lib/utils'
 import { formatSize } from '@/renderer/util'
 import { En, Msg } from '@/renderer/msg'
-import type { Element, FieldElement, Form, FormLanguage } from '@/schema'
-import { contentProps } from '@/schema/language'
-import { displayText } from '@/thaana/display'
+import type { Element, FieldElement, Form } from '@/schema'
+import { formDirection, hasThaana, textDirection, textLang, type TextAlign } from '@/schema/direction'
+import { alignClass, textProps } from '@/schema/align'
+import { FormText } from '@/thaana/form-text'
 
 import { APPROVER as msgs } from './approver-messages'
 import { formatDay, scriptLang } from './messages'
@@ -42,7 +44,6 @@ import { Page } from './page'
 
 interface LinkInfo {
   state: 'pending' | 'approved' | 'rejected' | 'stopped'
-  language: FormLanguage
   orgName: string
   brand?: Brand
   formTitle: string
@@ -110,6 +111,15 @@ type Stage =
  */
 const LABEL = 'text-base font-semibold [&:lang(dv)]:text-lg [&:lang(dv)]:font-normal'
 
+/** A question's label: its own direction and language, aligned like on the form. */
+function Label({ text, align, formAlign }: { text: string; align: TextAlign | null | undefined; formAlign: TextAlign | null | undefined }) {
+  return (
+    <dt {...textProps(text)} className={cn(LABEL, alignClass(align, formAlign, textDirection(text)))}>
+      <FormText text={text} />
+    </dt>
+  )
+}
+
 /** Left-to-right answers: Latin data, and Yes / No (system words, English for every form). */
 const LATIN = new Set(['email', 'phone', 'number', 'date', 'time', 'yes_no'])
 
@@ -156,8 +166,8 @@ function Header({ info }: { info: LinkInfo }) {
           {info.orgName}
         </p>
       )}
-      <p className="text-2xl font-bold" {...contentProps(info.language)}>
-        {displayText(info.formTitle, info.language)}
+      <p className="text-2xl font-bold" {...textProps(info.formTitle)}>
+        <FormText text={info.formTitle} />
       </p>
     </header>
   )
@@ -408,9 +418,9 @@ function Value({
 }: {
   field: FieldElement
   value: unknown
-  ctx: { token: string; bearer: string; view: ApproverView; language: FormLanguage }
+  ctx: { token: string; bearer: string; view: ApproverView; align: TextAlign | null | undefined }
 }) {
-  const { view, language } = ctx
+  const { view } = ctx
   if (view.hidden.includes(field.id))
     return (
       <span className="inline-flex items-center gap-1.5 text-muted-foreground">
@@ -434,11 +444,13 @@ function Value({
         ))}
       </ItemGroup>
     )
-  const text = answerText(field, value, language)
+  const text = answerText(field, value)
   return LATIN.has(field.type) ? (
     <bdi dir="ltr">{text}</bdi>
   ) : (
-    <span className="whitespace-pre-wrap">{displayText(text, language)}</span>
+    <bdi className="whitespace-pre-wrap" {...textProps(text)}>
+      <FormText text={text} />
+    </bdi>
   )
 }
 
@@ -464,14 +476,16 @@ function Rows({ elements, data, ctx }: { elements: Element[]; data: Record<strin
           const cols = (el.elements ?? []).filter((c): c is FieldElement => c.kind === 'field' && c.type !== 'hidden')
           return (
             <div key={el.id} className="flex flex-col gap-1">
-              <dt className={LABEL}>{displayText(el.label, ctx.language)}</dt>
+              <Label text={el.label} align={el.align} formAlign={ctx.align} />
               <dd className="min-w-0 overflow-x-auto rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-8">#</TableHead>
                       {cols.map((c) => (
-                        <TableHead key={c.id}>{c.label}</TableHead>
+                        <TableHead key={c.id} {...textProps(c.label)}>
+                          <FormText text={c.label} />
+                        </TableHead>
                       ))}
                     </TableRow>
                   </TableHeader>
@@ -495,7 +509,7 @@ function Rows({ elements, data, ctx }: { elements: Element[]; data: Record<strin
         if (el.type === 'hidden') return null
         return (
           <div key={el.id} className="flex flex-col gap-1">
-            <dt className={LABEL}>{displayText(el.label, ctx.language)}</dt>
+            <Label text={el.label} align={el.align} formAlign={ctx.align} />
             <dd className="min-w-0 break-words text-base">
               <Value field={el} value={data[el.id]} ctx={ctx} />
             </dd>
@@ -523,7 +537,6 @@ function Review({
   onDecided: (approved: boolean) => void
   onGone: () => void
 }) {
-  const language = info.language
   // Chosen with the email's button: the decision comes first and needs one confirm.
   const [intent, setIntent] = useState<Decision | null>(initialIntent)
   const [name, setName] = useState(rememberedName)
@@ -533,7 +546,11 @@ function Review({
   const [busy, setBusy] = useState(false)
   const heading = useRef<HTMLHeadingElement>(null)
   useEffect(() => heading.current?.focus(), [])
-  const ctx = { token, bearer, view, language }
+  const ctx = { token, bearer, view, align: view.schema.settings.align }
+  // The questions may be in Dhivehi even when the title is not.
+  useEffect(() => {
+    if (hasThaana(JSON.stringify(view.schema))) loadThaanaFont(info.thaanaFontCssUrl)
+  }, [view.schema, info.thaanaFontCssUrl])
   const earlier = view.steps.filter((s) => s.step < view.current && s.state === 'approved')
   const last = view.current === view.steps.length
 
@@ -676,15 +693,27 @@ function Review({
           </ul>
         </section>
       )}
-      {/* The response itself is form content: it takes the form's language and direction. */}
-      <div className="flex flex-col gap-6" {...contentProps(language)}>
+      {/* The response itself is form content: it lays out like the form (its title's direction),
+          and every label and answer takes the direction of its own text. */}
+      <div className="flex flex-col gap-6" dir={formDirection(view.schema)}>
         {view.schema.pages.map((page) => {
           // A page skipped by logic (or with nothing answered) has no heading either.
           if (!hasRows(page.elements ?? [], view.data, view.hidden)) return null
           const rows = <Rows elements={page.elements ?? []} data={view.data} ctx={ctx} />
           return (
             <section key={page.id} className="flex flex-col gap-4">
-              {page.title && <h2 className="text-xl font-semibold">{displayText(page.title, language)}</h2>}
+              {page.title && (
+                <h2
+                  {...textProps(page.title)}
+                  className={cn(
+                    'text-xl',
+                    textLang(page.title) === 'dv' ? 'font-bold' : 'font-semibold',
+                    alignClass(page.align, ctx.align, textDirection(page.title)),
+                  )}
+                >
+                  <FormText text={page.title} />
+                </h2>
+              )}
               <dl className="flex flex-col gap-4">{rows}</dl>
             </section>
           )
@@ -745,7 +774,7 @@ export function ApproverPage({ token }: { token: string }) {
         if (res.status === 404) return setStage({ kind: 'invalid' })
         if (!res.ok) return setStage({ kind: 'error' })
         const next = (await res.json()) as LinkInfo
-        loadThaanaFont(next.language === 'dv' || scriptLang(next.orgName) === 'dv' ? next.thaanaFontCssUrl : null)
+        loadThaanaFont(hasThaana(next.formTitle) || scriptLang(next.orgName) === 'dv' ? next.thaanaFontCssUrl : null)
         setInfo(next)
         setStage({ kind: 'intro' })
       })

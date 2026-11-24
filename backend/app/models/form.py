@@ -17,11 +17,12 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    event,
     func,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, attributes, mapped_column
 
 from app.db import Base
 from app.models.base import IdMixin, TimestampMixin, str_enum
@@ -160,3 +161,25 @@ class FormPermission(TimestampMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True
     )
     role: Mapped[FormRole] = mapped_column(str_enum(FormRole, "form_role"))
+
+
+def upgrade_on_load(model: type[Base], *columns: str) -> None:
+    """Upgrade stored form documents to the current ``schemaVersion`` when a row loads.
+
+    In memory only (the row is not marked dirty): published versions stay byte-for-byte as
+    hashed at publish, and a draft is written back in the new format on its next edit.
+    """
+    from app.schemas.migrate import needs_upgrade, upgrade_form
+
+    def _upgrade(target: Any, *_: Any) -> None:
+        for column in columns:
+            doc = target.__dict__.get(column)
+            if needs_upgrade(doc):
+                attributes.set_committed_value(target, column, upgrade_form(doc))
+
+    event.listen(model, "load", _upgrade)
+    event.listen(model, "refresh", _upgrade)
+
+
+upgrade_on_load(FormRecord, "draft_schema")
+upgrade_on_load(FormVersion, "schema")

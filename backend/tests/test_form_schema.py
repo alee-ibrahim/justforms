@@ -8,9 +8,10 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from app.schemas.direction import text_direction
 from app.schemas.export import main as export_main
 from app.schemas.export import render
-from app.schemas.form import Form, text_direction
+from app.schemas.form import Form
 from app.schemas.rules import collect_publish_issues
 
 EXAMPLE_PATH = Path(__file__).resolve().parents[2] / "spec" / "examples" / "youth-programme.json"
@@ -23,7 +24,7 @@ def fld(id: str, type: str = "short_text", **kw: Any) -> dict[str, Any]:
 
 def form(*elements: dict[str, Any], **page_kw: Any) -> dict[str, Any]:
     return {
-        "schemaVersion": "1",
+        "schemaVersion": "2",
         "settings": {"title": "T"},
         "pages": [{"id": "p1", "elements": list(elements), **page_kw}],
     }
@@ -45,22 +46,42 @@ def codes(data: dict[str, Any]) -> list[str]:
 def test_design_example_is_valid_and_round_trips() -> None:
     parsed = Form.model_validate(EXAMPLE)
     dumped = parsed.dump()
-    assert dumped["settings"]["language"] == "dv"
+    assert "language" not in dumped["settings"] and dumped["schemaVersion"] == "2"
     assert dumped["pages"][0]["elements"][1]["patternMessage"] == "ފޯމެޓް: A123456"
     assert Form.model_validate(dumped) == parsed
 
 
-def test_language_defaults_to_en_and_sets_direction() -> None:
+def test_direction_comes_from_each_text() -> None:
     parsed = Form.model_validate(form(fld("a")))
-    assert parsed.settings.language == "en"
-    assert "language" not in parsed.dump()["settings"]
-    assert text_direction(parsed.settings.language) == "ltr"
-    assert text_direction(Form.model_validate(EXAMPLE).settings.language) == "rtl"
+    assert not hasattr(parsed.settings, "language")
+    assert text_direction(parsed.settings.title) == "ltr"
+    assert text_direction(Form.model_validate(EXAMPLE).settings.title) == "rtl"
 
 
-def test_only_en_and_dv_languages() -> None:
+def test_a_v2_document_has_no_language() -> None:
     data = form(fld("a"))
-    data["settings"]["language"] = "fr"
+    data["settings"]["language"] = "dv"
+    assert "extra_forbidden" in codes(data)
+
+
+def test_align_round_trips() -> None:
+    data = form(
+        fld("a", align="center"),
+        {"kind": "content", "id": "h", "contentType": "heading", "text": "Hi", "align": "right"},
+        align="left",
+    )
+    data["settings"].update({"align": "right", "titleAlign": "center"})
+    parsed = Form.model_validate(data)
+    dumped = parsed.dump()
+    assert dumped["settings"]["align"] == "right" and dumped["settings"]["titleAlign"] == "center"
+    assert dumped["pages"][0]["align"] == "left"
+    assert [e.get("align") for e in dumped["pages"][0]["elements"]] == ["center", "right"]
+    assert Form.model_validate(dumped) == parsed
+    # Unset alignment stays out of the document; "auto" is the form default.
+    plain = Form.model_validate(form(fld("a"))).dump()
+    assert "align" not in plain["pages"][0] and "align" not in plain["pages"][0]["elements"][0]
+    assert "align" not in plain["settings"]
+    data = form(fld("a", align="justify"))
     assert "literal_error" in codes(data)
 
 
@@ -70,7 +91,7 @@ def test_bilingual_text_objects_rejected() -> None:
 
 def test_snake_case_input_is_accepted() -> None:
     data = form(fld("a", visible_if={"field": "b", "op": "empty"}), fld("b"))
-    data["settings"] = {"language": "en", "title": "T", "submit_label": "Send"}
+    data["settings"] = {"title": "T", "submit_label": "Send"}
     assert Form.model_validate(data).pages[0].elements[0].visible_if is not None
 
 

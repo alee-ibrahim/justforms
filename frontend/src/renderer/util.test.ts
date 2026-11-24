@@ -7,8 +7,8 @@ import type { Form } from '@/schema'
 import { padToMinRows } from './util'
 
 const form = {
-  schemaVersion: '1',
-  settings: { language: 'en', title: 'Board' },
+  schemaVersion: '2',
+  settings: { title: 'Board' },
   pages: [
     {
       id: 'page_1',

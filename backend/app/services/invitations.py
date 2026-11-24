@@ -316,8 +316,7 @@ async def render(
             continue
         if form is None or form.deleted_at is not None:
             continue
-        language = str((form.draft_schema.get("settings") or {}).get("language") or "en")
-        forms.append(emails.InvitedForm(title=form.title, language=language))
+        forms.append(emails.InvitedForm(title=form.title))
     return emails.invitation_message(
         org_name=brand.name,
         product=settings.brand_name.strip() or "JustForms",

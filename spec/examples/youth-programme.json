@@ -1,7 +1,6 @@
 {
-  "schemaVersion": "1",
+  "schemaVersion": "2",
   "settings": {
-    "language": "dv",
     "title": "ޒުވާނުންގެ ޕްރޮގްރާމަށް ހުށަހަޅާ ފޯމު",
     "submitLabel": "ހުށަހަޅާ",
     "successMessage": "ޝުކުރިއްޔާ!",

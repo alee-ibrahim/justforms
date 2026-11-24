@@ -2,9 +2,8 @@
   "name": "repeater_and_outside_field",
   "expect": "cycle",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Cycle"
     },
     "pages": [

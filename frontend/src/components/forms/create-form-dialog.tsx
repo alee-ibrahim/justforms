@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { PlusIcon } from 'lucide-react'
-import { useThaanaKeyboard } from '@yashau/thaana-react'
+import { useThaanaKeyboard } from '@/thaana/keyboard'
 import { useState } from 'react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -17,12 +17,13 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { hostPrefix, useSlugCheck } from '@/components/forms/slug'
-import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
+import { Toggle } from '@/components/ui/toggle'
 import { api } from '@/lib/api'
-import { contentProps, isFormLanguage, type FormLanguage } from '@/schema'
+import { toggleOn } from '@/lib/toggle'
+import { textProps } from '@/schema/align'
 import { titleSlug } from '@/thaana/latin'
 
 export function CreateFormDialog({ orgId }: { orgId: string }) {
@@ -30,14 +31,16 @@ export function CreateFormDialog({ orgId }: { orgId: string }) {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
-  const [lang, setLang] = useState<FormLanguage>('en')
-  const keyboard = useThaanaKeyboard<HTMLInputElement>({ enabled: lang === 'dv' })
+  // A form has no language: the title may be English, Dhivehi or both. The toggle turns on the
+  // phonetic Thaana keyboard; the field's direction follows what is typed.
+  const [thaana, setThaana] = useState(false)
+  const keyboard = useThaanaKeyboard<HTMLInputElement>({ enabled: thaana })
   const auto = titleSlug(title)
   const check = useSlugCheck(auto, undefined, open && title.trim().length > 0)
   const address = check.result ? (check.result.available ? auto : check.result.suggestion) : null
 
   const create = useMutation({
-    mutationFn: () => api.createForm(orgId, { title: title.trim(), language: lang }),
+    mutationFn: () => api.createForm(orgId, { title: title.trim() }),
     onSuccess: async (form) => {
       await queryClient.invalidateQueries({ queryKey: ['forms', orgId] })
       setOpen(false)
@@ -52,7 +55,7 @@ export function CreateFormDialog({ orgId }: { orgId: string }) {
         setOpen(next)
         if (next) {
           setTitle('')
-          setLang('en')
+          setThaana(false)
           create.reset()
         }
       }}
@@ -74,7 +77,7 @@ export function CreateFormDialog({ orgId }: { orgId: string }) {
           <DialogHeader>
             <DialogTitle>New form</DialogTitle>
             <DialogDescription>
-              Give the form a title and pick the language its questions are written in.
+              Give the form a title. Forms can hold English and Dhivehi text side by side.
             </DialogDescription>
           </DialogHeader>
           <FieldGroup>
@@ -87,16 +90,30 @@ export function CreateFormDialog({ orgId }: { orgId: string }) {
             )}
             <Field>
               <FieldLabel htmlFor="form-title">Title</FieldLabel>
-              <Input
-                ref={keyboard}
-                id="form-title"
-                required
-                maxLength={500}
-                {...contentProps(lang)}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                autoFocus
-              />
+              <InputGroup>
+                <InputGroupInput
+                  ref={keyboard}
+                  id="form-title"
+                  required
+                  maxLength={500}
+                  {...textProps(title, thaana ? 'rtl' : 'ltr')}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  autoFocus
+                />
+                <InputGroupAddon align="inline-end">
+                  <Toggle
+                    size="sm"
+                    pressed={thaana}
+                    onPressedChange={setThaana}
+                    aria-label="Thaana keyboard"
+                    title="Thaana keyboard"
+                    className={toggleOn}
+                  >
+                    <bdi dir="ltr">ތ / A</bdi>
+                  </Toggle>
+                </InputGroupAddon>
+              </InputGroup>
               {/* Until there is a title this line says what Create form needs (REVIEW P3-5); then it
                   shows the address the title gives. */}
               <FieldDescription id="form-title-hint" aria-live="polite" className="min-h-5 truncate">
@@ -109,29 +126,6 @@ export function CreateFormDialog({ orgId }: { orgId: string }) {
                 )}
               </FieldDescription>
             </Field>
-            <FieldSet>
-              <FieldLegend variant="label">Form language</FieldLegend>
-              <RadioGroup
-                value={lang}
-                onValueChange={(v) => {
-                  if (isFormLanguage(v)) setLang(v)
-                }}
-                className="flex gap-6"
-              >
-                <Field orientation="horizontal" className="w-auto">
-                  <RadioGroupItem value="en" id="lang-en" />
-                  <FieldLabel htmlFor="lang-en" className="font-normal">
-                    English
-                  </FieldLabel>
-                </Field>
-                <Field orientation="horizontal" className="w-auto">
-                  <RadioGroupItem value="dv" id="lang-dv" />
-                  <FieldLabel htmlFor="lang-dv" className="font-normal">
-                    Dhivehi
-                  </FieldLabel>
-                </Field>
-              </RadioGroup>
-            </FieldSet>
           </FieldGroup>
           <DialogFooter>
             <DialogClose asChild>

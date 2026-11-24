@@ -1,0 +1,38 @@
+"""Per-text direction and alignment (app/schemas/direction.py), shared with the frontend twin
+through spec/direction/vectors.json."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from app.schemas.direction import has_thaana, is_rtl, resolve_align, text_direction, text_lang
+
+VECTORS: dict[str, Any] = json.loads(
+    (Path(__file__).resolve().parents[2] / "spec" / "direction" / "vectors.json").read_text(
+        encoding="utf-8"
+    )
+)
+
+
+@pytest.mark.parametrize("case", VECTORS["direction"], ids=lambda c: repr(c["text"])[:30])
+def test_direction_vectors(case: dict[str, Any]) -> None:
+    fallback = case.get("fallback")
+    got = text_direction(case["text"], fallback) if fallback else text_direction(case["text"])
+    assert got == case["dir"]
+    assert text_lang(case["text"]) == case["lang"]
+
+
+@pytest.mark.parametrize(
+    "case", VECTORS["align"], ids=lambda c: f"{c['align']}-{c['default']}-{c['dir']}"
+)
+def test_align_vectors(case: dict[str, Any]) -> None:
+    assert resolve_align(case["align"], case["default"], case["dir"]) == case["result"]
+
+
+def test_helpers() -> None:
+    assert has_thaana("Name / ނަން") and not has_thaana("Name") and not has_thaana(None)
+    assert is_rtl("ނަން / Name") and not is_rtl("Name / ނަން")

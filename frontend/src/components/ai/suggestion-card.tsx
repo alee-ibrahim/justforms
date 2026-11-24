@@ -16,10 +16,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Spinner } from '@/components/ui/spinner'
+import { hasThaana, textLang } from '@/schema/direction'
 
 import type { Change, ChangeKind, Proposal } from './api'
 import { type AiController, useAi } from './controller'
-import { textLang } from './files'
 
 const BADGE: Record<ChangeKind, { word: string; icon: typeof PlusIcon; variant: 'secondary' | 'outline' }> = {
   added: { word: 'Added', icon: PlusIcon, variant: 'secondary' },
@@ -38,14 +38,14 @@ function ChangeBadge({ change }: { change: ChangeKind }) {
   )
 }
 
-function ChangeLabel({ change, language }: { change: Change; language: string }) {
+function ChangeLabel({ change }: { change: Change }) {
   if (change.kind === 'settings') return <>Form title and settings</>
   const label = change.label.trim()
   return (
     <span className="min-w-0 truncate">
       {change.kind === 'page' && <span className="text-muted-foreground">Page: </span>}
       {label ? (
-        <bdi dir="auto" lang={textLang(label, language)}>
+        <bdi dir="auto" lang={textLang(label)}>
           {label}
         </bdi>
       ) : (
@@ -67,7 +67,9 @@ export function SuggestionCard({
 }) {
   const busy = useAi(ai, (s) => s.busy)
   const stale = useAi(ai, (s) => s.stale)
-  const { changes, flags, language } = proposal
+  const { changes, flags } = proposal
+  // The AI may write Dhivehi in any form (forms are bilingual): flag it when it did.
+  const dhivehi = changes.some((c) => hasThaana(c.label))
   return (
     <section aria-label="Suggested changes" className="flex flex-col gap-3 rounded-md border bg-card p-3">
       <h3 className="text-sm font-medium">Suggested changes</h3>
@@ -84,7 +86,7 @@ export function SuggestionCard({
                 )}
                 <ItemContent className="min-w-0">
                   <ItemTitle className="w-full min-w-0 font-normal">
-                    <ChangeLabel change={c} language={language} />
+                    <ChangeLabel change={c} />
                   </ItemTitle>
                 </ItemContent>
                 <ItemActions>
@@ -114,7 +116,7 @@ export function SuggestionCard({
             <ul className="list-disc ps-4">
               {flags.map((f) => (
                 <li key={f.targetId}>
-                  <bdi dir="auto" lang={textLang(f.label ?? '', language)}>
+                  <bdi dir="auto" lang={textLang(f.label)}>
                     {f.label ?? f.targetId}
                   </bdi>
                   : {f.note}
@@ -124,7 +126,7 @@ export function SuggestionCard({
           </AlertDescription>
         </Alert>
       )}
-      {language === 'dv' && (
+      {dhivehi && (
         <Alert>
           <LanguagesIcon />
           <AlertDescription>

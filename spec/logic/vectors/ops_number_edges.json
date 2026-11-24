@@ -2,9 +2,8 @@
   "name": "ops_number_edges",
   "description": "Decimals, zero, negatives and large numbers",
   "schema": {
-    "schemaVersion": "1",
+    "schemaVersion": "2",
     "settings": {
-      "language": "en",
       "title": "Vector"
     },
     "pages": [

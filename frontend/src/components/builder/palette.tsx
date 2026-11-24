@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { Element } from '@/schema'
-import { formLanguage } from '@/schema/language'
+import { textLang } from '@/schema/direction'
 
 import { addBlock, focusBlock } from './actions'
 import { BLOCK_GROUPS, BLOCK_TYPES, type BlockTypeInfo, blockInfo, blockLabel } from './block-types'
@@ -114,7 +114,6 @@ export function TypeList({ onAdded }: { onAdded?: () => void }) {
 function OutlineRow({ el, depth }: { el: Element; depth: number }) {
   const store = useStore()
   const selected = useBuilder((s) => s.selection.type === 'element' && s.selection.id === el.id)
-  const language = useBuilder((s) => formLanguage(s.schema))
   const info = blockInfo(el)
   const Icon = info.icon
   const label = blockLabel(el)
@@ -137,7 +136,7 @@ function OutlineRow({ el, depth }: { el: Element; depth: number }) {
       <Icon className="text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate text-start">
         {label ? (
-          <bdi dir="auto" lang={language}>
+          <bdi dir="auto" lang={textLang(label)}>
             {label}
           </bdi>
         ) : (
@@ -183,7 +182,6 @@ function Outline() {
   const store = useStore()
   const pages = useBuilder((s) => s.schema.pages)
   const pageId = useBuilder((s) => s.pageId)
-  const language = useBuilder((s) => formLanguage(s.schema))
   return (
     <nav aria-label="Form outline" className="flex flex-col gap-2">
       {pages.map((page, i) => (
@@ -208,7 +206,7 @@ function Outline() {
               <span className="tabular-nums">{i + 1}.</span>
               <span className="min-w-0 truncate">
                 {page.title ? (
-                  <bdi dir="auto" lang={language}>
+                  <bdi dir="auto" lang={textLang(page.title)}>
                     {page.title}
                   </bdi>
                 ) : (

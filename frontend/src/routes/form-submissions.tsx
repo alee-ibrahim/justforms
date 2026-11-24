@@ -61,8 +61,7 @@ import { cn } from '@/lib/utils'
 import { useDelayed } from '@/lib/use-delayed'
 import { buildIndex } from '@/logic/form-index'
 import type { FieldElement, Form } from '@/schema'
-import { formLanguage } from '@/schema/language'
-import { hasThaana } from '@yashau/thaana-react'
+import { textLang } from '@/schema/direction'
 
 const TABS: Tab[] = ['new', 'in_review', 'approved', 'rejected', 'all']
 const APPROVAL_WORDS: Record<string, string> = { approved: 'Approved', rejected: 'Rejected', stopped: 'Stopped' }
@@ -87,8 +86,8 @@ function topFields(form: Form | undefined): FieldElement[] {
     .filter((f) => f.type !== 'hidden')
 }
 
-function Cell({ field, row, form }: { field: FieldElement; row: SubmissionSummary; form: Form }) {
-  const text = answerText(field, row.data[field.id], formLanguage(form))
+function Cell({ field, row }: { field: FieldElement; row: SubmissionSummary }) {
+  const text = answerText(field, row.data[field.id])
   if (!text) return <span className="text-muted-foreground">-</span>
   if (field.sensitive)
     return (
@@ -103,7 +102,7 @@ function Cell({ field, row, form }: { field: FieldElement; row: SubmissionSummar
       </Tooltip>
     )
   return (
-    <bdi dir="auto" lang={hasThaana(text) ? 'dv' : 'en'} className="inline-block max-w-56 truncate align-middle">
+    <bdi dir="auto" lang={textLang(text)} className="inline-block max-w-56 truncate align-middle">
       {text}
     </bdi>
   )
@@ -216,7 +215,6 @@ export function FormSubmissionsPage() {
   )
   const showSkeleton = useDelayed(list.isPending)
   const schema = live.data?.schema
-  const language = schema ? formLanguage(schema) : 'en'
   const fields = useMemo(() => topFields(schema), [schema])
   const {
     columns: cols,
@@ -482,7 +480,6 @@ export function FormSubmissionsPage() {
                 </InputGroup>
                 <AddFilter
                   fields={fields}
-                  language={language}
                   onAdd={(f) => setSearch({ fields: [...fieldFilters, f] })}
                 />
                 <DateRangeFilter from={search.from} to={search.to} onChange={(r) => setSearch(r)} />
@@ -497,16 +494,15 @@ export function FormSubmissionsPage() {
                   state={sortState}
                   onSort={setSort}
                   fields={fields}
-                  language={language}
                   showRespondent={showRespondent}
                   showApproval={approvals}
                   className={cn(view === 'table' && 'md:hidden', 'max-sm:size-8 max-sm:px-0 max-sm:[&>span]:sr-only')}
                 />
                 <div className="ms-auto flex items-center gap-2 max-md:hidden">
                   {view === 'table' ? (
-                    <ColumnPicker fields={fields} ids={colIds} language={language} onChange={saveColumns} />
+                    <ColumnPicker fields={fields} ids={colIds} onChange={saveColumns} />
                   ) : (
-                    canEdit && <CardFieldPicker form={form} fields={fields} shown={shownOnCards} language={language} />
+                    canEdit && <CardFieldPicker form={form} fields={fields} shown={shownOnCards} />
                   )}
                   <ToggleGroup
                     type="single"
@@ -533,7 +529,6 @@ export function FormSubmissionsPage() {
                   <FilterChips
                     filters={fieldFilters}
                     fields={fields}
-                    language={language}
                     onRemove={(i) => setSearch({ fields: fieldFilters.filter((_, j) => j !== i) })}
                   />
                   {conditions && (
@@ -600,13 +595,13 @@ export function FormSubmissionsPage() {
                       {cols.map((c) =>
                         isSortable(c) ? (
                           <SortableHead key={c.id} sortKey={c.id} state={sortState} onSort={setSort} kind={fieldKind(c)}>
-                            <bdi dir="auto" lang={language}>
+                            <bdi dir="auto" lang={textLang(c.label)}>
                               {c.label}
                             </bdi>
                           </SortableHead>
                         ) : (
                           <TableHead key={c.id}>
-                            <bdi dir="auto" lang={language}>
+                            <bdi dir="auto" lang={textLang(c.label)}>
                               {c.label}
                             </bdi>
                           </TableHead>
@@ -661,7 +656,7 @@ export function FormSubmissionsPage() {
                           </TableCell>
                         )}
                         {cols.map((c) => (
-                          <TableCell key={c.id}>{schema && <Cell field={c} row={row} form={schema} />}</TableCell>
+                          <TableCell key={c.id}>{schema && <Cell field={c} row={row} />}</TableCell>
                         ))}
                       </TableRow>
                     ))}

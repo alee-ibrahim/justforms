@@ -14,14 +14,14 @@ import { BuilderContext, BuilderStore } from './store'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-const makeForm = (language: 'en' | 'dv' = 'en'): Form => ({
-  schemaVersion: '1',
-  settings: { title: 'Registration', language },
+const makeForm = (label = 'Full name'): Form => ({
+  schemaVersion: '2',
+  settings: { title: 'Registration' },
   pages: [
     {
       id: 'page_1',
       elements: [
-        { kind: 'field', id: 'full_name', type: 'short_text', label: language === 'dv' ? 'ފުރިހަމަ ނަން' : 'Full name' },
+        { kind: 'field', id: 'full_name', type: 'short_text', label },
         {
           kind: 'field',
           id: 'colour',
@@ -58,7 +58,7 @@ afterEach(() => {
 function ctx(form: Form): RendererContextValue {
   return {
     form,
-    language: form.settings.language ?? 'en',
+    dir: 'ltr',
     mode: 'canvas',
     convention: 'optional',
     getValue: () => undefined,
@@ -85,7 +85,6 @@ function Label() {
       editKey={textKey.element('full_name', 'label')}
       value={el.label}
       name="question label"
-      language={form.settings.language ?? 'en'}
       empty="Untitled question"
       onCommit={(t) => store.edit((f) => setElementText(f, 'full_name', 'label', t).form)}
     />
@@ -194,12 +193,30 @@ describe('InlineText', () => {
     expect(input().value).toBe('Full name')
   })
 
-  it('types a Dhivehi form right to left with the Thaana keyboard toggle', () => {
-    mount(() => <Label />, makeForm('dv'))
+  it('types a Dhivehi label right to left with the Thaana keyboard on', () => {
+    mount(() => <Label />, makeForm('ފުރިހަމަ ނަން'))
     act(() => idle(textKey.element('full_name', 'label')).click())
     expect(input().getAttribute('dir')).toBe('rtl')
     expect(input().getAttribute('lang')).toBe('dv')
-    expect(host.querySelector('[aria-label="Thaana keyboard"]')).not.toBeNull()
+    expect(host.querySelector('[aria-label="Thaana keyboard"]')?.getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('types an English label left to right, keyboard offered but off, in a bilingual form', () => {
+    mount(() => <Label />, makeForm('Name / ނަން'))
+    act(() => idle(textKey.element('full_name', 'label')).click())
+    expect(input().getAttribute('dir')).toBe('ltr')
+    expect(input().getAttribute('lang')).toBe('en')
+    expect(host.querySelector('[aria-label="Thaana keyboard"]')?.getAttribute('aria-pressed')).toBe('false')
+    key(input(), 'Escape')
+  })
+
+  it('switches direction as the text changes script', () => {
+    mount(() => <Label />)
+    act(() => idle(textKey.element('full_name', 'label')).click())
+    type(input(), 'ނަން / Name')
+    expect(input().getAttribute('dir')).toBe('rtl')
+    expect(input().getAttribute('lang')).toBe('dv')
+    key(input(), 'Escape')
   })
 })
 

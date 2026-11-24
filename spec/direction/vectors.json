@@ -1,0 +1,111 @@
+{
+  "description": "Text direction of form content: first strong character (Unicode bidi P2). Thaana is rtl, Latin ltr; text with no strong character takes the fallback. lang is dv when the direction is rtl and the text holds Thaana. Run by backend (app/schemas/direction.py) and frontend (src/schema/direction.ts).",
+  "direction": [
+    {
+      "text": "Full name",
+      "dir": "ltr",
+      "lang": "en"
+    },
+    {
+      "text": "ފުރިހަމަ ނަން",
+      "dir": "rtl",
+      "lang": "dv"
+    },
+    {
+      "text": "Name / ނަން",
+      "dir": "ltr",
+      "lang": "en"
+    },
+    {
+      "text": "ނަން / Name",
+      "dir": "rtl",
+      "lang": "dv"
+    },
+    {
+      "text": "  123 - ނަން",
+      "dir": "rtl",
+      "lang": "dv"
+    },
+    {
+      "text": "(1) Email",
+      "dir": "ltr",
+      "lang": "en"
+    },
+    {
+      "text": "ަ",
+      "dir": "ltr",
+      "lang": "en"
+    },
+    {
+      "text": "",
+      "dir": "ltr",
+      "lang": "en"
+    },
+    {
+      "text": "123",
+      "dir": "ltr",
+      "lang": "en"
+    },
+    {
+      "text": "123",
+      "fallback": "rtl",
+      "dir": "rtl",
+      "lang": "en"
+    },
+    {
+      "text": "Ünïcödé",
+      "dir": "ltr",
+      "lang": "en"
+    }
+  ],
+  "align": [
+    {
+      "align": null,
+      "default": "auto",
+      "dir": "ltr",
+      "result": "left"
+    },
+    {
+      "align": null,
+      "default": "auto",
+      "dir": "rtl",
+      "result": "right"
+    },
+    {
+      "align": null,
+      "default": null,
+      "dir": "rtl",
+      "result": "right"
+    },
+    {
+      "align": "center",
+      "default": "auto",
+      "dir": "rtl",
+      "result": "center"
+    },
+    {
+      "align": null,
+      "default": "center",
+      "dir": "ltr",
+      "result": "center"
+    },
+    {
+      "align": "auto",
+      "default": "center",
+      "dir": "rtl",
+      "result": "right"
+    },
+    {
+      "align": "left",
+      "default": "right",
+      "dir": "rtl",
+      "result": "left"
+    },
+    {
+      "align": "right",
+      "default": "auto",
+      "dir": "ltr",
+      "result": "right"
+    }
+  ]
+}

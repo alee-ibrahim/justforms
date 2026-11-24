@@ -1,4 +1,4 @@
-"""Suggestion helpers: the change list, language checks and the guarded (rebased) patch."""
+"""Suggestion helpers: the change list and the guarded (rebased) patch."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import copy
 import jsonpatch
 import pytest
 
-from app.ai.service import changes, guarded_patch, language_flags
+from app.ai.service import changes, guarded_patch
 from app.ai.tools import WorkingCopy
 from tests.test_ai_tools import base
 
@@ -33,25 +33,6 @@ def test_change_list() -> None:
         ("element", "phone", "added"),
     }
     assert changes(old, old) == []
-
-
-def test_language_flags() -> None:
-    dv = base("dv")
-    w = WorkingCopy(copy.deepcopy(dv))
-    w.run(
-        "add_field", {"parentId": "page_2", "field": {"id": "a", "type": "email", "label": "Email"}}
-    )
-    w.run(
-        "add_field", {"parentId": "page_2", "field": {"id": "b", "type": "email", "label": "އީމެއިލް"}}
-    )
-    flags = language_flags(w.schema, changes(dv, w.schema), "dv")
-    assert [f["targetId"] for f in flags] == ["a"]
-    en = base()
-    w = WorkingCopy(copy.deepcopy(en))
-    w.run(
-        "add_field", {"parentId": "page_2", "field": {"id": "c", "type": "email", "label": "އީމެއިލް"}}
-    )
-    assert [f["targetId"] for f in language_flags(w.schema, changes(en, w.schema), "en")] == ["c"]
 
 
 def test_guarded_patch_applies_to_unrelated_edits_and_refuses_clashes() -> None:

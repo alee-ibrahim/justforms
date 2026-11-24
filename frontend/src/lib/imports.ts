@@ -1,5 +1,5 @@
 /** Jotform import API (backend/app/api/v1/imports.py, DESIGN 13). Studio only. */
-import type { Form, FormLanguage } from '@/schema'
+import type { Form } from '@/schema'
 
 import { ApiError, csrfToken, type SubmissionStatus } from './api'
 
@@ -54,8 +54,6 @@ export interface FormImport {
   status: 'preview' | 'done'
   schema: Form
   report: FormImportReport
-  language: FormLanguage
-  detectedLanguage: FormLanguage
   sourceUrl: string | null
   jotformFormId: string | null
   fieldCount: number
@@ -130,7 +128,7 @@ export interface MappingPreview {
 export const IGNORE = 'ignore'
 
 export const importsApi = {
-  fromHtml: (orgId: string, body: { html?: string; url?: string; language?: FormLanguage }) =>
+  fromHtml: (orgId: string, body: { html?: string; url?: string }) =>
     call<FormImport>('POST', `/orgs/${orgId}/imports/jotform/html`, body),
   listJotformForms: (orgId: string, apiKey: string, region: JotformRegion) =>
     call<JotformForm[]>('POST', `/orgs/${orgId}/imports/jotform/api/forms`, { apiKey, region }),
@@ -138,7 +136,7 @@ export const importsApi = {
     call<FormImport>('POST', `/orgs/${orgId}/imports/jotform/api`, { apiKey, region, formId }),
   setOptions: (importId: string, body: { collapseAsPages: boolean }) =>
     call<FormImport>('PATCH', `/imports/${importId}/options`, body),
-  createForm: (importId: string, body: { title?: string; language?: FormLanguage }) =>
+  createForm: (importId: string, body: { title?: string }) =>
     call<{ formId: string }>('POST', `/imports/${importId}/form`, body),
   uploadSubmissions: (formId: string, file: File) =>
     call<SubmissionsImport>(

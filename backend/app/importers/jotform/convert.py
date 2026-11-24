@@ -22,8 +22,9 @@ from app.importers.jotform.model import (
     JfSource,
     ReportItem,
 )
-from app.importers.jotform.text import IdPool, ScriptCount, option_values, snake
-from app.schemas.form import Form
+from app.importers.jotform.text import IdPool, option_values, snake
+from app.schemas.direction import is_rtl
+from app.schemas.form import SCHEMA_VERSION, Form
 
 # The "not imported" entry for the form's cover/header image; the import endpoints drop it
 # again when the logo was downloaded and becomes the form's own logo.
@@ -124,8 +125,6 @@ class ConversionError(ValueError):
 class Conversion:
     form: dict[str, Any]
     report: ImportReport
-    language: str
-    detected_language: str
     captcha: bool = False
     # Collapsible sections in the source, and whether each became a page (a step).
     collapse_sections: int = 0
@@ -134,7 +133,6 @@ class Conversion:
 
 @dataclass
 class _Ctx:
-    language: str
     max_upload_mb: int
     collapse_as_pages: bool = False
     pool: IdPool = field(default_factory=IdPool)
@@ -516,7 +514,8 @@ def _convert_question(ctx: _Ctx, q: JfQuestion) -> None:
             status = "changed"
         if props.get("time"):
             label, _ = _label(q)
-            time_label = f"{label} (time)" if ctx.language == "en" else label
+            # The English suffix only reads right after a left-to-right label.
+            time_label = label if is_rtl(label) else f"{label} (time)"
             time_el: dict[str, Any] = {
                 "kind": "field",
                 "id": ctx.pool.take(f"{el['id']}_time", "time"),
@@ -860,36 +859,21 @@ def _conditions(ctx: _Ctx, doc: dict[str, Any], conditions: list[JfCondition]) -
 # -- entry point ---------------------------------------------------------------------------
 
 
-def detect_language(src: JfSource) -> str:
-    count = ScriptCount()
-    count.add(src.title)
-    for q in src.questions:
-        count.add(q.label)
-        count.add(q.text)
-        count.add(q.subtext)
-        count.add(q.description)
-        for o in q.options:
-            count.add(o.label)
-    return count.language
-
-
 def convert(
     src: JfSource,
     *,
-    language: str | None = None,
     max_upload_mb: int = 25,
     source_kind: str = "html",
     collapse_as_pages: bool | None = None,
 ) -> Conversion:
     """``collapse_as_pages``: each collapsible section becomes a step (page). ``None`` picks
-    the default: on when the form has collapsible sections and no page breaks."""
-    detected = detect_language(src)
-    lang = language or detected
+    the default: on when the form has collapsible sections and no page breaks. Text is kept
+    as written: a form may mix English and Dhivehi (there is no form language)."""
     collapses = sum(1 for q in src.questions if q.type == "control_collapse")
     if collapse_as_pages is None:
         collapse_as_pages = default_collapse_as_pages(src)
     collapse_as_pages = collapse_as_pages and collapses > 0
-    ctx = _Ctx(language=lang, max_upload_mb=max_upload_mb, collapse_as_pages=collapse_as_pages)
+    ctx = _Ctx(max_upload_mb=max_upload_mb, collapse_as_pages=collapse_as_pages)
     ctx.pages.append({"id": "page_1", "elements": []})
     for q in src.questions:
         _convert_question(ctx, q)
@@ -898,7 +882,6 @@ def convert(
         ctx.pages.pop()
 
     settings: dict[str, Any] = {
-        "language": lang,
         "title": ctx.title or src.title or "Imported form",
     }
     if ctx.title and src.title and src.title != ctx.title and not ctx.description:
@@ -907,7 +890,11 @@ def convert(
         settings["description"] = ctx.description
     if ctx.submit_label:
         settings["submitLabel"] = ctx.submit_label
-    doc: dict[str, Any] = {"schemaVersion": "1", "settings": settings, "pages": ctx.pages}
+    doc: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "settings": settings,
+        "pages": ctx.pages,
+    }
     problem = _validate(doc)
     if problem:
         raise ConversionError(problem)
@@ -931,11 +918,6 @@ def convert(
         + (" (not part of the form's HTML)" if source_kind == "html" else "")
     )
     report.dropped.extend(src.extras)
-    if lang != detected:
-        report.notes.append(
-            f"The text looks {'Dhivehi' if detected == 'dv' else 'English'}, "
-            f"but the form language was set to {'Dhivehi' if lang == 'dv' else 'English'}."
-        )
     if collapse_as_pages:
         report.notes.append(
             f"Each of the {collapses} collapsible sections became a step (page) of its own, "
@@ -949,8 +931,6 @@ def convert(
     return Conversion(
         form=form,
         report=report,
-        language=lang,
-        detected_language=detected,
         captcha=ctx.captcha,
         collapse_sections=collapses,
         collapse_as_pages=collapse_as_pages,
