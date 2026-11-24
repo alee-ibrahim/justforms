@@ -9,8 +9,9 @@ The frontend twin is ``frontend/src/schema/direction.ts``; both run
 
 from __future__ import annotations
 
+import re
 import unicodedata
-from typing import Literal
+from typing import Literal, TypedDict
 
 Direction = Literal["ltr", "rtl"]
 
@@ -42,14 +43,44 @@ def text_lang(text: str | None) -> Literal["dv", "en"]:
     return "dv" if is_rtl(text) and has_thaana(text) else "en"
 
 
-def resolve_align(
-    align: str | None, default: str | None, direction: Direction
-) -> Literal["left", "center", "right"]:
-    """Physical alignment of a text: an explicit ``left``/``center``/``right`` wins (element,
-    then form default); ``auto`` (or nothing) follows the text's direction."""
+class TextLine(TypedDict):
+    text: str
+    dir: Direction
+    lang: Literal["dv", "en"]
+
+
+_LINE_BREAK = re.compile(r"\r\n|\r|\n")
+
+
+def text_lines(text: str | None, default: Direction = "ltr") -> list[TextLine]:
+    """Multi-line text (descriptions, paragraphs, long answers) line by line: each line
+    break-separated paragraph takes its own direction from its first strong character, so an
+    English paragraph followed by Dhivehi ones reads left to right, then right to left (as
+    CSS ``unicode-bidi: plaintext``). A line with no strong character (blank, figures) takes
+    the direction of the whole text."""
+    base = text_direction(text, default)
+    return [
+        {"text": line, "dir": text_direction(line, base), "lang": text_lang(line)}
+        for line in _LINE_BREAK.split(text or "")
+    ]
+
+
+def explicit_align(
+    align: str | None, default: str | None
+) -> Literal["left", "center", "right"] | None:
+    """The explicit ``left``/``center``/``right`` an element resolves to (its own, then the
+    form default), or ``None`` for ``auto``: each paragraph then aligns to its own direction."""
     for value in (align, default):
         if value in ("left", "center", "right"):
             return value  # type: ignore[return-value]
         if value == "auto":
             break
-    return "right" if direction == "rtl" else "left"
+    return None
+
+
+def resolve_align(
+    align: str | None, default: str | None, direction: Direction
+) -> Literal["left", "center", "right"]:
+    """Physical alignment of a text: an explicit ``left``/``center``/``right`` wins (element,
+    then form default); ``auto`` (or nothing) follows the text's direction."""
+    return explicit_align(align, default) or ("right" if direction == "rtl" else "left")

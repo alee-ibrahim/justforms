@@ -1,5 +1,5 @@
 {
-  "description": "Text direction of form content: first strong character (Unicode bidi P2). Thaana is rtl, Latin ltr; text with no strong character takes the fallback. lang is dv when the direction is rtl and the text holds Thaana. Run by backend (app/schemas/direction.py) and frontend (src/schema/direction.ts).",
+  "description": "Text direction of form content: first strong character (Unicode bidi P2). Thaana is rtl, Latin ltr; text with no strong character takes the fallback. lang is dv when the direction is rtl and the text holds Thaana. Run by backend (app/schemas/direction.py) and frontend (src/schema/direction.ts). lines: multi-line text split at every line break (\n, \r\n, \r); each line takes its own direction, and a line with no strong character the whole text's (its first strong character, else the fallback). explicit: the left/center/right an align resolves to, or null for auto (each paragraph then aligns to its own direction).",
   "direction": [
     {
       "text": "Full name",
@@ -63,49 +63,172 @@
       "align": null,
       "default": "auto",
       "dir": "ltr",
-      "result": "left"
+      "result": "left",
+      "explicit": null
     },
     {
       "align": null,
       "default": "auto",
       "dir": "rtl",
-      "result": "right"
+      "result": "right",
+      "explicit": null
     },
     {
       "align": null,
       "default": null,
       "dir": "rtl",
-      "result": "right"
+      "result": "right",
+      "explicit": null
     },
     {
       "align": "center",
       "default": "auto",
       "dir": "rtl",
-      "result": "center"
+      "result": "center",
+      "explicit": "center"
     },
     {
       "align": null,
       "default": "center",
       "dir": "ltr",
-      "result": "center"
+      "result": "center",
+      "explicit": "center"
     },
     {
       "align": "auto",
       "default": "center",
       "dir": "rtl",
-      "result": "right"
+      "result": "right",
+      "explicit": null
     },
     {
       "align": "left",
       "default": "right",
       "dir": "rtl",
-      "result": "left"
+      "result": "left",
+      "explicit": "left"
     },
     {
       "align": "right",
       "default": "auto",
       "dir": "ltr",
-      "result": "right"
+      "result": "right",
+      "explicit": "right"
+    }
+  ],
+  "lines": [
+    {
+      "text": "Welcome to the form.\nފޯމަށް މަރުޙަބާ.",
+      "lines": [
+        {
+          "dir": "ltr",
+          "lang": "en"
+        },
+        {
+          "dir": "rtl",
+          "lang": "dv"
+        }
+      ]
+    },
+    {
+      "text": "Please read the notes below.\n\nމި ފޯމު ފުރިހަމަ ކުރައްވާ.\nސުވާލުތަކަށް ޖަވާބު ދެއްވާ.",
+      "lines": [
+        {
+          "dir": "ltr",
+          "lang": "en"
+        },
+        {
+          "dir": "ltr",
+          "lang": "en"
+        },
+        {
+          "dir": "rtl",
+          "lang": "dv"
+        },
+        {
+          "dir": "rtl",
+          "lang": "dv"
+        }
+      ]
+    },
+    {
+      "text": "ނޯޓު:\r\n2026\r\nNotes in English",
+      "lines": [
+        {
+          "dir": "rtl",
+          "lang": "dv"
+        },
+        {
+          "dir": "rtl",
+          "lang": "en"
+        },
+        {
+          "dir": "ltr",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "text": "Name / ނަން\nނަން / Name",
+      "lines": [
+        {
+          "dir": "ltr",
+          "lang": "en"
+        },
+        {
+          "dir": "rtl",
+          "lang": "dv"
+        }
+      ]
+    },
+    {
+      "text": "123\n\n",
+      "fallback": "rtl",
+      "lines": [
+        {
+          "dir": "rtl",
+          "lang": "en"
+        },
+        {
+          "dir": "rtl",
+          "lang": "en"
+        },
+        {
+          "dir": "rtl",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "text": "Single line",
+      "lines": [
+        {
+          "dir": "ltr",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "text": "",
+      "lines": [
+        {
+          "dir": "ltr",
+          "lang": "en"
+        }
+      ]
+    },
+    {
+      "text": "English\rދިވެހި",
+      "lines": [
+        {
+          "dir": "ltr",
+          "lang": "en"
+        },
+        {
+          "dir": "rtl",
+          "lang": "dv"
+        }
+      ]
     }
   ]
 }

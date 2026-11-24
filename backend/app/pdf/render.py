@@ -41,7 +41,14 @@ from app.answers import WORDS, answer_text
 from app.logic.engine import evaluate
 from app.logic.index import FormIndex
 from app.pdf.faces import BUNDLED, LATIN_BOLD, LATIN_REGULAR, ThaanaFace
-from app.schemas.direction import Direction, has_thaana, resolve_align, text_direction
+from app.schemas.direction import (
+    Direction,
+    explicit_align,
+    has_thaana,
+    resolve_align,
+    text_direction,
+    text_lines,
+)
 from app.schemas.form import (
     ContentElement,
     DateField,
@@ -248,14 +255,47 @@ class _Doc(FPDF):
         line: float | None = None,
         dry_run: bool = False,
         align: str | None = None,
+        per_line: bool = False,
     ) -> float:
         """A paragraph. ``content`` text is shaped in its own direction and face (``_font``);
         ``latin`` (Latin-only answers, English labels) is shaped left to right. ``align`` is
         ``left``/``center``/``right``; by default content follows its own direction and
         English system text the sheet's start edge. Returns the height it takes, gap
-        included; ``dry_run`` only measures."""
+        included; ``dry_run`` only measures.
+
+        Multi-line ``content`` text is laid out line by line: each line break-separated
+        paragraph is shaped in its own direction (an English paragraph, then Dhivehi ones),
+        aligned by ``align`` when ``per_line`` is false, else each to its own direction."""
         if not text:
             return 0.0
+        if content and not latin and ("\n" in text or "\r" in text):
+            total = 0.0
+            lines = text_lines(text, text_direction(text, self.sheet_dir))
+            for i, para in enumerate(lines):
+                last = i == len(lines) - 1
+                own = "right" if para["dir"] == "rtl" else "left"
+                if not para["text"].strip():
+                    blank = size * 0.5
+                    if dry_run:
+                        total += blank
+                    else:
+                        self.ln(blank)
+                    continue
+                total += self.text_block(
+                    para["text"],
+                    size=size,
+                    bold=bold,
+                    color=color,
+                    gap=gap if last else 0.0,
+                    line=line,
+                    dry_run=dry_run,
+                    align=own if per_line or align is None else align,
+                )
+            if not lines[-1]["text"].strip():
+                total += gap
+                if not dry_run:
+                    self.ln(gap)
+            return total if dry_run else 0.0
         content = content and not latin
         direction: Direction = text_direction(text, self.sheet_dir) if content else "ltr"
         thaana = content and has_thaana(text)
@@ -416,7 +456,13 @@ def _answer(doc: _Doc, fld: FieldElement, value: Any, src: PdfInput) -> None:
     if not text:
         doc.text_block(no_answer, latin=True, color=MUTED, gap=3, align=align)
     else:
-        doc.text_block(text, latin=isinstance(fld, LATIN_ONLY), gap=3, align=align)
+        doc.text_block(
+            text,
+            latin=isinstance(fld, LATIN_ONLY),
+            gap=3,
+            align=align,
+            per_line=explicit_align(getattr(fld, "align", None), src.form.settings.align) is None,
+        )
 
 
 PNG_MAGIC = bytes.fromhex("89504e470d0a1a0a")

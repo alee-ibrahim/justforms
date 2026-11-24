@@ -32,7 +32,8 @@ import { En } from './msg'
 import { isGroupControl, placement, widthClass } from './util'
 
 /** Help text may hold lists and paragraphs, so it is a div styled like FieldDescription. */
-export const DESCRIPTION = 'max-w-[36em] text-base text-muted-foreground'
+/** Help text: each paragraph is capped at a reading width (`Markdown measure`). */
+export const DESCRIPTION = 'text-base text-muted-foreground'
 
 /** Grid that pairs half-width questions on ≥ sm and stacks them on phones. */
 export function QuestionGrid({ children, className }: { children: ReactNode; className?: string }) {
@@ -122,7 +123,7 @@ export function QuestionView({
       {description !== undefined
         ? description
         : field.description && (
-            <Markdown id={descId} text={field.description} className={DESCRIPTION} style={place.block} rtl={place.dir === 'rtl'} />
+            <Markdown id={descId} text={field.description} className={DESCRIPTION} align={place.align} measure rtl={place.dir === 'rtl'} />
           )}
       {invalid && (
         <FieldError id={errId} className="text-base">
@@ -195,7 +196,7 @@ export function ContentView({ el, placeholder }: { el: ContentElement; placehold
     case 'paragraph':
       return el.text ? (
         <div dir={place.dir} lang={place.lang}>
-          <Markdown text={el.text} className="max-w-[36em] text-base" style={place.block} rtl={place.dir === 'rtl'} />
+          <Markdown text={el.text} className="text-base" align={place.align} measure rtl={place.dir === 'rtl'} />
         </div>
       ) : (
         <p className="text-base" dir={place.dir} style={place.text}>
@@ -244,7 +245,7 @@ export function SectionFrame({
       ) : (
         el.description && (
           <div dir={place.dir} lang={place.lang}>
-            <Markdown text={el.description} className={DESCRIPTION} style={place.block} rtl={place.dir === 'rtl'} />
+            <Markdown text={el.description} className={DESCRIPTION} align={place.align} measure rtl={place.dir === 'rtl'} />
           </div>
         )
       )}

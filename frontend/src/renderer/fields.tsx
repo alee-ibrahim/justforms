@@ -11,7 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { FormText } from '@/thaana/form-text'
-import { textDirection, textLang } from '@/schema/direction'
+import { PER_LINE, textDirection, textLang } from '@/schema/direction'
 import type {
   FieldElement,
   LongTextField,
@@ -115,7 +115,7 @@ function TextControl({
   return (
     <>
       {field.type === 'long_text' ? (
-        <Textarea {...common} rows={field.rows ?? 4} className="min-h-28 text-base md:text-base" />
+        <Textarea {...common} rows={field.rows ?? 4} className={cn('min-h-28 text-base md:text-base', PER_LINE)} />
       ) : (
         <Input
           {...common}

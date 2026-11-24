@@ -8,17 +8,26 @@ import { describe, expect, it } from 'vitest'
 import { parseForm } from '.'
 import { alignClass } from './align'
 import {
+  explicitAlign,
   formDirection,
   resolveAlign,
   textDirection,
   textLang,
+  textLines,
   type TextAlign,
   type TextDirection,
 } from './direction'
 
 interface Vectors {
   direction: { text: string; fallback?: TextDirection; dir: TextDirection; lang: 'dv' | 'en' }[]
-  align: { align: TextAlign | null; default: TextAlign | null; dir: TextDirection; result: string }[]
+  align: {
+    align: TextAlign | null
+    default: TextAlign | null
+    dir: TextDirection
+    result: string
+    explicit: string | null
+  }[]
+  lines: { text: string; fallback?: TextDirection; lines: { dir: TextDirection; lang: 'dv' | 'en' }[] }[]
 }
 
 const vectors = JSON.parse(
@@ -37,6 +46,14 @@ describe('resolveAlign (shared vectors)', () => {
   for (const v of vectors.align)
     it(`${v.align} / ${v.default} / ${v.dir}`, () => {
       expect(resolveAlign(v.align, v.default, v.dir)).toBe(v.result)
+      expect(explicitAlign(v.align, v.default)).toBe(v.explicit)
+    })
+})
+
+describe('textLines (shared vectors)', () => {
+  for (const v of vectors.lines)
+    it(JSON.stringify(v.text), () => {
+      expect(textLines(v.text, v.fallback).map(({ dir, lang }) => ({ dir, lang }))).toEqual(v.lines)
     })
 })
 

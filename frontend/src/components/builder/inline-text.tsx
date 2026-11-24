@@ -23,8 +23,8 @@ import { flushSync } from 'react-dom'
 
 import { InputGroup, InputGroupInput, InputGroupTextarea } from '@/components/ui/input-group'
 import { cn } from '@/lib/utils'
-import { FormText } from '@/thaana/form-text'
-import { textDirection, textLang, type TextDirection } from '@/schema/direction'
+import { FormLines } from '@/thaana/form-text'
+import { PER_LINE, textDirection, textLang, type TextDirection } from '@/schema/direction'
 
 import { contentTyping } from './content-typing'
 
@@ -103,7 +103,7 @@ export function InlineText(props: InlineTextProps) {
   const empty = props.empty ?? props.prompt
   const content =
     props.frame ??
-    (filled ? (props.display ?? <FormText text={value} />) : typeof empty === 'string' ? <Prompt>{empty}</Prompt> : empty)
+    (filled ? (props.display ?? <FormLines text={value} />) : typeof empty === 'string' ? <Prompt>{empty}</Prompt> : empty)
   const Tag = block ? 'div' : 'span'
   // The text keeps its own direction inside its block (an English option in a Dhivehi question).
   const own = filled && !props.frame && !props.display ? { dir: textDirection(value), lang: textLang(value) } : {}
@@ -259,7 +259,7 @@ function InlineEditor({
             {...common}
             ref={ref}
             rows={box ? 3 : 1}
-            className={cn(BOX, 'mx-0 my-0 h-auto min-h-0 resize-none', box && 'min-h-28', inputClassName)}
+            className={cn(BOX, 'mx-0 my-0 h-auto min-h-0 resize-none', PER_LINE, box && 'min-h-28', inputClassName)}
           />
         ) : (
           <InputGroupInput {...common} ref={ref} className={cn(BOX, 'mx-0 my-0', inputClassName)} />

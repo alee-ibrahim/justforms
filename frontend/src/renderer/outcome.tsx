@@ -8,7 +8,7 @@ import { useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import type { Form } from '@/schema'
-import { FormText } from '@/thaana/form-text'
+import { FormLines } from '@/thaana/form-text'
 
 import { placement } from './util'
 
@@ -36,7 +36,7 @@ export function SuccessScreen({
         ref={(el) => el?.focus()}
         {...(message ? { dir: place.dir, lang: place.lang, style: place.text } : {})}
       >
-        {message ? <FormText text={message} /> : <En>{msgs.successDefault}</En>}
+        {message ? <FormLines text={message} /> : <En>{msgs.successDefault}</En>}
       </h1>
       <div className="flex flex-col items-center gap-1 rounded-md border bg-background py-6 text-center">
         <p className="text-sm text-muted-foreground">

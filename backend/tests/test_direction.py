@@ -9,7 +9,15 @@ from typing import Any
 
 import pytest
 
-from app.schemas.direction import has_thaana, is_rtl, resolve_align, text_direction, text_lang
+from app.schemas.direction import (
+    explicit_align,
+    has_thaana,
+    is_rtl,
+    resolve_align,
+    text_direction,
+    text_lang,
+    text_lines,
+)
 
 VECTORS: dict[str, Any] = json.loads(
     (Path(__file__).resolve().parents[2] / "spec" / "direction" / "vectors.json").read_text(
@@ -31,6 +39,14 @@ def test_direction_vectors(case: dict[str, Any]) -> None:
 )
 def test_align_vectors(case: dict[str, Any]) -> None:
     assert resolve_align(case["align"], case["default"], case["dir"]) == case["result"]
+    assert explicit_align(case["align"], case["default"]) == case["explicit"]
+
+
+@pytest.mark.parametrize("case", VECTORS["lines"], ids=lambda c: repr(c["text"])[:30])
+def test_lines_vectors(case: dict[str, Any]) -> None:
+    fallback = case.get("fallback")
+    got = text_lines(case["text"], fallback) if fallback else text_lines(case["text"])
+    assert [{"dir": line["dir"], "lang": line["lang"]} for line in got] == case["lines"]
 
 
 def test_helpers() -> None:

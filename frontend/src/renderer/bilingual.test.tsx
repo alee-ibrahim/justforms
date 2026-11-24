@@ -158,3 +158,28 @@ describe('requirement marker', () => {
     expect(track.lastElementChild?.textContent).toBe(' (required)')
   })
 })
+
+describe('multi-paragraph text (per-line direction)', () => {
+  const text = 'Please read the notes below.\n\nމި ފޯމު ފުރިހަމަ ކުރައްވާ.\nސުވާލުތަކަށް ޖަވާބު ދެއްވާ.\nEnglish again'
+  const withParagraph = (align?: 'left' | 'center' | 'right'): Form => ({
+    ...form,
+    pages: [{ id: 'page_1', elements: [{ kind: 'content', id: 'p', contentType: 'paragraph', text, align }] }],
+  })
+
+  it('gives each line break-separated paragraph its own direction and start alignment (auto)', () => {
+    const ps = [...render(withParagraph()).querySelectorAll<HTMLElement>('p')]
+    expect(ps.map((p) => p.getAttribute('dir'))).toEqual(['ltr', 'rtl', 'ltr'])
+    expect(ps.map((p) => p.getAttribute('lang'))).toEqual(['en', 'dv', 'en'])
+    expect(ps[1].textContent).toBe('މި ފޯމު ފުރިހަމަ ކުރައްވާ.ސުވާލުތަކަށް ޖަވާބު ދެއްވާ.')
+    for (const p of ps) {
+      expect(p.style.textAlign).toBe('start')
+      expect(p.className).toContain('max-w-[36em]')
+    }
+  })
+
+  it('applies an explicit alignment to every paragraph', () => {
+    const ps = [...render(withParagraph('right')).querySelectorAll<HTMLElement>('p')]
+    expect(ps.map((p) => p.getAttribute('dir'))).toEqual(['ltr', 'rtl', 'ltr'])
+    for (const p of ps) expect(p.style.textAlign).toBe('right')
+  })
+})

@@ -121,6 +121,8 @@ export interface Placement {
   /** The block's own direction and language (from its text). */
   dir: TextDirection
   lang: 'dv' | 'en'
+  /** The alignment mode: `auto` (each paragraph to its own direction) or an explicit side. */
+  align: TextAlign
   /** Text alignment. Physical for left/right so nested runs in the other direction keep it;
    * `start` for auto, so each nested paragraph starts at its own edge. */
   text: CSSProperties
@@ -149,5 +151,5 @@ export function placement(
       : auto
         ? text_
         : { ...text_, [side === 'left' ? 'marginRight' : 'marginLeft']: 'auto' }
-  return { dir, lang: textLang(text), text: text_, block }
+  return { dir, lang: textLang(text), align: auto ? 'auto' : side, text: text_, block }
 }

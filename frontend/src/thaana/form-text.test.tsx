@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
-import { FormText } from './form-text'
+import { FormLines, FormText } from './form-text'
 import { isMixed, scriptRuns } from './runs'
 
 describe('scriptRuns', () => {
@@ -33,5 +33,21 @@ describe('FormText', () => {
 
   it('marks the Latin run inside Dhivehi text', () => {
     expect(renderToStaticMarkup(<FormText text="ނަން / Name" />)).toBe('ނަން / <span lang="en" dir="ltr">Name</span>')
+  })
+})
+
+describe('FormLines', () => {
+  it('renders each line in its own direction', () => {
+    const html = renderToStaticMarkup(<FormLines text={'Hello\nހެލޯ\n\n123'} align="auto" />)
+    expect(html).toBe(
+      '<span class="block" dir="ltr" lang="en" style="text-align:start">Hello</span>' +
+        '<span class="block" dir="rtl" lang="dv" style="text-align:start">ހެލޯ</span>' +
+        '<span class="block" dir="ltr" lang="en" style="text-align:start"><br/></span>' +
+        '<span class="block" dir="ltr" lang="en" style="text-align:start">123</span>',
+    )
+  })
+
+  it('leaves single-line text to FormText', () => {
+    expect(renderToStaticMarkup(<FormLines text="Full name" />)).toBe('Full name')
   })
 })

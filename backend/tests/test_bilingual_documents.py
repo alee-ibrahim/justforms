@@ -224,3 +224,102 @@ def test_email_title_alignment_and_isolation() -> None:
     assert "⁨ފޯމު⁩ (#0007)" in msg.subject
     code = emails.code_message(org_name="", title="Mixed / ފޯމު", code="123456", minutes=10)
     assert "⁨" not in code.subject
+
+
+# An English paragraph followed by Dhivehi ones: direction is resolved per line.
+PARAGRAPHS = "Please read the notes below.\n\nމި ފޯމު ފުރިހަމަ ކުރައްވާ.\nސުވާލުތަކަށް ޖަވާބު ދެއްވާ."
+
+
+def _long_form(**settings: Any) -> Form:
+    return _form(
+        {"kind": "field", "id": "notes", "type": "long_text", "label": "Notes"},
+        successMessage=PARAGRAPHS,
+        **settings,
+    )
+
+
+def _long_receipt(form: Form) -> str:
+    msg = emails.receipt_message(
+        org_name="Example Office",
+        form=form,
+        title=form.settings.title,
+        reference="#0007",
+        submitted=datetime(2026, 11, 1, tzinfo=UTC),
+        tz=ZoneInfo("UTC"),
+        answers=emails.answers_for_email(form, {"notes": PARAGRAPHS}),
+        pdf=None,
+    )
+    return msg.html or ""
+
+
+def test_email_multi_paragraph_text_takes_direction_per_line() -> None:
+    html = _long_receipt(_long_form())
+    english = re.findall(r"<div([^>]*)>Please read", html)
+    dhivehi = re.findall(r"<div([^>]*)>ސުވާލުތަކަށް", html)
+    # The answer and the success message: each paragraph in its own direction and side.
+    assert len(english) == 2 and len(dhivehi) == 2
+    for tag in english:
+        assert 'dir="ltr"' in tag and 'lang="en"' in tag and 'align="left"' in tag
+    for tag in dhivehi:
+        assert 'dir="rtl"' in tag and 'lang="dv"' in tag and 'align="right"' in tag
+        assert "Noto Sans Thaana" in tag
+    # An explicit alignment applies to every paragraph.
+    centred = _long_receipt(_long_form(align="center"))
+    for tag in re.findall(r"<div([^>]*)>(?:Please read|ސުވާލުތަކަށް)", centred):
+        assert 'align="center"' in tag
+
+
+def test_email_custom_message_takes_direction_per_line() -> None:
+    form = _long_form()
+    msg = emails.receipt_message(
+        org_name="Example Office",
+        form=form,
+        title=form.settings.title,
+        reference="#0007",
+        submitted=datetime(2026, 11, 1, tzinfo=UTC),
+        tz=ZoneInfo("UTC"),
+        answers=[],
+        pdf=None,
+        wording=emails.Wording(message=PARAGRAPHS),
+    )
+    html = msg.html or ""
+    assert 'dir="rtl"' in _div(html, "ސުވާލުތަކަށް")
+    assert 'dir="ltr"' in _div(html, "Please read")
+
+
+def test_pdf_multi_paragraph_answer_takes_direction_per_line() -> None:
+    form = _long_form()
+    pdf = render_pdf(
+        PdfInput(
+            org_name="Example Office",
+            form_title=form.settings.title,
+            form=form,
+            version=1,
+            schema_hash="x",
+            submission_id="00000000-0000-0000-0000-000000000000",
+            seq=7,
+            submitted_at=datetime(2026, 11, 1, tzinfo=UTC),
+            data={"notes": PARAGRAPHS},
+            content_hash="y",
+            chain_head=None,
+            tz=ZoneInfo("UTC"),
+            verify_url="http://testserver/v/token",
+        )
+    )
+    doc = pdfium.PdfDocument(pdf)
+    page = doc[0]
+    width = page.get_width()
+    tp = page.get_textpage()
+    text = tp.get_text_range()
+    tp.close()
+    # The English paragraph starts at the left margin, the Dhivehi ones end at the right.
+    assert _char_x(page, text, "Please read") < width / 4
+    tp = page.get_textpage()
+    try:
+        boxes = [tp.get_charbox(i) for i in range(tp.count_chars())]
+        chars = tp.get_text_range()
+    finally:
+        tp.close()
+    thaana = [b for c, b in zip(chars, boxes, strict=False) if "\u0780" <= c <= "\u07bf"]
+    assert thaana and max(b[2] for b in thaana) > width * 0.85
+    doc.close()

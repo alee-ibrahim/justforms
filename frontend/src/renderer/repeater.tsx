@@ -113,7 +113,7 @@ export function RepeaterFrame({
       ) : (
         el.description && (
           <div dir={place.dir} lang={place.lang}>
-            <Markdown text={el.description} className={DESCRIPTION} style={place.block} rtl={place.dir === 'rtl'} />
+            <Markdown text={el.description} className={DESCRIPTION} align={place.align} measure rtl={place.dir === 'rtl'} />
           </div>
         )
       )}
