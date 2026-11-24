@@ -7,6 +7,8 @@ import { type ComponentProps } from 'react'
 
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
+import { PER_LINE } from '@/schema/direction'
 import type { TextDirection } from '@/schema/direction'
 
 import { contentTyping } from './content-typing'
@@ -20,6 +22,8 @@ export function ContentInput({ dir, ...props }: Omit<ComponentProps<'input'>, 'd
   return <Input {...contentTyping(props.value, dir)} {...props} />
 }
 
-export function ContentTextarea({ dir, ...props }: Omit<ComponentProps<'textarea'>, 'dir'> & Extra) {
-  return <Textarea {...contentTyping(props.value, dir)} {...props} />
+/** Multi-line form text: every line break-separated paragraph follows its own first strong
+ * character (`PER_LINE`), so Dhivehi lines after an English one read right to left. */
+export function ContentTextarea({ dir, className, ...props }: Omit<ComponentProps<'textarea'>, 'dir'> & Extra) {
+  return <Textarea {...contentTyping(props.value, dir)} {...props} className={cn(PER_LINE, className)} />
 }

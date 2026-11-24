@@ -24,7 +24,16 @@ from markupsafe import Markup, escape
 from app.answers import answer_text
 from app.config import Settings
 from app.logic.index import FormIndex
-from app.schemas.direction import has_thaana, is_rtl, resolve_align, text_direction, text_lang
+from app.schemas.direction import (
+    explicit_align,
+    has_thaana,
+    is_rtl,
+    isolate_runs,
+    resolve_align,
+    text_direction,
+    text_lang,
+    text_lines,
+)
 from app.schemas.form import (
     DateField,
     EmailField,
@@ -103,15 +112,15 @@ _TEMPLATES = {
 {% for a in answers %}
 {% set l = a.label_block %}{% set v = a.value_block %}
 <tr><td style="padding:8px 0;border-top:1px solid #DCE0EA;text-align:{{ a.cell_align }}" align="{{ a.cell_align }}">
-<div lang="{{ l.lang }}" dir="{{ l.dir }}" align="{{ l.align }}" style="color:#3A425E;font-size:{{ l.px }}px;line-height:1.75;text-align:{{ l.align }}{{ l.font }}">{{ a.label }}</div>
-<div lang="{{ v.lang }}" dir="{{ v.dir }}" align="{{ v.align }}" style="white-space:pre-wrap;font-size:{{ v.px }}px;line-height:1.75;text-align:{{ v.align }}{{ v.font }}">{% if a.ltr %}<bdi dir="ltr" style="font-family:Inter,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">{{ a.value }}</bdi>{% else %}{{ a.value }}{% endif %}</div></td></tr>
+<div lang="{{ l.lang }}" dir="{{ l.dir }}" align="{{ l.align }}" style="color:#3A425E;font-size:{{ l.px }}px;line-height:1.75;text-align:{{ l.align }}{{ l.font }}">{{ a.label|runs(l.dir) }}</div>
+{% if a.value_lines %}<div style="white-space:pre-wrap;font-size:{{ v.px }}px;line-height:1.75">{{ a.value_lines }}</div></td></tr>{% else %}<div lang="{{ v.lang }}" dir="{{ v.dir }}" align="{{ v.align }}" style="white-space:pre-wrap;font-size:{{ v.px }}px;line-height:1.75;text-align:{{ v.align }}{{ v.font }}">{% if a.ltr %}<bdi dir="ltr" style="font-family:Inter,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">{{ a.value }}</bdi>{% else %}{{ a.value|runs(v.dir) }}{% endif %}</div></td></tr>{% endif %}
 {% endfor %}
 </table>
 {% endif %}""",
     "owner.html": """{% extends "layout.html" %}{% block body %}
 <p style="margin:0 0 4px;color:#5A6380">New response</p>
-<h1 style="margin:0 0 16px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
-{% if message %}<p style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message }}</p>
+<h1 style="margin:0 0 16px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
+{% if message %}<div style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message|paragraphs }}</div>
 {% endif %}<p style="margin:0 0 16px">Reference <strong>{{ reference }}</strong>, submitted {{ submitted }}{% if respondent %} by <bdi>{{ respondent }}</bdi>{% endif %}.</p>
 <p style="margin:0 0 20px"><a href="{{ url }}" style="display:inline-block;background:{{ brand.button_bg }};color:{{ brand.button_fg }};text-decoration:none;padding:10px 16px;border-radius:6px">Open the submission</a></p>
 {% if answers %}{% include "answers.html" %}{% else %}<p style="color:#5A6380;margin:0">Answers are not included in this email. Open the submission to read them.</p>{% endif %}
@@ -131,9 +140,10 @@ Open the submission: {{ url }}
 Answers are not included in this email.
 {% endif %}""",
     "receipt.html": """{% extends "layout.html" %}{% block body %}
-<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
-{% if message %}<p style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message }}</p>
-{% elif success %}<p style="margin:0 0 16px;white-space:pre-wrap;text-align:{{ s.align }}{{ s.font }}" lang="{{ s.lang }}" dir="{{ s.dir }}" align="{{ s.align }}">{{ success }}</p>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
+{% if message %}<div style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message|paragraphs }}</div>
+{% elif success_lines %}<div style="margin:0 0 16px;white-space:pre-wrap">{{ success_lines }}</div>
+{% elif success %}<p style="margin:0 0 16px;white-space:pre-wrap;text-align:{{ s.align }}{{ s.font }}" lang="{{ s.lang }}" dir="{{ s.dir }}" align="{{ s.align }}">{{ success|runs(s.dir) }}</p>
 {% else %}<p style="margin:0 0 16px">{{ w.receipt_intro }}</p>
 {% endif %}
 <p style="margin:0 0 4px">{{ w.reference }}: <strong>{{ reference }}</strong></p>
@@ -156,7 +166,7 @@ Answers are not included in this email.
 {{ a.value }}
 {% endfor %}{% endif %}""",
     "code.html": """{% extends "layout.html" %}{% block body %}
-<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
 <p style="margin:0 0 12px">{{ body }}</p>
 <p style="margin:0 0 16px;font-size:28px;letter-spacing:4px;font-family:Inter,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-variant-numeric:tabular-nums">{{ code }}</p>
 <p style="margin:0;color:#5A6380">{{ w.code_ignore }}</p>
@@ -169,8 +179,8 @@ Answers are not included in this email.
 """,
     "approval_request.html": """{% extends "layout.html" %}{% block body %}
 <p style="margin:0 0 4px;color:#5A6380">{{ kicker }}</p>
-<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
-{% if message %}<p style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message }}</p>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
+{% if message %}<div style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message|paragraphs }}</div>
 {% endif %}<p style="margin:0 0 {{ '8' if step_of else '20' }}px">{{ body }}</p>
 {% if step_of %}<p style="margin:0 0 20px;color:#5A6380">{{ step_of }}</p>
 {% endif %}
@@ -203,8 +213,8 @@ Answers are not included in this email.
 """,
     "approval_notice.html": """{% extends "layout.html" %}{% block body %}
 <p style="margin:0 0 4px;color:#5A6380">{{ kicker }}</p>
-<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
-{% if message %}<p style="margin:0 0 12px;white-space:pre-wrap" dir="auto">{{ message }}</p>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
+{% if message %}<div style="margin:0 0 12px;white-space:pre-wrap" dir="auto">{{ message|paragraphs }}</div>
 <p style="margin:0 0 {{ '8' if step_of else '20' }}px">{{ w.reference }} <strong>{{ reference }}</strong></p>
 {% else %}<p style="margin:0 0 {{ '8' if step_of else '20' }}px">{{ body }}</p>
 {% endif %}{% if step_of %}<p style="margin:0 0 20px;color:#5A6380">{{ step_of }}</p>
@@ -232,13 +242,13 @@ Answers are not included in this email.
 {{ note }}
 """,
     "outcome.html": """{% extends "layout.html" %}{% block body %}
-<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
-{% if message %}<p style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message }}</p>
+<h1 style="margin:0 0 12px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
+{% if message %}<div style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ message|paragraphs }}</div>
 <p style="margin:0 0 16px">{{ w.outcome_reference }}: <strong>{{ reference }}</strong></p>
 {% else %}<p style="margin:0 0 16px">{{ body }}</p>
 {% endif %}
 {% if comment %}<p style="margin:0 0 4px;color:#5A6380">{{ w.outcome_comment }}</p>
-<p style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ comment }}</p>{% endif %}
+<div style="margin:0 0 16px;white-space:pre-wrap" dir="auto">{{ comment|paragraphs }}</div>{% endif %}
 {% if pdf %}<p style="margin:0">{{ w.outcome_pdf }}</p>{% endif %}
 {% endblock %}""",
     "outcome.txt": """{{ title }}
@@ -257,7 +267,7 @@ Answers are not included in this email.
 <h1 style="margin:0 0 12px;font-size:20px">Join <bdi dir="auto">{{ org_name }}</bdi></h1>
 <p style="margin:0 0 16px">{{ intro }}</p>
 {% if forms %}<p style="margin:0 0 4px">They shared these forms with you:</p>
-{% for f in forms %}<p lang="{{ f.lang }}" dir="{{ f.dir }}" align="{{ f.align }}" style="margin:0 0 4px;font-weight:bold;text-align:{{ f.align }}{{ f.font }}">{{ f.title }}</p>
+{% for f in forms %}<p lang="{{ f.lang }}" dir="{{ f.dir }}" align="{{ f.align }}" style="margin:0 0 4px;font-weight:bold;text-align:{{ f.align }}{{ f.font }}">{{ f.title|runs(f.dir) }}</p>
 {% endfor %}<div style="height:12px"></div>
 {% endif %}
 <p style="margin:0 0 20px"><a href="{{ url }}" style="display:inline-block;background:{{ brand.button_bg }};color:{{ brand.button_fg }};text-decoration:none;padding:10px 16px;border-radius:6px">Accept the invitation</a></p>
@@ -279,7 +289,7 @@ The link works until {{ until }}. If you weren't expecting this, you can ignore 
 """,
     "form_shared.html": """{% extends "layout.html" %}{% block body %}
 <p style="margin:0 0 4px;color:#5A6380">{{ kicker }}</p>
-<h1 style="margin:0 0 16px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title }}</h1>
+<h1 style="margin:0 0 16px;font-size:20px;text-align:{{ align }}{{ font }}" lang="{{ lang }}" dir="{{ dir }}" align="{{ align }}">{{ title|runs(dir) }}</h1>
 <p style="margin:0 0 16px">{{ body }}</p>
 {% if note %}<p style="margin:0 0 4px;color:#5A6380"><bdi dir="auto">{{ sharer }}</bdi> wrote:</p>
 <p style="margin:0 0 20px;padding:4px 0 4px 12px;border-left:3px solid #DCE0EA;white-space:pre-wrap" dir="auto">{{ note }}</p>
@@ -366,6 +376,9 @@ class Answer:
     ltr: bool = False
     # The question's ``align`` resolved with the form's (``None``: its label's direction).
     align: str | None = None
+    # The explicit left/center/right it resolves to; ``None`` (auto): each paragraph of a
+    # multi-line answer aligns to its own direction.
+    explicit: str | None = None
 
     @property
     def cell_align(self) -> str:
@@ -374,6 +387,13 @@ class Answer:
     @property
     def label_block(self) -> dict[str, str]:
         return _block(self.label, self.cell_align, label=True)
+
+    @property
+    def value_lines(self) -> Markup | None:
+        """A multi-line answer, one block per line in its own direction (None: one line)."""
+        if self.ltr or not (_multiline(self.value) or self.explicit == "justify"):
+            return None
+        return paragraphs_html(self.value, self.explicit, px=("15", "18"))
 
     @property
     def value_block(self) -> dict[str, str]:
@@ -470,6 +490,65 @@ def _block(text: str, align: str | None = None, *, label: bool = False) -> dict[
     }
 
 
+def _multiline(text: str | None) -> bool:
+    return bool(text) and ("\n" in text or "\r" in text)  # type: ignore[operator]
+
+
+def paragraphs_html(
+    text: str, align: str | None = None, *, px: tuple[str, str] | None = None
+) -> Markup:
+    """Multi-line form content (a long answer, the success message, a custom message) as one
+    ``<div>`` per line: each line break-separated paragraph has its own ``lang``/``dir`` from
+    its dominant script, so an English paragraph followed by Dhivehi ones reads left to right,
+    then right to left. ``align`` (explicit left/center/right) applies to every line; ``None``
+    (auto) aligns each line to its own direction; ``justify`` justifies each paragraph's
+    wrapped lines with its last line at its own start edge. ``px``: Latin and Thaana sizes."""
+    out = []
+    for line in text_lines(text):
+        own = "right" if line["dir"] == "rtl" else "left"
+        side = own if align in (None, "justify") else align
+        css = f"justify;text-align-last:{own}" if align == "justify" else side
+        thaana = has_thaana(line["text"])
+        size = f";font-size:{px[1] if thaana else px[0]}px" if px else ""
+        out.append(
+            Markup('<div lang="{}" dir="{}" align="{}" style="text-align:{}{}{}">{}</div>').format(
+                line["lang"],
+                line["dir"],
+                side,
+                css,
+                size,
+                Markup(THAANA_FONT if thaana else ""),
+                runs_html(line["text"], line["dir"]) if line["text"].strip() else Markup("&nbsp;"),
+            )
+        )
+    return Markup("").join(out)
+
+
+def runs_html(text: Any, direction: str | None = None) -> Markup:
+    """Form content for HTML, escaped, with runs of the other script isolated in ``<bdi>``
+    in their own direction and language (``isolate_runs``), so brackets and punctuation next
+    to them stay on the side of the surrounding text ("(PPY)" inside Dhivehi)."""
+    text = "" if text is None else str(text)
+    base = direction if direction in ("ltr", "rtl") else None
+    return Markup("").join(
+        Markup('<bdi dir="{}" lang="{}">{}</bdi>').format(d, "dv" if d == "rtl" else "en", chunk)
+        if d
+        else escape(chunk)
+        for chunk, d in isolate_runs(text, base)  # type: ignore[arg-type]
+    )
+
+
+def _paragraphs_filter(text: Any) -> Markup | str:
+    """Jinja ``paragraphs``: multi-line text per line (auto alignment); one line as is (the
+    element around it has ``dir="auto"``)."""
+    text = "" if text is None else str(text)
+    return paragraphs_html(text) if _multiline(text) else text
+
+
+_env.filters["paragraphs"] = _paragraphs_filter
+_env.filters["runs"] = runs_html
+
+
 def _title(title: str, form: Form | None = None) -> dict[str, str]:
     """``lang``/``dir``/``align``/``font`` template values of the form title: aligned by
     ``settings.titleAlign``, else ``settings.align``, else its direction."""
@@ -484,6 +563,17 @@ def _title(title: str, form: Form | None = None) -> dict[str, str]:
 def _success(form: Form) -> dict[str, str]:
     text = form.settings.success_message or ""
     return _block(text, resolve_align(None, form.settings.align, text_direction(text)))
+
+
+def _success_lines(form: Form) -> Markup | None:
+    text = form.settings.success_message or ""
+    if not (_multiline(text) or (text and form.settings.align == "justify")):
+        return None
+    return paragraphs_html(text, explicit_align(None, form.settings.align))
+
+
+def field_explicit_align(form: Form, el: Any) -> str | None:
+    return explicit_align(getattr(el, "align", None), form.settings.align)
 
 
 def field_align(form: Form, el: Any) -> str:
@@ -520,7 +610,14 @@ def answers_for_email(form: Form, data: dict[str, Any]) -> list[Answer]:
                         parts.append(f"{child.label}: {text}")  # type: ignore[attr-defined]
                 if parts:
                     label = f"{el.label} - {WORDS['entry'].format(n=n)}"
-                    out.append(Answer(label, "\n".join(parts), align=field_align(form, el)))
+                    out.append(
+                        Answer(
+                            label,
+                            "\n".join(parts),
+                            align=field_align(form, el),
+                            explicit=field_explicit_align(form, el),
+                        )
+                    )
             continue
         if info.kind != "field" or getattr(el, "sensitive", False):
             continue
@@ -528,7 +625,13 @@ def answers_for_email(form: Form, data: dict[str, Any]) -> list[Answer]:
         if text:
             label = getattr(el, "label", info.id) or info.id
             out.append(
-                Answer(label, text, ltr=isinstance(el, LTR_FIELDS), align=field_align(form, el))
+                Answer(
+                    label,
+                    text,
+                    ltr=isinstance(el, LTR_FIELDS),
+                    align=field_align(form, el),
+                    explicit=field_explicit_align(form, el),
+                )
             )
     return out
 
@@ -602,6 +705,7 @@ def receipt_message(
         "submitted": submitted.astimezone(tz).strftime("%d %b %Y %H:%M %Z"),
         "success": form.settings.success_message or "",
         "s": _success(form),
+        "success_lines": _success_lines(form),
         "answers": answers,
         "pdf": pdf is not None,
         "w": w,

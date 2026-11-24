@@ -11,7 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { FormText } from '@/thaana/form-text'
-import { textDirection, textLang } from '@/schema/direction'
+import { boxLang, PER_LINE, textDirection, textLang } from '@/schema/direction'
 import type {
   FieldElement,
   LongTextField,
@@ -85,7 +85,7 @@ function TextControl({
   // An ID number: left to right, normalised as it is typed.
   const preset = idPresetOf(field)
   const text = typeof value === 'string' ? value : ''
-  // Answers switch direction as they are typed (first strong character): Dhivehi typed with
+  // Answers switch direction as they are typed (dominant script): Dhivehi typed with
   // the device's keyboard goes right to left in the Thaana face, English left to right. An
   // empty box starts on the side of its placeholder or label.
   const emptyDir = preset ? 'ltr' : textDirection(field.placeholder || field.label, ctx.dir)
@@ -93,7 +93,7 @@ function TextControl({
   const common = {
     id: controlId(path),
     dir,
-    lang: preset ? 'en' : textLang(text || field.placeholder || field.label),
+    lang: preset ? 'en' : text ? boxLang(text) : textLang(field.placeholder || field.label),
     value: text,
     placeholder: field.placeholder || preset?.placeholder || undefined,
     'aria-invalid': invalid || undefined,
@@ -115,7 +115,7 @@ function TextControl({
   return (
     <>
       {field.type === 'long_text' ? (
-        <Textarea {...common} rows={field.rows ?? 4} className="min-h-28 text-base md:text-base" />
+        <Textarea {...common} rows={field.rows ?? 4} className={cn('min-h-28 text-base md:text-base', PER_LINE)} />
       ) : (
         <Input
           {...common}

@@ -648,8 +648,9 @@ export function FormRenderer({
                 <div dir={pagePlace.dir} lang={pagePlace.lang}>
                   <Markdown
                     text={page.description}
-                    className="max-w-[36em] text-base text-muted-foreground"
-                    style={pagePlace.block}
+                    className="text-base text-muted-foreground"
+                    align={pagePlace.align}
+                    measure
                     rtl={pagePlace.dir === 'rtl'}
                   />
                 </div>
@@ -903,8 +904,9 @@ export function FormHeader({
             <div dir={descPlace.dir} lang={descPlace.lang}>
               <Markdown
                 text={form.settings.description}
-                className="max-w-[36em] text-base text-muted-foreground"
-                style={descPlace.block}
+                className="text-base text-muted-foreground"
+                align={descPlace.align}
+                measure
                 rtl={descPlace.dir === 'rtl'}
               />
             </div>

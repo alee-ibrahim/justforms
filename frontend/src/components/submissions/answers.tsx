@@ -17,9 +17,9 @@ import { placement } from '@/renderer/util'
 import { rowTitle, widthClass } from '@/renderer/util'
 import type { FileRef } from '@/renderer/validation'
 import type { Element, FieldElement, Form } from '@/schema'
-import { textDirection, textLang, type TextAlign } from '@/schema/direction'
+import { explicitAlign, isMultiline, textDirection, textLang, type TextAlign } from '@/schema/direction'
 import { alignClass, textProps } from '@/schema/align'
-import { FormText } from '@/thaana/form-text'
+import { FormLines, FormText } from '@/thaana/form-text'
 
 import { hasAnswers, isEmptyAnswer, useLogic } from './answer-logic'
 import { FileCards, type FileCardEntry } from './file-cards'
@@ -63,7 +63,7 @@ export function Sensitive({ text }: { text: string }) {
     <span className="inline-flex items-start gap-2">
       <LockIcon className="mt-1 size-3.5 shrink-0 text-muted-foreground" aria-hidden />
       <bdi dir="auto" lang={textLang(text)} className="whitespace-pre-wrap">
-        {text}
+        {isMultiline(text) ? <FormLines text={text} /> : text}
       </bdi>
       <span className="sr-only">(sensitive)</span>
     </span>
@@ -142,7 +142,7 @@ const LATIN = new Set(['email', 'phone', 'number', 'date', 'time'])
 
 /** One answer, by question type (SUBMISSIONS-VIEWER-SCREENS 1.3). */
 export function AnswerValue({ field, value, row }: { field: FieldElement; value: unknown; row?: number }) {
-  const { signatures, imported } = useContext(AnswerContext)
+  const { signatures, imported, formAlign } = useContext(AnswerContext)
   const copies = row === undefined ? imported.get(field.id) : undefined
   if (isEmptyAnswer(value) && copies?.length) return <FileCards files={copies} />
   if (isEmptyAnswer(value))
@@ -254,6 +254,18 @@ export function AnswerValue({ field, value, row }: { field: FieldElement; value:
             <bdi dir="ltr">{text}</bdi>
           </Line>
         )
+      // Several paragraphs (a long answer): each line in its own direction, aligned to its
+      // own start edge unless the question has an explicit alignment.
+      if (isMultiline(text))
+        return (
+          <Line className="whitespace-pre-wrap">
+            <FormLines
+              text={text}
+              align={explicitAlign(field.align, formAlign) ?? 'auto'}
+              measure={field.type === 'long_text'}
+            />
+          </Line>
+        )
       return (
         <Line className={cn('whitespace-pre-wrap', field.type === 'long_text' && 'max-w-[36em]')}>
           <bdi {...textProps(text)}>
@@ -333,10 +345,12 @@ function ReadElement({ el, data, scope }: { el: Element; data: Data; scope?: Sco
       return el.contentType === 'heading' ? (
         <Heading as="h3" text={el.text} align={el.align} className="text-xl tracking-tight" latin="font-semibold" thaana="font-normal" />
       ) : (
-        <div {...textProps(el.text)} className={alignClass(el.align, formAlign, textDirection(el.text))}>
+        <div {...textProps(el.text)}>
           <Markdown
             text={el.text}
-            className="max-w-xl text-base text-muted-foreground"
+            className="text-base text-muted-foreground"
+            align={explicitAlign(el.align, formAlign) ?? 'auto'}
+            measure
             rtl={textDirection(el.text) === 'rtl'}
           />
         </div>

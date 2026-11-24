@@ -38,3 +38,24 @@ export function isMixed(text: string): boolean {
   const scripts = new Set(scriptRuns(text).map((r) => r.script))
   return scripts.has('thaana') && scripts.has('latin')
 }
+
+/** A piece of form text; `dir` set on a run of the minority script, to be isolated in it. */
+export type IsolatedRun = { text: string; dir: 'ltr' | 'rtl' | null }
+
+/**
+ * `text` split for display in a block whose direction is `dir`: runs of the other script (Latin
+ * inside right-to-left text, Thaana inside left-to-right text) carry the direction to isolate
+ * them in (`<bdi>` / `dir` on a span, LRI/RLI…PDI in the PDF), so the brackets and punctuation
+ * around them stay on the right side ("(PPY)" inside Dhivehi). Everything else is one run.
+ * Twin of `isolate_runs` (backend/app/schemas/direction.py); vectors `isolate`.
+ */
+export function isolateRuns(text: string, dir: 'ltr' | 'rtl'): IsolatedRun[] {
+  const minority = dir === 'rtl' ? 'latin' : 'thaana'
+  const out: IsolatedRun[] = []
+  for (const run of scriptRuns(text)) {
+    if (run.script === minority) out.push({ text: run.text, dir: minority === 'thaana' ? 'rtl' : 'ltr' })
+    else if (out.length && out[out.length - 1].dir === null) out[out.length - 1].text += run.text
+    else out.push({ text: run.text, dir: null })
+  }
+  return out
+}

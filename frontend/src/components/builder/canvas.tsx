@@ -285,8 +285,8 @@ function Block({ el, loc, form }: { el: Element; loc: Location; form: Form }) {
       prompt,
       block: true,
       className: DESCRIPTION,
-      style: place.block,
-      display: value ? <Markdown text={value} rtl={place.dir === 'rtl'} /> : undefined,
+      style: place.text,
+      display: value ? <Markdown text={value} align={place.align} measure rtl={place.dir === 'rtl'} /> : undefined,
     })
   const indicators = editing ? null : <Indicators el={el} form={form} />
   const label =
@@ -353,9 +353,9 @@ function Block({ el, loc, form }: { el: Element; loc: Location; form: Form }) {
                 multiline: true,
                 block: true,
                 empty: 'Add text…',
-                className: 'max-w-[36em] text-base',
-                style: place.block,
-                display: el.text ? <Markdown text={el.text} rtl={place.dir === 'rtl'} /> : undefined,
+                className: 'text-base',
+                style: place.text,
+                display: el.text ? <Markdown text={el.text} align={place.align} measure rtl={place.dir === 'rtl'} /> : undefined,
               })
             ) : (
               <ContentView el={el} placeholder={<span className="text-muted-foreground">Empty text block</span>} />
@@ -742,11 +742,11 @@ export function Canvas() {
                     active={formSelected}
                     activate={activateForm}
                     prompt="Add a description…"
-                    className="max-w-[36em] text-base text-muted-foreground"
-                    style={descPlace.block}
+                    className="text-base text-muted-foreground"
+                    style={descPlace.text}
                     display={
                       form.settings.description ? (
-                        <Markdown text={form.settings.description} rtl={descPlace.dir === 'rtl'} />
+                        <Markdown text={form.settings.description} align={descPlace.align} measure rtl={descPlace.dir === 'rtl'} />
                       ) : undefined
                     }
                     onCommit={(text) => store.edit((f) => setSettingsText(f, 'description', text))}
@@ -796,9 +796,13 @@ export function Canvas() {
                 active={pageSelected}
                 activate={activatePage}
                 prompt="Add a description…"
-                className="max-w-[36em] text-base text-muted-foreground"
-                style={pagePlace.block}
-                display={page.description ? <Markdown text={page.description} rtl={pagePlace.dir === 'rtl'} /> : undefined}
+                className="text-base text-muted-foreground"
+                style={pagePlace.text}
+                display={
+                  page.description ? (
+                    <Markdown text={page.description} align={pagePlace.align} measure rtl={pagePlace.dir === 'rtl'} />
+                  ) : undefined
+                }
                 onCommit={(text) => store.edit((f) => setPageText(f, pageId, 'description', text))}
               />
             )}

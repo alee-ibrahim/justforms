@@ -36,7 +36,7 @@ import { En, Msg } from '@/renderer/msg'
 import type { Element, FieldElement, Form } from '@/schema'
 import { formDirection, hasThaana, textDirection, textLang, type TextAlign } from '@/schema/direction'
 import { alignClass, textProps } from '@/schema/align'
-import { FormText } from '@/thaana/form-text'
+import { FormLines, FormText } from '@/thaana/form-text'
 
 import { APPROVER as msgs } from './approver-messages'
 import { formatDay, scriptLang } from './messages'
@@ -449,7 +449,8 @@ function Value({
     <bdi dir="ltr">{text}</bdi>
   ) : (
     <bdi className="whitespace-pre-wrap" {...textProps(text)}>
-      <FormText text={text} />
+      {/* A long answer: each paragraph in its own direction, aligned to its own start edge. */}
+      <FormLines text={text} />
     </bdi>
   )
 }

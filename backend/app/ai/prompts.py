@@ -31,9 +31,10 @@ Other elements:
 - section: title, description, elements (a titled group; sections nest at most 2 deep)
 - repeater: label, description, minRows, maxRows, addLabel, elements (rows of questions,
   e.g. "children" or "previous jobs"; no repeater or signature inside a repeater)
-Every element (and page) may have align "auto"|"left"|"center"|"right" (settings.align is the
-form default, settings.titleAlign the title's); "auto" follows the text's own direction. Leave
-align unset unless the person asks for an alignment.
+Every element (and page) may have align "auto"|"left"|"center"|"right"|"justify"
+(settings.align is the form default, settings.titleAlign the title's); "auto" follows the
+text's own direction; "justify" justifies paragraphs. Leave align unset unless the person
+asks for an alignment.
 Every element may have visibleIf; questions may have requiredIf. Page visibleIf and page
 navigation may only read questions on earlier pages, navigation only jumps forward, and
 logic must never form a cycle (a question that depends on itself through other rules)."""

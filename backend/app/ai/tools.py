@@ -65,7 +65,7 @@ class GetForm(Args):
 
 
 AlignArg = Annotated[
-    Literal["auto", "left", "center", "right"],
+    Literal["auto", "left", "center", "right", "justify"],
     Field(
         description='Text alignment; "auto" follows the direction of the text. Set it only '
         "when the person asks for an alignment."

@@ -31,4 +31,5 @@ export const ALIGN_OPTIONS = [
   { value: 'left', label: 'Left' },
   { value: 'center', label: 'Center' },
   { value: 'right', label: 'Right' },
+  { value: 'justify', label: 'Justify' },
 ] as const satisfies readonly { value: TextAlign; label: string }[]

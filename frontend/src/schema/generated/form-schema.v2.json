@@ -63,7 +63,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },
@@ -150,7 +151,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },
@@ -307,7 +309,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },
@@ -471,7 +474,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },
@@ -623,7 +627,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },
@@ -755,7 +760,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },
@@ -914,7 +920,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },
@@ -1119,7 +1126,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },
@@ -1335,7 +1343,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },
@@ -1567,7 +1576,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },
@@ -1711,7 +1721,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },
@@ -1862,7 +1873,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },
@@ -2107,7 +2119,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },
@@ -2337,7 +2350,8 @@
             "auto",
             "left",
             "center",
-            "right"
+            "right",
+            "justify"
           ],
           "title": "Align",
           "type": "string"
@@ -2422,7 +2436,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },
@@ -2450,7 +2465,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },
@@ -2634,7 +2650,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },
@@ -2778,7 +2795,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },
@@ -2966,7 +2984,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },
@@ -3097,7 +3116,8 @@
                 "auto",
                 "left",
                 "center",
-                "right"
+                "right",
+                "justify"
               ],
               "type": "string"
             },

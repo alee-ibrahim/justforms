@@ -135,7 +135,8 @@ describe('Answers (form view)', () => {
     expect(html).toContain('Other:')
     expect(html).toContain('Marine biology')
     expect(html).toContain('>No<')
-    expect(html).toContain('First line\nSecond line')
+    // A long answer: one block per line, each in its own direction.
+    expect(html).toMatch(/<span class="block max-w-\[36em\]" dir="ltr" lang="en"[^>]*>First line<\/span><span[^>]*>Second line<\/span>/)
     expect(html).toContain('whitespace-pre-wrap')
     expect(html).toContain('4 out of 5')
     expect(html).toContain('15:30')

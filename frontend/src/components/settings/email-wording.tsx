@@ -5,6 +5,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ApiError, type NotificationRule } from '@/lib/api'
+import { PER_LINE } from '@/schema/direction'
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -76,7 +77,7 @@ function TextSetting({
     <Field data-invalid={error ? true : undefined}>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
       {multiline ? (
-        <Textarea {...common} dir="auto" rows={4} onChange={(e) => setDraft(e.target.value)} />
+        <Textarea {...common} dir="auto" rows={4} className={PER_LINE} onChange={(e) => setDraft(e.target.value)} />
       ) : (
         <Input
           {...common}

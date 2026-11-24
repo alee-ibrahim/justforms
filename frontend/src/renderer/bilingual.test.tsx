@@ -158,3 +158,82 @@ describe('requirement marker', () => {
     expect(track.lastElementChild?.textContent).toBe(' (required)')
   })
 })
+
+describe('multi-paragraph text (per-line direction)', () => {
+  const text = 'Please read the notes below.\n\nމި ފޯމު ފުރިހަމަ ކުރައްވާ.\nސުވާލުތަކަށް ޖަވާބު ދެއްވާ.\nEnglish again'
+  const withParagraph = (align?: 'left' | 'center' | 'right'): Form => ({
+    ...form,
+    pages: [{ id: 'page_1', elements: [{ kind: 'content', id: 'p', contentType: 'paragraph', text, align }] }],
+  })
+
+  it('gives each line break-separated paragraph its own direction and start alignment (auto)', () => {
+    const ps = [...render(withParagraph()).querySelectorAll<HTMLElement>('p')]
+    expect(ps.map((p) => p.getAttribute('dir'))).toEqual(['ltr', 'rtl', 'ltr'])
+    expect(ps.map((p) => p.getAttribute('lang'))).toEqual(['en', 'dv', 'en'])
+    expect(ps[1].textContent).toBe('މި ފޯމު ފުރިހަމަ ކުރައްވާ.ސުވާލުތަކަށް ޖަވާބު ދެއްވާ.')
+    for (const p of ps) {
+      expect(p.style.textAlign).toBe('start')
+      expect(p.className).toContain('max-w-[36em]')
+    }
+  })
+
+  it('applies an explicit alignment to every paragraph', () => {
+    const ps = [...render(withParagraph('right')).querySelectorAll<HTMLElement>('p')]
+    expect(ps.map((p) => p.getAttribute('dir'))).toEqual(['ltr', 'rtl', 'ltr'])
+    for (const p of ps) expect(p.style.textAlign).toBe('right')
+  })
+})
+
+describe('justify', () => {
+  const text = 'The grant supports small projects.\nމި ގްރާންޓް ދެވެނީ ކުދި މަޝްރޫޢުތަކަށް.'
+  const justified: Form = {
+    ...form,
+    pages: [
+      {
+        id: 'page_1',
+        elements: [
+          { kind: 'content', id: 'p', contentType: 'paragraph', text, align: 'justify' },
+          { kind: 'field', id: 'q', type: 'short_text', label: 'ނަން', align: 'justify' },
+        ],
+      },
+    ],
+  }
+
+  it('justifies each paragraph in its own direction, the last line at its start edge', () => {
+    const ps = [...render(justified).querySelectorAll<HTMLElement>('p')]
+    expect(ps.map((p) => p.getAttribute('dir'))).toEqual(['ltr', 'rtl'])
+    for (const p of ps) {
+      expect(p.style.textAlign).toBe('justify')
+      expect(p.style.textAlignLast).toBe('start')
+    }
+  })
+
+  it('keeps one-line labels at their start edge', () => {
+    expect(block(render(justified), 'q')?.style.textAlign).toBe('start')
+    expect(placement('ނަން', 'justify', null).align).toBe('justify')
+    expect(placement('ނަން', 'justify', null).text).toEqual({ textAlign: 'start' })
+  })
+})
+
+describe('punctuation and the dominant script', () => {
+  it('reads a Dhivehi heading that starts with a Latin acronym right to left, the acronym isolated', () => {
+    const f: Form = {
+      ...form,
+      pages: [{ id: 'page_1', elements: [{ kind: 'content', id: 'h', contentType: 'heading', text: 'ބައިވެރިވުމަށް (PPY) ފޯމު ފުރުއްވާ.' }] }],
+    }
+    const h3 = render(f).querySelector('h3')!
+    expect(h3.getAttribute('dir')).toBe('rtl')
+    expect(h3.style.textAlign).toBe('start')
+    expect(h3.innerHTML).toBe('ބައިވެރިވުމަށް (<span lang="en" dir="ltr">PPY</span>) ފޯމު ފުރުއްވާ.')
+  })
+
+  it('isolates Latin runs inside Dhivehi paragraphs (Markdown)', () => {
+    const f: Form = {
+      ...form,
+      pages: [{ id: 'page_1', elements: [{ kind: 'content', id: 'p', contentType: 'paragraph', text: 'PPY ގެ ބައިވެރިން ކޮބާ؟' }] }],
+    }
+    const p = render(f).querySelector('p')!
+    expect(p.getAttribute('dir')).toBe('rtl')
+    expect(p.querySelector('span[dir="ltr"]')?.textContent).toBe('PPY')
+  })
+})

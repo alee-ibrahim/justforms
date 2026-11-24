@@ -1,9 +1,10 @@
 /**
  * Alignment of form text (docs/DESIGN.md §16): Auto follows each text's own direction (Dhivehi
- * at the right, English at the left); Left / Center / Right fix it. An element or page left
+ * at the right, English at the left); Left / Center / Right fix it; Justify justifies paragraphs,
+ * each from its own start edge (one-line texts stay at their start). An element or page left
  * unset follows the form default, so its toggle can be cleared (press the selected item again).
  */
-import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon } from 'lucide-react'
+import { AlignCenterIcon, AlignJustifyIcon, AlignLeftIcon, AlignRightIcon } from 'lucide-react'
 
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -11,7 +12,7 @@ import { toggleGroupOn } from '@/lib/toggle'
 import { type TextAlign } from '@/schema/direction'
 import { ALIGN_OPTIONS } from '@/schema/align'
 
-const ICONS = { left: AlignLeftIcon, center: AlignCenterIcon, right: AlignRightIcon } as const
+const ICONS = { left: AlignLeftIcon, center: AlignCenterIcon, right: AlignRightIcon, justify: AlignJustifyIcon } as const
 
 function labelOf(value: TextAlign): string {
   return ALIGN_OPTIONS.find((o) => o.value === value)?.label ?? value

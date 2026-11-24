@@ -42,7 +42,7 @@ def _mixed_form(**settings: Any) -> Form:
             "label": "ކުލަ",
             "options": [{"value": "a", "label": "ރަތް"}, {"value": "b", "label": "ނޫ"}],
         },
-        title="Application / ހުށަހަޅާ ފޯމު",
+        title="Application form / ހުށަހަޅާ ފޯމު",
         **settings,
     )
 
@@ -198,7 +198,7 @@ def test_email_gives_every_text_its_own_direction_and_alignment() -> None:
     # Centred English question.
     assert 'align="center"' in _div(html, "Email")
     # The title (English first) and the Dhivehi success message each take their own direction.
-    title = _div(html, "Application / ")
+    title = _div(html, "Application form / ")
     assert 'dir="ltr"' in title and 'align="left"' in title
     success = _div(html, "ޝުކުރިއްޔާ")
     assert 'dir="rtl"' in success and 'align="right"' in success
@@ -208,7 +208,7 @@ def test_email_gives_every_text_its_own_direction_and_alignment() -> None:
 
 def test_email_title_alignment_and_isolation() -> None:
     form = _mixed_form(titleAlign="center")
-    assert 'align="center"' in _div(_receipt(form), "Application / ")
+    assert 'align="center"' in _div(_receipt(form), "Application form / ")
     dv = _form(field("a", label="A"), title="ފޯމު")
     msg = emails.receipt_message(
         org_name="Example Office",
@@ -224,3 +224,197 @@ def test_email_title_alignment_and_isolation() -> None:
     assert "⁨ފޯމު⁩ (#0007)" in msg.subject
     code = emails.code_message(org_name="", title="Mixed / ފޯމު", code="123456", minutes=10)
     assert "⁨" not in code.subject
+
+
+# An English paragraph followed by Dhivehi ones: direction is resolved per line.
+PARAGRAPHS = "Please read the notes below.\n\nމި ފޯމު ފުރިހަމަ ކުރައްވާ.\nސުވާލުތަކަށް ޖަވާބު ދެއްވާ."
+
+
+def _long_form(**settings: Any) -> Form:
+    return _form(
+        {"kind": "field", "id": "notes", "type": "long_text", "label": "Notes"},
+        successMessage=PARAGRAPHS,
+        **settings,
+    )
+
+
+def _long_receipt(form: Form) -> str:
+    msg = emails.receipt_message(
+        org_name="Example Office",
+        form=form,
+        title=form.settings.title,
+        reference="#0007",
+        submitted=datetime(2026, 11, 1, tzinfo=UTC),
+        tz=ZoneInfo("UTC"),
+        answers=emails.answers_for_email(form, {"notes": PARAGRAPHS}),
+        pdf=None,
+    )
+    return msg.html or ""
+
+
+def test_email_multi_paragraph_text_takes_direction_per_line() -> None:
+    html = _long_receipt(_long_form())
+    english = re.findall(r"<div([^>]*)>Please read", html)
+    dhivehi = re.findall(r"<div([^>]*)>ސުވާލުތަކަށް", html)
+    # The answer and the success message: each paragraph in its own direction and side.
+    assert len(english) == 2 and len(dhivehi) == 2
+    for tag in english:
+        assert 'dir="ltr"' in tag and 'lang="en"' in tag and 'align="left"' in tag
+    for tag in dhivehi:
+        assert 'dir="rtl"' in tag and 'lang="dv"' in tag and 'align="right"' in tag
+        assert "Noto Sans Thaana" in tag
+    # An explicit alignment applies to every paragraph.
+    centred = _long_receipt(_long_form(align="center"))
+    for tag in re.findall(r"<div([^>]*)>(?:Please read|ސުވާލުތަކަށް)", centred):
+        assert 'align="center"' in tag
+
+
+def test_email_custom_message_takes_direction_per_line() -> None:
+    form = _long_form()
+    msg = emails.receipt_message(
+        org_name="Example Office",
+        form=form,
+        title=form.settings.title,
+        reference="#0007",
+        submitted=datetime(2026, 11, 1, tzinfo=UTC),
+        tz=ZoneInfo("UTC"),
+        answers=[],
+        pdf=None,
+        wording=emails.Wording(message=PARAGRAPHS),
+    )
+    html = msg.html or ""
+    assert 'dir="rtl"' in _div(html, "ސުވާލުތަކަށް")
+    assert 'dir="ltr"' in _div(html, "Please read")
+
+
+def test_pdf_multi_paragraph_answer_takes_direction_per_line() -> None:
+    form = _long_form()
+    pdf = render_pdf(
+        PdfInput(
+            org_name="Example Office",
+            form_title=form.settings.title,
+            form=form,
+            version=1,
+            schema_hash="x",
+            submission_id="00000000-0000-0000-0000-000000000000",
+            seq=7,
+            submitted_at=datetime(2026, 11, 1, tzinfo=UTC),
+            data={"notes": PARAGRAPHS},
+            content_hash="y",
+            chain_head=None,
+            tz=ZoneInfo("UTC"),
+            verify_url="http://testserver/v/token",
+        )
+    )
+    doc = pdfium.PdfDocument(pdf)
+    page = doc[0]
+    width = page.get_width()
+    tp = page.get_textpage()
+    text = tp.get_text_range()
+    tp.close()
+    # The English paragraph starts at the left margin, the Dhivehi ones end at the right.
+    assert _char_x(page, text, "Please read") < width / 4
+    tp = page.get_textpage()
+    try:
+        boxes = [tp.get_charbox(i) for i in range(tp.count_chars())]
+        chars = tp.get_text_range()
+    finally:
+        tp.close()
+    thaana = [b for c, b in zip(chars, boxes, strict=False) if "\u0780" <= c <= "\u07bf"]
+    assert thaana and max(b[1] for b in thaana) > width * 0.85
+    doc.close()
+
+
+def test_email_isolates_the_other_script_and_follows_the_dominant_one() -> None:
+    form = _form(
+        {"kind": "field", "id": "q", "type": "short_text", "label": "PPY ގެ ބައިވެރިން ކޮބާ؟"},
+        title="ބައިވެރިވުމަށް (PPY) ފޯމު ފުރުއްވާ.",
+    )
+    msg = emails.receipt_message(
+        org_name="Example Office",
+        form=form,
+        title=form.settings.title,
+        reference="#0007",
+        submitted=datetime(2026, 11, 1, tzinfo=UTC),
+        tz=ZoneInfo("UTC"),
+        answers=emails.answers_for_email(form, {"q": "2026 ވަނަ އަހަރު."}),
+        pdf=None,
+    )
+    html = msg.html or ""
+    # Dhivehi-dominant title and label, though one starts with a Latin acronym: right to left,
+    # the acronym isolated so the brackets and question mark stay put.
+    assert 'dir="rtl"' in _div(html, "ބައިވެރިވުމަށް (")
+    assert 'ބައިވެރިވުމަށް (<bdi dir="ltr" lang="en">PPY</bdi>) ފޯމު' in html
+    label = re.search(r'<div([^>]*)><bdi dir="ltr" lang="en">PPY</bdi> ގެ', html)
+    assert label and 'dir="rtl"' in label.group(1) and 'align="right"' in label.group(1)
+    assert 'dir="rtl"' in _div(html, "2026 ވަނަ")
+
+
+def test_email_justify_follows_each_paragraph_direction() -> None:
+    form = _form(
+        {"kind": "field", "id": "notes", "type": "long_text", "label": "Notes", "align": "justify"},
+    )
+    msg = emails.receipt_message(
+        org_name="Example Office",
+        form=form,
+        title=form.settings.title,
+        reference="#0007",
+        submitted=datetime(2026, 11, 1, tzinfo=UTC),
+        tz=ZoneInfo("UTC"),
+        answers=emails.answers_for_email(form, {"notes": PARAGRAPHS}),
+        pdf=None,
+    )
+    html = msg.html or ""
+    english = _div(html, "Please read")
+    dhivehi = _div(html, "ސުވާލުތަކަށް")
+    assert "text-align:justify;text-align-last:left" in english and 'align="left"' in english
+    assert "text-align:justify;text-align-last:right" in dhivehi and 'align="right"' in dhivehi
+    # The label is one line: it stays at its start edge.
+    assert 'align="left"' in _div(html, "Notes")
+
+
+def test_pdf_justify_ends_each_paragraph_at_its_start_edge() -> None:
+    long_en = "The community grant supports small projects that improve public spaces " * 3
+    long_dv = "މި ގްރާންޓް ދެވެނީ އާންމު ތަންތަން ރީތިކުރުމަށާއި ޒުވާނުންނަށް ހުނަރު ދަސްކޮށްދިނުމަށް " * 3
+    form = _form(
+        {"kind": "field", "id": "notes", "type": "long_text", "label": "Notes", "align": "justify"},
+    )
+    pdf = render_pdf(
+        PdfInput(
+            org_name="Example Office",
+            form_title=form.settings.title,
+            form=form,
+            version=1,
+            schema_hash="x",
+            submission_id="00000000-0000-0000-0000-000000000000",
+            seq=7,
+            submitted_at=datetime(2026, 11, 1, tzinfo=UTC),
+            data={"notes": f"{long_en}end.\n{long_dv}ނިމުނީ."},
+            content_hash="y",
+            chain_head=None,
+            tz=ZoneInfo("UTC"),
+            verify_url="http://testserver/v/token",
+        )
+    )
+    doc = pdfium.PdfDocument(pdf)
+    page = doc[0]
+    width = page.get_width()
+    tp = page.get_textpage()
+    try:
+        boxes = [tp.get_charbox(i) for i in range(tp.count_chars())]
+        chars = tp.get_text_range()
+    finally:
+        tp.close()
+    thaana = [b for c, b in zip(chars, boxes, strict=False) if "\u0780" <= c <= "\u07bf"]
+    # Char boxes are (left, right, bottom, top). Justified Dhivehi lines reach both margins;
+    # the last (lowest) line is not stretched and ends at the right margin.
+    rows: dict[int, list[Any]] = {}
+    for b in thaana:
+        rows.setdefault(round(b[3]), []).append(b)
+    tops = sorted(rows, reverse=True)
+    assert len(tops) >= 2
+    first, last = rows[tops[0]], rows[tops[-1]]
+    assert min(b[0] for b in first) < width * 0.2 and max(b[1] for b in first) > width * 0.8
+    assert max(b[1] for b in last) > width * 0.8
+    assert min(b[0] for b in last) > min(b[0] for b in first) + 20
+    doc.close()

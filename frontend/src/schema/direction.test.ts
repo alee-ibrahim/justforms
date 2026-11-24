@@ -5,20 +5,33 @@ import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
+import { isolateRuns } from '@/thaana/runs'
+
 import { parseForm } from '.'
 import { alignClass } from './align'
 import {
+  boxLang,
+  explicitAlign,
   formDirection,
   resolveAlign,
   textDirection,
   textLang,
+  textLines,
   type TextAlign,
   type TextDirection,
 } from './direction'
 
 interface Vectors {
   direction: { text: string; fallback?: TextDirection; dir: TextDirection; lang: 'dv' | 'en' }[]
-  align: { align: TextAlign | null; default: TextAlign | null; dir: TextDirection; result: string }[]
+  align: {
+    align: TextAlign | null
+    default: TextAlign | null
+    dir: TextDirection
+    result: string
+    explicit: string | null
+  }[]
+  isolate: { text: string; dir?: TextDirection; runs: [string, TextDirection | null][] }[]
+  lines: { text: string; fallback?: TextDirection; lines: { dir: TextDirection; lang: 'dv' | 'en' }[] }[]
 }
 
 const vectors = JSON.parse(
@@ -37,6 +50,21 @@ describe('resolveAlign (shared vectors)', () => {
   for (const v of vectors.align)
     it(`${v.align} / ${v.default} / ${v.dir}`, () => {
       expect(resolveAlign(v.align, v.default, v.dir)).toBe(v.result)
+      expect(explicitAlign(v.align, v.default)).toBe(v.explicit)
+    })
+})
+
+describe('isolateRuns (shared vectors)', () => {
+  for (const v of vectors.isolate)
+    it(JSON.stringify(v.text), () => {
+      expect(isolateRuns(v.text, v.dir ?? textDirection(v.text)).map((r) => [r.text, r.dir])).toEqual(v.runs)
+    })
+})
+
+describe('textLines (shared vectors)', () => {
+  for (const v of vectors.lines)
+    it(JSON.stringify(v.text), () => {
+      expect(textLines(v.text, v.fallback).map(({ dir, lang }) => ({ dir, lang }))).toEqual(v.lines)
     })
 })
 
@@ -71,5 +99,13 @@ describe('schemaVersion 2', () => {
   it('lays the sheet out in the title direction', () => {
     expect(formDirection({ settings: { title: 'ފޯމު' } })).toBe('rtl')
     expect(formDirection({ settings: { title: 'Form / ފޯމު' } })).toBe('ltr')
+  })
+})
+
+describe('boxLang', () => {
+  it('is dv only when every line with letters is Dhivehi', () => {
+    expect(boxLang('ނަން')).toBe('dv')
+    expect(boxLang('ނަން\n\n2026\nއަހަރު')).toBe('dv')
+    expect(boxLang('We will clean the beach.\nއަހަރުމެން ސާފުކުރާނަން. ކޮންމެ މަހަކު ގޮނޑުދޮށް')).toBe('en')
   })
 })

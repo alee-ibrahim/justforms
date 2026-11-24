@@ -53,20 +53,24 @@ external secrets operator").
   `<html>` stays `lang="en" dir="ltr"`. Inside right-to-left content render English strings
   through `<En>` / `Msg` (`renderer/msg.tsx`) (see docs/DESIGN.md §16 for the direction rules).
 - **Forms have no language** (`schemaVersion` 2). One form may hold English and Dhivehi side by
-  side, even in one label ("Name / ނަން"). Every piece of form text takes its direction from its
-  first strong character (Thaana → RTL, Latin → LTR): use the twins
+  side, even in one label ("Name / ނަން"). Every piece of form text (every line of multi-line
+  text) takes its direction from its dominant script (more Thaana or more Latin words; a tie
+  goes to the first strong character; Thaana → RTL, Latin → LTR): use the twins
   `frontend/src/schema/direction.ts` / `backend/app/schemas/direction.py` (`textDirection`,
-  `textLang`, `textProps`, `resolveAlign`; shared vectors in `spec/direction/vectors.json`).
+  `textLang`, `textProps`, `resolveAlign`, `textLines`, `isolateRuns`; shared vectors in
+  `spec/direction/vectors.json`). Multi-line text goes through `Markdown` / `FormLines` (one
+  block per line, each in its own direction); textareas use `PER_LINE`.
   Wherever form text is edited or shown, set `lang`/`dir` from **that text** (`textProps(text)`,
   or the renderer's `placement()` for blocks), render it with `<FormText text>` (marks the
   other script's runs) or `displayText(text)` in plain-text slots. `:lang(dv)` uses the Thaana
   font stack. Never reintroduce a form-level language.
 - **Alignment** is data: `align` on elements and pages, `settings.align` (form default, `auto`)
-  and `settings.titleAlign`. `auto` follows the text's direction. Left/right are physical
+  and `settings.titleAlign`. `auto` follows the text's direction; `justify` justifies each
+  paragraph from its own start edge (one-line texts sit at their start). Left/right are physical
   (inline `textAlign` style), never `text-left`/`text-right` classes.
 - **No built-in keyboard**: no Thaana/phonetic keyboard and no language switch anywhere. People
   type Dhivehi with their device's keyboard; boxes only follow what is typed (`dir`/`lang` from
-  the first strong character). Don't add a keyboard toggle or a per-question typing setting.
+  the dominant script). Don't add a keyboard toggle or a per-question typing setting.
 - **Markers after form text** ("(optional)", "(required)") follow the text isolated in a
   `<bdi dir>` (the label's own direction), so mixed labels never pull the marker to the wrong side.
 - Use **logical** Tailwind classes in renderer/form components that display form content (the lint
