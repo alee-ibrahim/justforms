@@ -42,6 +42,8 @@ export interface ControlProps {
   field: FieldElement
   path: AnswerPath
   invalid: boolean
+  /** Sets `aria-required` on controls whose role takes it (the "*" itself is decorative). */
+  required?: boolean
   describedBy?: string
   labelledBy?: string
 }
@@ -80,6 +82,7 @@ function TextControl({
   field,
   path,
   invalid,
+  required,
   describedBy,
 }: ControlProps & { field: ShortTextField | LongTextField }) {
   const { ctx, value, set, blur } = useAnswer(path)
@@ -98,6 +101,7 @@ function TextControl({
     value: text,
     placeholder: field.placeholder || preset?.placeholder || undefined,
     'aria-invalid': invalid || undefined,
+    'aria-required': required || undefined,
     'aria-describedby': describedBy,
     onChange: (e: { target: { value: string } }) => {
       const next = normalizeWith(preset, e.target.value) as string
@@ -133,7 +137,7 @@ function TextControl({
 
 // -- number --------------------------------------------------------------------------------
 
-function NumberControl({ field, path, invalid, describedBy }: ControlProps) {
+function NumberControl({ field, path, invalid, required, describedBy }: ControlProps) {
   const { value, set, blur } = useAnswer(path)
   const integer = field.type === 'number' && field.integer
   const [text, setText] = useState(value === undefined || value === null ? '' : String(value))
@@ -146,6 +150,7 @@ function NumberControl({ field, path, invalid, describedBy }: ControlProps) {
       value={shown}
       placeholder={field.placeholder ?? undefined}
       aria-invalid={invalid || undefined}
+      aria-required={required || undefined}
       aria-describedby={describedBy}
       onChange={(e) => {
         const raw = e.target.value
@@ -188,7 +193,7 @@ function DateControl({ field, path, invalid, describedBy }: ControlProps) {
   )
 }
 
-function TimeControl({ path, invalid, describedBy }: ControlProps) {
+function TimeControl({ path, invalid, required, describedBy }: ControlProps) {
   const { value, set, blur } = useAnswer(path)
   return (
     <Input
@@ -197,6 +202,7 @@ function TimeControl({ path, invalid, describedBy }: ControlProps) {
       dir="ltr"
       value={typeof value === 'string' ? value : ''}
       aria-invalid={invalid || undefined}
+      aria-required={required || undefined}
       aria-describedby={describedBy}
       onChange={(e) => set(e.target.value || undefined)}
       onBlur={blur}
@@ -256,6 +262,7 @@ function SingleChoiceControl({
   field,
   path,
   invalid,
+  required,
   describedBy,
   labelledBy,
 }: ControlProps & { field: SingleChoiceField }) {
@@ -272,6 +279,7 @@ function SingleChoiceControl({
         id={base}
         value={current ?? ''}
         aria-invalid={invalid || undefined}
+        aria-required={required || undefined}
         aria-describedby={describedBy}
         onChange={(e) => set(e.target.value || undefined)}
         onBlur={blur}
@@ -304,6 +312,7 @@ function SingleChoiceControl({
         aria-labelledby={labelledBy}
         aria-describedby={describedBy}
         aria-invalid={invalid || undefined}
+        aria-required={required || undefined}
       >
         {field.options.map((o, i) => (
           <ChoiceCard
@@ -337,7 +346,7 @@ function SingleChoiceControl({
   )
 }
 
-function YesNoControl({ path, invalid, describedBy, labelledBy }: ControlProps) {
+function YesNoControl({ path, invalid, required, describedBy, labelledBy }: ControlProps) {
   const { value, set, blur } = useAnswer(path)
   const base = controlId(path)
   return (
@@ -347,6 +356,7 @@ function YesNoControl({ path, invalid, describedBy, labelledBy }: ControlProps) 
       aria-labelledby={labelledBy}
       aria-describedby={describedBy}
       aria-invalid={invalid || undefined}
+      aria-required={required || undefined}
       onBlur={leaveGroup(blur)}
       className="grid grid-cols-2 max-[359px]:grid-cols-1"
     >
@@ -360,7 +370,7 @@ function YesNoControl({ path, invalid, describedBy, labelledBy }: ControlProps) 
   )
 }
 
-function EmailControl({ field, path, invalid, describedBy }: ControlProps) {
+function EmailControl({ field, path, invalid, required, describedBy }: ControlProps) {
   const { value, set, blur } = useAnswer(path)
   return (
     <Input
@@ -372,6 +382,7 @@ function EmailControl({ field, path, invalid, describedBy }: ControlProps) {
       value={typeof value === 'string' ? value : ''}
       placeholder={field.placeholder ?? undefined}
       aria-invalid={invalid || undefined}
+      aria-required={required || undefined}
       aria-describedby={describedBy}
       onChange={(e) => set(e.target.value.trim() === '' ? undefined : e.target.value.trim())}
       onBlur={blur}

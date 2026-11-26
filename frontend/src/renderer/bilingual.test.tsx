@@ -1,13 +1,17 @@
 // @vitest-environment happy-dom
 // One form holding English and Dhivehi: every block takes its own direction and alignment.
+import { act } from 'react'
+import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
-import type { Form } from '@/schema'
+import type { FieldElement, Form } from '@/schema'
 
 import { RendererContext, type RendererContextValue } from './context'
-import { FillElements } from './elements'
+import { FillElements, QuestionView } from './elements'
 import { placement } from './util'
+
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const form: Form = {
   schemaVersion: '2',
@@ -40,7 +44,6 @@ function ctx(f: Form): RendererContextValue {
     form: f,
     dir: 'ltr',
     mode: 'fill',
-    convention: 'optional',
     getValue: () => undefined,
     setValue: () => {},
     blur: () => {},
@@ -56,10 +59,10 @@ function ctx(f: Form): RendererContextValue {
   }
 }
 
-function render(f: Form = form): HTMLElement {
+function render(f: Form = form, required = false): HTMLElement {
   const host = document.createElement('div')
   host.innerHTML = renderToStaticMarkup(
-    <RendererContext.Provider value={ctx(f)}>
+    <RendererContext.Provider value={{ ...ctx(f), isRequired: () => required }}>
       <FillElements elements={f.pages[0].elements ?? []} />
     </RendererContext.Provider>,
   )
@@ -113,49 +116,113 @@ describe('placement', () => {
   })
 })
 
-describe('requirement marker', () => {
+describe('required marker', () => {
   const label = (host: HTMLElement, id: string) => host.querySelector<HTMLElement>(`#q-${id}-label`)!
+  const mark = (el: HTMLElement) => el.querySelector<HTMLElement>('[data-slot="required-mark"]')
 
-  it('isolates a mixed label and puts the marker right after it, at the logical end', () => {
+  it('marks nothing on optional questions', () => {
+    const host = render()
+    expect(host.querySelector('[data-slot="required-mark"]')).toBeNull()
+    expect(host.querySelector('[aria-required]')).toBeNull()
+    expect(label(host, 'island').textContent).toBe('Island / ރަށް')
+  })
+
+  it('isolates a mixed label and puts a decorative "*" right after it, at the logical end', () => {
     const right = { ...form, settings: { ...form.settings, align: 'right' as const } }
-    for (const host of [render(), render(right)]) {
+    for (const host of [render(form, true), render(right, true)]) {
       const el = label(host, 'island')
-      const [name, mark] = [...el.children] as HTMLElement[]
+      const [name, star] = [...el.children] as HTMLElement[]
       expect(name.tagName).toBe('BDI')
       expect(name.getAttribute('dir')).toBe('ltr')
       expect(name.textContent).toBe('Island / ރަށް')
-      expect(mark.dataset.slot).toBe('requirement-mark')
-      expect(mark.textContent).toBe(' (optional)')
-      // The marker is an English run isolated from the label's Thaana run.
-      expect(mark.querySelector('bdi')?.getAttribute('dir')).toBe('ltr')
-      expect(mark.querySelector('bdi')?.getAttribute('lang')).toBe('en')
-      expect(el.textContent).toBe('Island / ރަށް (optional)')
+      expect(star.dataset.slot).toBe('required-mark')
+      expect(star.textContent).toBe(' *')
+      expect(star.getAttribute('aria-hidden')).toBe('true')
+      expect(star.className).toContain('text-destructive')
+      expect(el.textContent).toBe('Island / ރަށް *')
+      // The required state is on the control, not in the "*".
+      expect(host.querySelector('#q-island')?.getAttribute('aria-required')).toBe('true')
     }
   })
 
-  it('isolates a Thaana-first label in its own direction (the marker then sits on the left)', () => {
-    const el = label(render(), 'full_name')
-    const name = el.firstElementChild as HTMLElement
-    expect(name.tagName).toBe('BDI')
-    expect(name.getAttribute('dir')).toBe('rtl')
-    expect(el.lastElementChild?.getAttribute('data-slot')).toBe('requirement-mark')
+  it('puts the "*" at the end of a Thaana label, on the left of its right-to-left block', () => {
+    const host = render(form, true)
+    const el = label(host, 'full_name')
+    expect(el.firstElementChild?.getAttribute('dir')).toBe('rtl')
+    expect(el.lastElementChild?.getAttribute('data-slot')).toBe('required-mark')
+    expect(block(host, 'full_name')?.getAttribute('dir')).toBe('rtl')
   })
 
-  it('marks required questions the same way', () => {
-    const f: Form = { ...form, pages: [{ ...form.pages[0] }] }
-    const host = document.createElement('div')
-    host.innerHTML = renderToStaticMarkup(
-      <RendererContext.Provider value={{ ...ctx(f), convention: 'required', isRequired: () => true }}>
-        <FillElements elements={f.pages[0].elements ?? []} />
-      </RendererContext.Provider>,
-    )
-    const el = label(host, 'island')
-    expect(el.firstElementChild?.tagName).toBe('BDI')
-    expect(el.lastElementChild?.textContent).toBe(' (required)')
-    // Choice questions (legend) too.
+  it('marks choice questions in their legend and the radio group as required', () => {
+    const host = render(form, true)
     const track = label(host, 'track')
-    expect(track.firstElementChild?.getAttribute('dir')).toBe('rtl')
-    expect(track.lastElementChild?.textContent).toBe(' (required)')
+    expect(track.tagName).toBe('LEGEND')
+    expect(track.lastElementChild?.getAttribute('data-slot')).toBe('required-mark')
+    expect(block(host, 'track')?.querySelector('[role="radiogroup"]')?.getAttribute('aria-required')).toBe('true')
+  })
+
+  it('does not add a second "*" to a label that already ends with one', () => {
+    const typed: Form = {
+      ...form,
+      pages: [{ id: 'page_1', elements: [{ kind: 'field', id: 'email', type: 'email', label: 'Email *' }] }],
+    }
+    const host = render(typed, true)
+    expect(mark(label(host, 'email'))).toBeNull()
+    expect(label(host, 'email').textContent).toBe('Email *')
+    expect(host.querySelector('#q-email')?.getAttribute('aria-required')).toBe('true')
+  })
+
+  it('says "required" in the label where the control has no role that takes aria-required', () => {
+    const groups: Form = {
+      ...form,
+      pages: [
+        {
+          id: 'page_1',
+          elements: [
+            {
+              kind: 'field',
+              id: 'topics',
+              type: 'multi_choice',
+              label: 'Topics',
+              options: [{ value: 'a', label: 'A' }],
+            },
+            { kind: 'field', id: 'id_card', type: 'file', label: 'ID card' },
+            { kind: 'field', id: 'sign', type: 'signature', label: 'ސޮއި' },
+          ],
+        },
+      ],
+    }
+    const host = render(groups, true)
+    for (const id of ['topics', 'id_card', 'sign']) {
+      const el = label(host, id)
+      expect(mark(el)?.textContent).toBe(' *')
+      const sr = el.querySelector('.sr-only')!
+      expect(sr.textContent).toBe(' required')
+      expect(sr.getAttribute('lang')).toBe('en')
+    }
+    expect(host.querySelector('[aria-required]')).toBeNull()
+    expect(render(groups).querySelector('.sr-only')).toBeNull()
+  })
+
+  it('follows the required state as it changes (builder canvas)', () => {
+    const field = form.pages[0].elements![2] as FieldElement
+    const host = document.createElement('div')
+    const root = createRoot(host)
+    const show = (required: boolean) =>
+      act(() =>
+        root.render(
+          <RendererContext.Provider value={{ ...ctx(form), mode: 'canvas' }}>
+            <QuestionView field={field} path={{ id: field.id }} required={required} label={<span>{field.label}</span>} />
+          </RendererContext.Provider>,
+        ),
+      )
+    show(false)
+    expect(mark(host)).toBeNull()
+    show(true)
+    expect(mark(host)?.textContent).toBe(' *')
+    show(false)
+    expect(mark(host)).toBeNull()
+    act(() => root.unmount())
   })
 })
 
@@ -261,14 +328,15 @@ describe('bilingual one-line texts (auto alignment)', () => {
     ],
   }
 
-  it('shows the English part at the left and the Dhivehi part at the right, the marker after English', () => {
-    const host = render(split)
+  it('shows the English part at the left and the Dhivehi part at the right, the "*" after English', () => {
+    const host = render(split, true)
     const row = host.querySelector('label [data-slot="bilingual"]')!
     expect(row.getAttribute('dir')).toBe('ltr')
     const en = row.querySelector('[data-part="ltr"]')!
     const dv = row.querySelector('[data-part="rtl"]')!
-    expect(en.textContent).toBe('Full name: (optional)')
-    expect(en.querySelector('[data-slot="requirement-mark"]')).not.toBeNull()
+    expect(en.textContent).toBe('Full name: *')
+    expect(en.querySelector('[data-slot="required-mark"]')).not.toBeNull()
+    expect(dv.querySelector('[data-slot="required-mark"]')).toBeNull()
     expect(dv.textContent).toBe('ފުރިހަމަ ނަން')
     expect(dv.getAttribute('dir')).toBe('rtl')
     expect(dv.className).toContain('me-auto')
@@ -277,7 +345,7 @@ describe('bilingual one-line texts (auto alignment)', () => {
   it('splits question labels with trailing punctuation and options with brackets', () => {
     const host = render(split)
     const legend = host.querySelectorAll('[data-slot="bilingual"]')[1]
-    expect(legend.querySelector('[data-part="ltr"]')!.textContent).toBe('Which program did you participate in? (optional)')
+    expect(legend.querySelector('[data-part="ltr"]')!.textContent).toBe('Which program did you participate in?')
     expect(legend.querySelector('[data-part="rtl"]')!.textContent).toBe('ބައިވެރިވި ޕްރޮގްރާމަކީ:')
     const option = host.querySelectorAll('[data-slot="bilingual"]')[2]
     expect(option.querySelector('[data-part="ltr"]')!.textContent).toBe('(Practice Parliament for Youth (PPY))')

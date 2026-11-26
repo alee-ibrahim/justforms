@@ -670,7 +670,6 @@ export function Canvas() {
       form,
       dir: sheetDir,
       mode: 'canvas',
-      convention: 'optional',
       getValue: NO_ANSWERS,
       setValue: () => {},
       blur: () => {},

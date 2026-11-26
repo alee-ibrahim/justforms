@@ -247,19 +247,6 @@ export function FormRenderer({
     [ev, requiredSet, index],
   )
 
-  // "(optional)" on optional questions when most are required; otherwise "(required)".
-  const convention = useMemo(() => {
-    let req = 0
-    let total = 0
-    for (const info of index.elements.values()) {
-      const el = info.element
-      if (el.kind !== 'field' || el.type === 'hidden') continue
-      total++
-      if (el.required || el.requiredIf) req++
-    }
-    return req * 2 >= total ? 'optional' : 'required'
-  }, [index])
-
   const getValue = useCallback(
     (p: AnswerPath) => {
       if (p.repeater === undefined) return answers[p.id]
@@ -387,7 +374,6 @@ export function FormRenderer({
     form,
     dir: sheetDir,
     mode: 'fill',
-    convention,
     getValue,
     setValue,
     blur,

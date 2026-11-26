@@ -244,8 +244,8 @@ Rules:
   page and form titles use 700. Labels and headings carry `df-label`, which sets the weight per
   script run (Latin 600, Thaana 400), so a split bilingual label looks the same whichever
   script has more words.
-- **Mixed sizes.** A Thaana run inside English text is 1.12em; a Latin run (and the English
-  requirement mark) inside Dhivehi text 1/1.12em; in a split bilingual text the part in the
+- **Mixed sizes.** A Thaana run inside English text is 1.12em; a Latin run inside Dhivehi
+  text 1/1.12em; in a split bilingual text the part in the
   other script is scaled the same way, so both parts read at one optical size.
 - **Underlines in Thaana** collide with below-base fili: links and error-summary links in a dv
   root use `underline-offset-[0.4em] decoration-1`.
@@ -368,7 +368,7 @@ button always has a `Tooltip` with the same text as its `aria-label`.
 - No middle-dot meta strings, no arrows appended to buttons, no em-dash labels. Use separate
   elements or commas.
 - All system text is English only, studio and respondent-facing alike: what JustForms supplies
-  (Next, Back, the default Submit, validation messages, "Step 2 of 4", "(optional)", Yes / No,
+  (Next, Back, the default Submit, validation messages, "Step 2 of 4", Yes / No,
   access and CAPTCHA steps, success / closed screens, emails, PDF labels) is English for every
   form. Dhivehi appears only in form content and answers. In a dv form the English strings are
   `<En>` runs (`<bdi dir="ltr" lang="en">`) inside the RTL sheet (DESIGN §16).
@@ -405,7 +405,7 @@ I would have produced the same plan for a CRM, a todo app or an invoicing tool. 
 | Selection as a carbon outline ring | Collides with the focus ring; keyboard users could not tell focus from selection. | Marker wash + marker start bar for selection, carbon ring for focus | Two different states now look different. Marker is the single bold element. |
 | Animated page transitions sliding left/right | Direction inverts in RTL; motion for its own sake. | 120ms cross-fade | Direction-neutral. |
 | Second pass ("remove one accessory"): a desk dot-grid texture behind the canvas | Decoration; adds noise behind long forms. | Removed. Plain Desk colour. | |
-| Second pass: stamp-red "Required" asterisks | Red asterisks read as errors before the user has done anything. | Required fields say nothing; optional fields get "(optional)" in muted text. When most fields are optional, invert: mark required ones with "(required)". The renderer picks whichever is shorter per form. | Fewer marks, less alarm. Common public-sector form pattern. |
+| Second pass: stamp-red "Required" asterisks | Red asterisks read as errors before the user has done anything. | Later reversed at the product owner's request: every required question shows a "*" in the destructive colour, in regular weight, after its label; optional questions are unmarked. | Respondents expect the "*"; one rule for every form. |
 
 ### 11.1 Mockup critique (third pass)
 

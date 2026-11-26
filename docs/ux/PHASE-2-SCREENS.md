@@ -12,7 +12,7 @@ Conventions in this document:
 - Wireframes are LTR. In RTL the whole layout mirrors (start/end), except the studio chrome,
   which stays LTR English. The builder canvas follows the form's language.
 - Copy in "quotes" is the exact text to ship. All system copy is English only, studio and
-  respondent-facing alike: Next, Back, default Submit, "Step 2 of 3", "(optional)", validation
+  respondent-facing alike: Next, Back, default Submit, "Step 2 of 3", validation
   messages are English for every form (one plain TS object, `renderer/messages.ts`; no i18n
   layer). Dhivehi appears only in form content and answers. In a dv form the English strings
   are rendered as `<En>` runs inside the RTL sheet (DESIGN §16).
@@ -207,7 +207,7 @@ Each element on the sheet is a block with three visual states:
 - Inputs on the canvas are inert (`tabIndex={-1}`, `aria-hidden` on the preview control,
   `pointer-events-none`) so clicks select the block instead of typing into it.
 - Indicators on a block, shown inline after the label as `Badge variant="outline"` with icon:
-  "Required" is not a badge (the renderer's "(optional)" convention shows instead);
+  "Required" is not a badge (the renderer's "*" shows instead, and follows the Required switch live);
   "Conditional" (eye-off icon) when `visibleIf` exists, with `HoverCard` [add] showing the
   rule as a sentence; "Sensitive" (lock icon); "Hidden value" (eye-off) for hidden fields
   (rendered as a dashed muted row since respondents never see it).
@@ -702,9 +702,11 @@ keyboard", `aria-pressed`). Pressed state uses `bg-secondary`. The keyboard itse
 `InputGroupInput`/`InputGroupTextarea` (never the package's own input components). The builder
 uses the same composition for every input that edits form text in a `dv` form.
 
-"(optional)" convention: if most questions are required, optional ones get " (optional)" in
-muted after the label; otherwise required ones get " (required)". Never a red asterisk alone.
-Both are English for every form (an `<En>` run after a Dhivehi label).
+Required marker: every required question (including conditionally required ones while the rule
+holds) gets " *" in `text-destructive` after its label, after the English part of a split
+bilingual label. It is `aria-hidden`; the control carries `aria-required`, and types whose
+control can't (multiple choice, rating, date picker, file, signature) get a screen-reader-only
+"required" in the label. A label that already ends with "*" gets no second one.
 
 ### 4.6 Validation
 

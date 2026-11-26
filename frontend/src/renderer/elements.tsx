@@ -28,7 +28,6 @@ import { Markdown } from './markdown'
 import { Bilingual, FormText } from '@/thaana/form-text'
 import { bilingualParts } from '@/thaana/runs'
 
-import { MSG } from './messages'
 import { En } from './msg'
 import { isGroupControl, placement, widthClass } from './util'
 
@@ -41,18 +40,12 @@ export function QuestionGrid({ children, className }: { children: ReactNode; cla
   return <div className={cn('grid gap-[var(--df-space,2rem)] @min-[32rem]:grid-cols-2', className)}>{children}</div>
 }
 
-/** "(optional)" / "(required)" after the label, per the form's convention. */
-function RequirementMark({ required }: { required: boolean }) {
-  const { convention } = useRenderer()
-  const show = convention === 'optional' ? !required : required
-  if (!show) return null
-  return (
-    <span className="font-normal text-muted-foreground" data-slot="requirement-mark">
-      {' '}
-      <En>{convention === 'optional' ? MSG.optional : MSG.required}</En>
-    </span>
-  )
-}
+/**
+ * Question types whose control has no role that takes `aria-required` (checkbox and toggle
+ * groups, the date-picker and file buttons, the signature canvas): their label says "required"
+ * to screen readers instead. Every other control carries `aria-required` itself.
+ */
+const LABEL_SAYS_REQUIRED = new Set<FieldElement['type']>(['multi_choice', 'rating', 'date', 'file', 'signature'])
 
 export function QuestionView({
   field,
@@ -68,7 +61,7 @@ export function QuestionView({
   required: boolean
   /** Builder: replaces the label text (inline editing). */
   label?: ReactNode
-  /** Builder: badges after the label and its requirement mark. */
+  /** Builder: badges after the label and its required mark. */
   extra?: ReactNode
   /** Builder: replaces the help text (inline editing). */
   description?: ReactNode
@@ -101,9 +94,24 @@ export function QuestionView({
   // A bilingual label ("Full name: ފުރިހަމަ ނަން") with auto alignment: English at the left,
   // Dhivehi at the right, the marker after the English part.
   const parts = label === undefined && place.align === 'auto' ? bilingualParts(field.label) : null
+  // A required question's "*" is decorative: the control's `aria-required`, or the label's
+  // hidden "required", tells assistive technology. A label that already ends with a typed (or
+  // imported) "*" gets no second one.
+  const labelSays = LABEL_SAYS_REQUIRED.has(field.type)
+  const star = /\*\s*$/
+  const typed = star.test(field.label) || (!!parts && star.test(parts.ltr))
   const after = (
     <>
-      <RequirementMark required={required} />
+      {required && !typed && (
+        <span aria-hidden="true" className="text-destructive" data-slot="required-mark">
+          {' *'}
+        </span>
+      )}
+      {required && labelSays && (
+        <span className="sr-only" lang="en">
+          {' required'}
+        </span>
+      )}
       {extra}
     </>
   )
@@ -124,6 +132,7 @@ export function QuestionView({
       field={field}
       path={path}
       invalid={invalid}
+      required={required && !labelSays}
       describedBy={describedBy}
       labelledBy={labelId}
     />

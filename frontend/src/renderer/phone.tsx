@@ -35,7 +35,7 @@ function splitPhone(value: unknown, fallback: string): [string, string] {
   return match ? [match[1], value.slice(match[1].length)] : [fallback, value.replace(/^\+/, '')]
 }
 
-export default function PhoneControl({ field, path, invalid, describedBy }: ControlProps & { field: PhoneField }) {
+export default function PhoneControl({ field, path, invalid, required, describedBy }: ControlProps & { field: PhoneField }) {
   const ctx = useRenderer()
   const value = ctx.getValue(path)
   const set = (v: unknown) => ctx.setValue(path, v)
@@ -73,6 +73,7 @@ export default function PhoneControl({ field, path, invalid, describedBy }: Cont
         value={local}
         placeholder={field.placeholder ?? (dialCode === '+960' ? '7771234' : undefined)}
         aria-invalid={invalid || undefined}
+        aria-required={required || undefined}
         aria-describedby={describedBy}
         onChange={(e) => emit(dialCode, e.target.value.replace(/[^\d]/g, ''))}
         onBlur={blur}

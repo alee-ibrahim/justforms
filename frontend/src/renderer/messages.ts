@@ -9,8 +9,6 @@ export const MSG = {
   back: 'Back',
   submit: 'Submit',
   stepOf: 'Step {n} of {total}',
-  optional: '(optional)',
-  required: '(required)',
   problemOne: "There's a problem",
   problemMany: 'There are {n} problems',
   answerThis: 'Answer this question',
