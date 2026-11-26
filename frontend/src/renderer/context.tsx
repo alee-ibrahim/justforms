@@ -29,8 +29,6 @@ export interface RendererContextValue {
   dir: TextDirection
   /** `canvas`: the builder's inert WYSIWYG view; `fill`: a respondent (or preview) fills it in. */
   mode: 'fill' | 'canvas'
-  /** Which questions get a marker: "(optional)" on optional ones, or "(required)". */
-  convention: 'optional' | 'required'
   getValue: (p: AnswerPath) => unknown
   setValue: (p: AnswerPath, value: unknown) => void
   blur: (p: AnswerPath) => void

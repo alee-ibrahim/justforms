@@ -331,10 +331,9 @@
   [data-slot='bilingual']:lang(dv) > [data-part='ltr'] {
     font-size: calc(1em / 1.12);
   }
-  /* The reverse: a Latin run inside Dhivehi text ("PPY ގެ ...") and the English requirement mark
-     after a Dhivehi label are set back to the Latin size, so they don't loom over the Thaana. */
-  :lang(dv) > span[lang='en'][dir='ltr'],
-  [data-slot='requirement-mark']:lang(dv) {
+  /* The reverse: a Latin run inside Dhivehi text ("PPY ގެ ...") is set back to the Latin size,
+     so it doesn't loom over the Thaana. */
+  :lang(dv) > span[lang='en'][dir='ltr'] {
     font-size: calc(1em / 1.12);
   }
   /* Thaana underlines sit below the lower vowel signs. */

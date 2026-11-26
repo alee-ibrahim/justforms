@@ -36,7 +36,7 @@ export function FormText({
  * A bilingual text as two parts in one row: the English part left to right at the left, the
  * Dhivehi part right to left at the right (pushed there by its end margin, the left one in its own
  * direction, so it stays at the right when the row wraps to two lines on narrow widths). `end` follows the English part (the
- * question's requirement mark). `inline`: a row as wide as its parts (buttons, chips).
+ * question's required "*"). `inline`: a row as wide as its parts (buttons, chips).
  */
 export function Bilingual({
   parts,

@@ -60,7 +60,6 @@ function ctx(form: Form): RendererContextValue {
     form,
     dir: 'ltr',
     mode: 'canvas',
-    convention: 'optional',
     getValue: () => undefined,
     setValue: () => {},
     blur: () => {},

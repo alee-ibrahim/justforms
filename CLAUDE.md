@@ -73,8 +73,10 @@ external secrets operator").
 - **No built-in keyboard**: no Thaana/phonetic keyboard and no language switch anywhere. People
   type Dhivehi with their device's keyboard; boxes only follow what is typed (`dir`/`lang` from
   the dominant script). Don't add a keyboard toggle or a per-question typing setting.
-- **Markers after form text** ("(optional)", "(required)") follow the text isolated in a
-  `<bdi dir>` (the label's own direction), so mixed labels never pull the marker to the wrong side.
+- **Markers after form text** (the required "*") follow the text isolated in a `<bdi dir>` (the
+  label's own direction), so mixed labels never pull the marker to the wrong side; in a split
+  bilingual label it follows the English part. The "*" is `aria-hidden`; the control carries
+  `aria-required` (or the label a screen-reader "required"). A label already ending in "*" gets no second one.
 - Use **logical** Tailwind classes in renderer/form components that display form content (the lint
   enforces them everywhere): `ms-*`/`me-*`, `ps-*`/`pe-*`, `start-*`/`end-*`, `text-start`/`text-end`,
   `border-s`/`border-e`, `rounded-s`/`rounded-e`. Never `ml/mr/pl/pr/left/right`.
