@@ -8,7 +8,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { EllipsisIcon, GripVerticalIcon, LockIcon, PlusIcon, XIcon } from 'lucide-react'
 import { type ReactNode, useContext, useState } from 'react'
 
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { Accordion, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -49,6 +49,7 @@ import { AlignField } from './align-field'
 import { duplicate, requestDelete, wrap } from './actions'
 import { ContentInput, ContentTextarea } from './content-input'
 import { blockInfo } from './block-types'
+import { GroupContent } from './inspector-group'
 import { PageJumps, RequiredEditor, VisibilityEditor } from './logic-editor'
 import { FormContext } from './form-context'
 import { usePublished, usePublishedSensitive } from './published'
@@ -707,7 +708,7 @@ function FieldPanel({ field, form }: { field: FieldElement; form: Form }) {
     <Accordion type="multiple" value={open} onValueChange={setOpen}>
       <AccordionItem value="question">
         <AccordionTrigger>Question</AccordionTrigger>
-        <AccordionContent>
+        <GroupContent>
           <FieldGroup className="gap-4">
             <TextField
               id="el-label"
@@ -753,12 +754,12 @@ function FieldPanel({ field, form }: { field: FieldElement; form: Form }) {
               onChange={(align) => update({ align })}
             />
           </FieldGroup>
-        </AccordionContent>
+        </GroupContent>
       </AccordionItem>
       {field.type === 'short_text' && !idPresetOf(field) && (
         <AccordionItem value="validation">
           <AccordionTrigger>Validation</AccordionTrigger>
-          <AccordionContent>
+          <GroupContent>
             <FieldGroup className="gap-4">
               <NumberField id="max-length" label="Max length" integer min={1} value={field.maxLength} onChange={(maxLength) => update({ maxLength })} />
               <TextField id="pattern" label="Pattern" mono value={field.pattern ?? ''} onChange={(pattern) => update({ pattern })} description="A regular expression, for example ^A[0-9]{6}$" />
@@ -771,15 +772,15 @@ function FieldPanel({ field, form }: { field: FieldElement; form: Form }) {
               />
               {field.pattern && <PatternTester pattern={field.pattern} />}
             </FieldGroup>
-          </AccordionContent>
+          </GroupContent>
         </AccordionItem>
       )}
       {field.type === 'long_text' && (
         <AccordionItem value="validation">
           <AccordionTrigger>Validation</AccordionTrigger>
-          <AccordionContent>
+          <GroupContent>
             <NumberField id="max-length" label="Max length" integer min={1} value={field.maxLength} onChange={(maxLength) => update({ maxLength })} />
-          </AccordionContent>
+          </GroupContent>
         </AccordionItem>
       )}
       <AccordionItem value="logic">
@@ -788,7 +789,7 @@ function FieldPanel({ field, form }: { field: FieldElement; form: Form }) {
             Logic {rules > 0 && <Badge variant="secondary">{rules}</Badge>}
           </span>
         </AccordionTrigger>
-        <AccordionContent>
+        <GroupContent>
           <FieldGroup className="gap-6">
             <VisibilityEditor
               key={`v-${field.id}`}
@@ -809,11 +810,11 @@ function FieldPanel({ field, form }: { field: FieldElement; form: Form }) {
               />
             )}
           </FieldGroup>
-        </AccordionContent>
+        </GroupContent>
       </AccordionItem>
       <AccordionItem value="advanced">
         <AccordionTrigger>Advanced</AccordionTrigger>
-        <AccordionContent>
+        <GroupContent>
           <FieldGroup className="gap-4">
             <KeyField key={field.id} el={field} />
             <SensitiveSwitch field={field} onChange={(sensitive) => update({ sensitive: sensitive || undefined })} />
@@ -836,7 +837,7 @@ function FieldPanel({ field, form }: { field: FieldElement; form: Form }) {
               />
             )}
           </FieldGroup>
-        </AccordionContent>
+        </GroupContent>
       </AccordionItem>
     </Accordion>
   )
@@ -850,7 +851,7 @@ function ContainerPanel({ el, form }: { el: Extract<Element, { kind: 'section' |
     <Accordion type="multiple" value={open} onValueChange={setOpen}>
       <AccordionItem value="main">
         <AccordionTrigger>{el.kind === 'section' ? 'Section' : el.kind === 'repeater' ? 'Repeater' : 'Text'}</AccordionTrigger>
-        <AccordionContent>
+        <GroupContent>
           <FieldGroup className="gap-4">
             {el.kind === 'section' && (
               <>
@@ -908,7 +909,7 @@ function ContainerPanel({ el, form }: { el: Extract<Element, { kind: 'section' |
               />
             )}
           </FieldGroup>
-        </AccordionContent>
+        </GroupContent>
       </AccordionItem>
       <AccordionItem value="logic">
         <AccordionTrigger id="inspector-logic">
@@ -916,7 +917,7 @@ function ContainerPanel({ el, form }: { el: Extract<Element, { kind: 'section' |
             Logic {el.visibleIf && <Badge variant="secondary">1</Badge>}
           </span>
         </AccordionTrigger>
-        <AccordionContent>
+        <GroupContent>
           <VisibilityEditor
             key={`v-${el.id}`}
             form={form}
@@ -925,14 +926,14 @@ function ContainerPanel({ el, form }: { el: Extract<Element, { kind: 'section' |
             cond={el.visibleIf}
             apply={(f, cond) => updateElement(f, el.id, (x) => clean({ ...x, visibleIf: cond ?? undefined }) as Element)}
           />
-        </AccordionContent>
+        </GroupContent>
       </AccordionItem>
       {el.kind === 'repeater' && (
         <AccordionItem value="advanced">
           <AccordionTrigger>Advanced</AccordionTrigger>
-          <AccordionContent>
+          <GroupContent>
             <KeyField key={el.id} el={el} />
-          </AccordionContent>
+          </GroupContent>
         </AccordionItem>
       )}
     </Accordion>
@@ -949,7 +950,7 @@ function PagePanel({ pageIndex, form }: { pageIndex: number; form: Form }) {
     <Accordion type="multiple" value={open} onValueChange={setOpen}>
       <AccordionItem value="page">
         <AccordionTrigger>Page</AccordionTrigger>
-        <AccordionContent>
+        <GroupContent>
           <FieldGroup className="gap-4">
             <TextField id="page-title" label="Title" content value={page.title ?? ''} placeholder={`Page ${pageIndex + 1}`} onChange={(title) => setPage({ title })} />
             <TextField id="page-desc" label="Description" content multiline value={page.description ?? ''} onChange={(description) => setPage({ description })} />
@@ -960,7 +961,7 @@ function PagePanel({ pageIndex, form }: { pageIndex: number; form: Form }) {
               onChange={(align) => setPage({ align })}
             />
           </FieldGroup>
-        </AccordionContent>
+        </GroupContent>
       </AccordionItem>
       <AccordionItem value="logic">
         <AccordionTrigger id="inspector-logic">
@@ -968,7 +969,7 @@ function PagePanel({ pageIndex, form }: { pageIndex: number; form: Form }) {
             Logic {rules > 0 && <Badge variant="secondary">{rules}</Badge>}
           </span>
         </AccordionTrigger>
-        <AccordionContent>
+        <GroupContent>
           <FieldGroup className="gap-6">
             {pageIndex > 0 ? (
               <VisibilityEditor
@@ -988,7 +989,7 @@ function PagePanel({ pageIndex, form }: { pageIndex: number; form: Form }) {
               <p className="text-sm text-muted-foreground">After the last page the form is submitted.</p>
             )}
           </FieldGroup>
-        </AccordionContent>
+        </GroupContent>
       </AccordionItem>
     </Accordion>
   )
